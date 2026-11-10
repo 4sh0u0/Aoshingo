@@ -100,6 +100,11 @@
   box-sizing: border-box;
 }
 
+/* Keep the hidden attribute working on elements that set their own display (such as .button). */
+[hidden] {
+  display: none !important;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -397,11 +402,42 @@ strong {
 
 .button-secondary {
   border-color: currentColor;
+  background: transparent;
   color: var(--link);
 }
 
 .button-secondary:hover {
   text-decoration: underline;
+}
+
+button.button {
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* While Turnstile checks the visitor. The colours stay, so the label keeps its contrast. */
+.button[aria-disabled="true"] {
+  cursor: progress;
+}
+
+/* ---------- Contact (「メールアドレスを表示」, assets/contact.js) ---------- */
+
+.contact-email {
+  margin-block: 1.5rem;
+}
+
+.contact-widget {
+  margin-block: 0.75rem;
+}
+
+.contact-status:empty {
+  margin: 0;
+}
+
+.contact-result {
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- Hero ---------- */
@@ -1052,6 +1088,7 @@ tbody th {
   .site-header nav,
   .skip-link,
   .actions,
+  .contact-email,
   .hero-figure {
     display: none;
   }

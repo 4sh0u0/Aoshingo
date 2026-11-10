@@ -22,9 +22,10 @@ App Store Connect には次の URL を登録します。アプリ内の「プラ
 | `site/public/support/` | 使い方、表示の見かた、よくある質問、お問い合わせ |
 | `site/public/privacy/` | プライバシーポリシー（公開版） |
 | `site/public/404.html` | 見つからないページ。どの URL でも表示されるため、リンクはすべて絶対 URL です。 |
-| `site/public/assets/` | スタイルシート、アイコン、OGP 画像 |
+| `site/public/assets/` | スタイルシート、アイコン、OGP 画像、「メールアドレスを表示」ボタンのスクリプト（`contact.js`） |
+| `site/contact-worker/` | 「メールアドレスを表示」ボタンの裏側の Cloudflare Worker（`aoshingo-contact`）。GitHub Pages には含めません。 |
 | `site/scripts/` | プレビュー用サーバー、チェック、画像の生成 |
-| `.github/workflows/pages.yml` | チェックと GitHub Pages への公開 |
+| `.github/workflows/pages.yml` | チェック、Worker のテスト、GitHub Pages への公開 |
 
 ## 手元で見る
 
@@ -53,13 +54,18 @@ Pull Request で `site/` を変更すると、GitHub Actions でも同じチェ�
 - **リフロー**：幅 320 px で横スクロールが出ないこと（WCAG 1.4.10）
 - **リンク**：サイト内のリンクとページ内リンク（`#…`）の行き先があること
 - **読み込み**：ページが読み込む画像やスタイルシートなどが存在すること（HTTP 400 以上や読み込み失敗を検出）
-- **外部への通信**：サイトの外へのリクエストは、`site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS`（GitHub と Cloudflare のホスト）宛てだけであること。それ以外のフォント、スクリプト、解析ツールなどを入れるとここで失敗します。チェック中は外部へのリクエストをすべて止めるので、ネットワークの状態に左右されません
+- **外部への通信**：サイトの外へのリクエストは、`site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS`（GitHub と Cloudflare のホスト）宛てだけであること。それ以外のフォント、スクリプト、解析ツールなどを入れるとここで失敗します。Turnstile（`challenges.cloudflare.com`）は、ボタンを押す前に読み込むと失敗します。チェック中は外部へのリクエストをすべて止めるので、ネットワークの状態に左右されません
+- **メールアドレスの表示**：Turnstile と Worker をテスト用の代わりに差し替えて、サポートページとプライバシーポリシーのボタンをキーボードで押します。エラー（回数の上限、Turnstile を読み込めない）のお知らせ、成功したときにアドレスへフォーカスが移ること、表示後の状態の axe を確かめます
+
+`site/contact-worker/` の Worker は別に `npm test` と `npm run typecheck` で確かめます（[`site/contact-worker/README.md`](../site/contact-worker/README.md)）。GitHub Actions でも同じテストが走ります。
 
 自動チェックで分かるのは一部です。大きな変更では、iPhone の VoiceOver と「さらに大きな文字」、macOS の VoiceOver、キーボード操作でも確かめてください。
 
 ## 公開
 
 `main` に `site/` の変更が入ると、GitHub Actions がチェックしたうえで GitHub Pages に公開します。手動で公開し直すときは、Actions の「Website」ワークフローを `main` で実行します。
+
+`site/contact-worker/` の Worker は GitHub Actions ではデプロイしません。Cloudflare の Workers Builds が、`main` に変更が入るたびに `cf deploy` します。
 
 最初の 1 回だけ、リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** にしておく必要があります。
 
@@ -70,11 +76,22 @@ Pull Request で `site/` を変更すると、GitHub Actions でも同じチェ�
 - GitHub や Cloudflare のサービスを新しくページで使うときは、同じ Pull Request で次の 2 つを行います。
   - プライバシーポリシーの「11. このウェブサイト」に、サービスの名前、使う目的、そのサービスに送られる情報を書く
   - ページが読み込むホストを `site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS` が許可しているか確かめる（独自ドメインの Worker などは追加する）
-- スクリプトは必要な部分（フォームなど）にだけ使い、文章と表はスクリプトなしでも読めるようにします。
-- Cookie とアクセス解析は使いません。使う場合は、先にプライバシーポリシーを改定します。
+- スクリプトは必要な部分（「メールアドレスを表示」ボタンなど）にだけ使い、文章と表はスクリプトなしでも読めるようにします。スクリプトはサイトの中に置き（`site/public/assets/`）、外部のスクリプトは操作されたときにだけ読み込みます。
+- このサイト自体は Cookie とアクセス解析を使いません。使う場合は、先にプライバシーポリシーを改定します。Turnstile のように、外部のサービスが確認のために Cookie などを使う場合も、プライバシーポリシーに書きます。
+- メールアドレスは HTML やリポジトリに書きません。お問い合わせ用のアドレスは「メールアドレスを表示」ボタンで表示します。
 - 信号の状態は、アプリと同じく色だけで示さず、図形と文字を必ず添えます。配色はアプリ（`App/Views/Signal/SignalAppearance.swift`）と同じ値を使います。
 - 見出しは順番どおりに使い（`h1` はページに 1 つ）、表には `caption` と `th` の `scope` を付けます。
 - アプリの画面名やボタン名を書くときは、アプリの表示と同じ言葉にします。
+
+## メールアドレスの表示（Turnstile）
+
+サポートページとプライバシーポリシーの「メールアドレスを表示」ボタンを押すと、`site/public/assets/contact.js` が Cloudflare Turnstile を読み込み、確認が済んだら `aoshingo-contact` Worker からアドレスを受け取って表示します。アドレスは Worker の secret にだけ置くので、HTML を集めるクローラーには見えません。
+
+- `contact.js` の `CONFIG`（Turnstile の Site Key と Worker の URL）が空のあいだ、ボタンは表示されず、GitHub の Issue の案内だけが出ます。
+- スクリプトを使えない閲覧者には、`<noscript>` で GitHub の Issue を案内します。
+- 表示に成功するとアドレスのリンクにフォーカスが移り、エラーは `role="status"` の欄で読み上げます。
+
+初回の設定（専用アドレス、Turnstile のウィジェット、Worker の secret、Workers Builds）は [`site/contact-worker/README.md`](../site/contact-worker/README.md) にまとめています。
 
 ## プライバシーポリシーを変えるとき
 

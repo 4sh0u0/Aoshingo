@@ -13,6 +13,7 @@
   <link rel="icon" href="../assets/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
   <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/contact.js" defer></script>
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Aoshingo">
   <meta property="og:locale" content="ja_JP">
@@ -198,6 +199,16 @@
         <h2 id="contact">お問い合わせ・不具合の報告</h2>
         <p>不具合の報告、ご意見、ご質問は、<a href="https://github.com/4sh0u0/Aoshingo/issues">GitHub の Issue</a> で受け付けています。新しく書くときは「<a href="https://github.com/4sh0u0/Aoshingo/issues/new">New issue</a>」から作成してください（GitHub のアカウントが必要です）。</p>
         <p><strong>Issue は誰でも読める公開の場所です。</strong>氏名、住所、メールアドレスなどの個人情報は書かないでください。受信した時刻と交差点名から、いつその交差点にいたかが分かることにもご注意ください。</p>
+        <div class="contact-email" data-contact-email hidden>
+          <p>GitHub のアカウントがない場合や、公開の場所に書きにくい内容は、メールでも受け付けます。迷惑メールを防ぐため、アドレスはボタンを押したあとに表示します。表示の前に、Cloudflare Turnstile でロボットによる操作でないかを確かめます（<a href="../privacy/#website">プライバシーポリシーの「11. このウェブサイト」</a>）。</p>
+          <p><button type="button" class="button button-secondary" data-contact-button>メールアドレスを表示</button></p>
+          <div class="contact-widget" data-contact-widget hidden></div>
+          <p class="contact-status" role="status" data-contact-status></p>
+          <p class="contact-result" data-contact-result hidden></p>
+        </div>
+        <noscript>
+          <p>メールアドレスの表示にはスクリプトを使います。スクリプトを使えない場合は、GitHub の Issue をご利用ください。</p>
+        </noscript>
         <p>不具合を報告するときは、次の内容を書いていただけると調べやすくなります。</p>
         <ul>
           <li>iPhone の機種と iOS のバージョン</li>
@@ -214,9 +225,9 @@
           <li>スクリーンリーダーで見出しやランドマークから移動できるようにしています。</li>
           <li>キーボードだけで操作でき、フォーカスの位置が見えるようにしています。</li>
           <li>ブラウザーの文字サイズの変更や拡大、iPhone の「さらに大きな文字」、ダークモード、「コントラストを上げる」の設定に合わせて表示が変わります。</li>
-          <li>文章と表は、スクリプトを読み込まなくても読めるようにしています。</li>
+          <li>文章と表は、スクリプトを読み込まなくても読めるようにしています。スクリプトを使うのは「メールアドレスを表示」ボタンだけです。</li>
         </ul>
-        <p>使いにくい点があれば、上の Issue からお知らせください。</p>
+        <p>使いにくい点があれば、<a href="#contact">お問い合わせ</a>の方法でお知らせください。</p>
 
         <p class="back-to-top"><a href="#main">ページの先頭へ戻る</a></p>
       </div>

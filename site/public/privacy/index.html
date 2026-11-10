@@ -13,6 +13,7 @@
   <link rel="icon" href="../assets/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
   <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/contact.js" defer></script>
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Aoshingo">
   <meta property="og:locale" content="ja_JP">
@@ -210,12 +211,25 @@
         <h2 id="website">11. このウェブサイト</h2>
         <ul>
           <li>このウェブサイトは <a href="https://docs.github.com/ja/pages">GitHub Pages</a> で公開しています。GitHub は、セキュリティのために、サイトを閲覧した人の IP アドレスを記録します。GitHub 自身の扱いについては <a href="https://docs.github.com/ja/site-policy/privacy-policies/github-general-privacy-statement">GitHub のプライバシーに関する声明</a>をご覧ください。</li>
-          <li>現在、このサイトは Cookie、アクセス解析、広告、外部のフォントを使っていません。開発者がこのサイトの閲覧者の情報を集めることはありません。</li>
-          <li>お問い合わせの受け付けなどのために、開発で使っている GitHub と Cloudflare のサービス（スクリプトを含む）をこのサイトで使うことがあります。その場合は、使い始める前に、サービスの名前、使う目的、そのサービスに送られる情報をこの節に書き加えます。</li>
+          <li>このサイト自体は、Cookie、アクセス解析、広告、外部のフォントを使っていません。開発者がこのサイトの閲覧者の情報を集めることはありません。</li>
+          <li>サポートページとこのページの「メールアドレスを表示」ボタンを押したときだけ、迷惑メールを防ぐために Cloudflare の <a href="https://developers.cloudflare.com/turnstile/">Turnstile</a> を使います。ボタンを押すと、ブラウザーは Cloudflare（challenges.cloudflare.com）からスクリプトを読み込み、ロボットによる操作でないかを確かめます。このとき Cloudflare は、確かめるために必要な情報（IP アドレス、ブラウザーや端末の情報など）を処理し、確認のために Cloudflare のドメインで Cookie やブラウザーの保存領域を使うことがあります。ボタンを押さなければ、Turnstile は読み込まれません。Cloudflare の扱いについては、<a href="https://www.cloudflare.com/turnstile-privacy-policy/">Turnstile のプライバシーに関する補足（英語）</a>と <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare のプライバシーポリシー</a>をご覧ください。</li>
+          <li>確認が済むと、ブラウザーは確認の結果（1 回だけ使える符号）を、開発者が Cloudflare Workers で動かしているプログラムに送ります。プログラムは、その結果が正しいことを Cloudflare に問い合わせてから、メールアドレスを返します。通信を届けるために Cloudflare は IP アドレスを処理しますが、このプログラムは IP アドレスや国などを示すヘッダーを読まず、何も保存せず、アクセスログやトレースの記録も無効にしています。</li>
+          <li>ほかに GitHub や Cloudflare のサービスをこのサイトで使うときは、使い始める前に、サービスの名前、使う目的、そのサービスに送られる情報をこの節に書き加えます。</li>
         </ul>
 
         <h2 id="contact">12. お問い合わせ</h2>
         <p><a href="https://github.com/4sh0u0/Aoshingo/issues">GitHub の Issue</a> でお問い合わせください。Issue は公開されるため、個人情報は書かないでください。</p>
+        <div class="contact-email" data-contact-email hidden>
+          <p>公開の場所に書きにくい内容は、メールでも受け付けます。迷惑メールを防ぐため、アドレスはボタンを押したあとに表示します。表示の前に、上の「11. このウェブサイト」に書いたとおり Cloudflare Turnstile を使います。</p>
+          <p><button type="button" class="button button-secondary" data-contact-button>メールアドレスを表示</button></p>
+          <div class="contact-widget" data-contact-widget hidden></div>
+          <p class="contact-status" role="status" data-contact-status></p>
+          <p class="contact-result" data-contact-result hidden></p>
+        </div>
+        <noscript>
+          <p>メールアドレスの表示にはスクリプトを使います。スクリプトを使えない場合は、GitHub の Issue をご利用ください。</p>
+        </noscript>
+        <p>メールでお問い合わせいただいた場合、メールアドレスと内容は、返信と対応のためだけに使い、法令に基づく場合を除いて第三者に提供しません。</p>
 
         <p class="back-to-top"><a href="#main">ページの先頭へ戻る</a></p>
       </div>

@@ -6,7 +6,10 @@
 //   - no horizontal scrolling at 320 CSS px wide (WCAG 1.4.10 Reflow)
 //   - every internal link and #fragment resolves, and every resource the page loads exists
 //   - requests that leave the site go only to the GitHub and Cloudflare infrastructure listed in
-//     ALLOWED_EXTERNAL_HOSTS (no other fonts, scripts, analytics or widgets)
+//     ALLOWED_EXTERNAL_HOSTS (no other fonts, scripts, analytics or widgets), and Turnstile is not
+//     loaded until the 「メールアドレスを表示」 button is pressed
+//   - the 「メールアドレスを表示」 button (assets/contact.js) with stand-ins for Turnstile and the
+//     contact Worker: keyboard use, focus, status messages, errors and axe in the revealed state
 //
 // Set PLAYWRIGHT_CHROMIUM_EXECUTABLE to use an already installed Chromium.
 
@@ -45,6 +48,38 @@ const ALLOWED_EXTERNAL_HOSTS = [
 const isAllowedExternal = (hostname) =>
   ALLOWED_EXTERNAL_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
 
+// The 「メールアドレスを表示」 button. The check replaces the real Turnstile script and the Worker with
+// stand-ins, so it needs no keys and no network.
+const TURNSTILE_HOST = "challenges.cloudflare.com";
+const CONTACT_PAGES = ["support/", "privacy/"];
+const TEST_SITEKEY = "1x00000000000000000000AA";
+const TEST_ENDPOINT = "https://aoshingo-contact.example.workers.dev/v1/email";
+const TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
+const TEST_EMAIL = "contact@example.com";
+const STUB_TURNSTILE = `(() => {
+  const onload = new URL(document.currentScript.src).searchParams.get("onload");
+  const widgets = new Map();
+  let next = 0;
+  window.__turnstileRenders = [];
+  window.turnstile = {
+    render(container, options) {
+      const id = String(++next);
+      const frame = document.createElement("p");
+      frame.textContent = "Turnstile（テスト用の代わり）";
+      container.append(frame);
+      widgets.set(id, frame);
+      window.__turnstileRenders.push({ sitekey: options.sitekey, action: options.action, language: options.language });
+      setTimeout(() => options.callback(${JSON.stringify(TEST_TOKEN)}), 50);
+      return id;
+    },
+    remove(id) {
+      widgets.get(id)?.remove();
+      widgets.delete(id);
+    },
+  };
+  window[onload]();
+})();`;
+
 const server = await startServer();
 const browser = await chromium.launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined,
@@ -59,9 +94,10 @@ const fail = (message) => {
  * Serves requests for the published URL (used by 404.html) from the local files, and blocks and
  * records every other request that leaves the local server.
  */
-async function routeRequests(context, external) {
+async function routeRequests(context, external, handle = null) {
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if (handle && (await handle(route, url))) return;
     if (url.origin === server.origin) return route.continue();
     if (url.origin === PUBLISHED_ORIGIN && url.pathname.startsWith(BASE_PATH)) {
       const response = await context.request.get(`${server.origin}${url.pathname}${url.search}`);
@@ -168,7 +204,9 @@ try {
     }
 
     for (const href of external) {
-      if (isAllowedExternal(new URL(href).hostname)) {
+      if (new URL(href).hostname === TURNSTILE_HOST) {
+        fail(`[${mode.name}] Turnstile was loaded before the button was pressed: ${href}`);
+      } else if (isAllowedExternal(new URL(href).hostname)) {
         console.log(`  [${mode.name}] external request to allowed infrastructure (blocked in the check): ${href}`);
       } else {
         fail(`[${mode.name}] external request to a host not in ALLOWED_EXTERNAL_HOSTS: ${href}`);
@@ -176,9 +214,153 @@ try {
     }
     await context.close();
   }
+  await checkContactButton();
 } finally {
   await browser.close();
   await server.close();
+}
+
+/** Presses the 「メールアドレスを表示」 button on each page that has it, with stand-ins. */
+async function checkContactButton() {
+  const source = await readFile(path.join(PUBLIC_DIR, "assets/contact.js"), "utf8");
+  const configPattern = /sitekey: "[^"]*",(\s*\/\/[^\n]*\n\s*)endpoint: "[^"]*",/;
+  if (!configPattern.test(source)) {
+    fail("assets/contact.js: CONFIG not found (the check rewrites sitekey and endpoint)");
+    return;
+  }
+  const testSource = source.replace(configPattern, `sitekey: "${TEST_SITEKEY}",$1endpoint: "${TEST_ENDPOINT}",`);
+
+  for (const mode of MODES.filter(({ name }) => name === "light" || name === "dark")) {
+    const context = await browser.newContext({ ...mode.options, locale: "ja-JP" });
+    const external = new Set();
+    const state = { turnstileLoads: 0, blockTurnstile: false, workerStatus: 200, workerRequests: [] };
+    await routeRequests(context, external, async (route, url) => {
+      const request = route.request();
+      if (url.origin === server.origin && url.pathname === `${BASE_PATH}assets/contact.js`) {
+        await route.fulfill({ contentType: "text/javascript; charset=utf-8", body: testSource });
+        return true;
+      }
+      if (url.hostname === TURNSTILE_HOST && url.pathname === "/turnstile/v0/api.js") {
+        state.turnstileLoads += 1;
+        if (state.blockTurnstile) await route.abort();
+        else await route.fulfill({ contentType: "text/javascript", body: STUB_TURNSTILE });
+        return true;
+      }
+      if (url.href === TEST_ENDPOINT) {
+        state.workerRequests.push({ method: request.method(), body: request.postData(), origin: request.headers().origin });
+        const status = state.workerStatus;
+        await route.fulfill({
+          status,
+          contentType: "application/json",
+          headers: { "access-control-allow-origin": server.origin },
+          body: JSON.stringify(status === 200 ? { email: TEST_EMAIL } : { error: "test" }),
+        });
+        return true;
+      }
+      return false;
+    });
+    const page = await context.newPage();
+
+    for (const pagePath of CONTACT_PAGES) {
+      const label = `/${pagePath} [${mode.name}] contact button`;
+      const failuresBefore = failures.length;
+      Object.assign(state, { turnstileLoads: 0, blockTurnstile: false, workerStatus: 200, workerRequests: [] });
+      const statusText = () => page.locator("[data-contact-status]").textContent();
+      const waitForStatus = async (pattern) => {
+        try {
+          await page.waitForFunction(
+            (source) => new RegExp(source).test(document.querySelector("[data-contact-status]")?.textContent ?? ""),
+            pattern.source,
+            { timeout: 5000 },
+          );
+          return true;
+        } catch {
+          fail(`${label}: status message did not match ${pattern} (it was "${await statusText()}")`);
+          return false;
+        }
+      };
+      const button = page.locator("[data-contact-button]");
+      const buttonHasFocus = () =>
+        page.evaluate(() => document.activeElement === document.querySelector("[data-contact-button]"));
+      const pressButton = async () => {
+        await button.focus();
+        await page.keyboard.press("Enter");
+      };
+
+      await page.goto(`${server.url}${pagePath}`, { waitUntil: "load" });
+      if (!(await button.isVisible())) {
+        fail(`${label}: the button is not shown`);
+        continue;
+      }
+      if (state.turnstileLoads !== 0) fail(`${label}: Turnstile was loaded before the button was pressed`);
+
+      // 1. The Worker refuses (rate limit): the message is announced and the button can be used again.
+      state.workerStatus = 429;
+      await pressButton();
+      if (await waitForStatus(/上限/)) {
+        if (!(await buttonHasFocus())) fail(`${label}: focus left the button after an error`);
+        if ((await button.getAttribute("aria-disabled")) !== null) fail(`${label}: the button stays disabled after an error`);
+        if (await page.locator("[data-contact-result]").isVisible()) fail(`${label}: an address is shown after an error`);
+      }
+
+      // 2. Success: the address appears as a mailto link and receives focus.
+      state.workerStatus = 200;
+      await pressButton();
+      const link = page.locator("[data-contact-result] a");
+      try {
+        await link.waitFor({ state: "visible", timeout: 5000 });
+      } catch {
+        fail(`${label}: no address after a successful check (status "${await statusText()}")`);
+        continue;
+      }
+      await waitForStatus(/メールアドレスを表示しました/);
+      if ((await link.textContent()) !== TEST_EMAIL) fail(`${label}: link text is "${await link.textContent()}"`);
+      if (!(await link.getAttribute("href"))?.startsWith(`mailto:${TEST_EMAIL}?`)) {
+        fail(`${label}: link href is "${await link.getAttribute("href")}"`);
+      }
+      const linkHasFocus = await page.evaluate(
+        () => document.activeElement === document.querySelector("[data-contact-result] a"),
+      );
+      if (!linkHasFocus) fail(`${label}: focus did not move to the address`);
+      if (await button.isVisible()) fail(`${label}: the button is still shown with the address`);
+      if (await page.locator("[data-contact-widget]").isVisible()) fail(`${label}: the Turnstile widget was not removed`);
+
+      if (state.turnstileLoads !== 1) fail(`${label}: Turnstile was loaded ${state.turnstileLoads} times, expected once`);
+      const renders = await page.evaluate(() => window.__turnstileRenders);
+      for (const render of renders) {
+        if (render.sitekey !== TEST_SITEKEY || render.action !== "show-email" || render.language !== "ja") {
+          fail(`${label}: turnstile.render got ${JSON.stringify(render)}`);
+        }
+      }
+      for (const request of state.workerRequests) {
+        if (request.method !== "POST" || request.body !== `token=${encodeURIComponent(TEST_TOKEN)}`) {
+          fail(`${label}: the Worker got ${request.method} ${request.body}`);
+        }
+        if (request.origin !== server.origin) fail(`${label}: the Worker got Origin ${request.origin}`);
+      }
+
+      const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+      for (const violation of results.violations) {
+        const targets = violation.nodes.map((node) => node.target.join(" ")).slice(0, 5).join(", ");
+        fail(`${label}: axe ${violation.id} (${violation.impact}) with the address shown: ${violation.help} → ${targets}`);
+      }
+
+      // 3. Turnstile cannot be loaded (for example a content blocker): the visitor is told so.
+      await page.reload({ waitUntil: "load" });
+      state.blockTurnstile = true;
+      await pressButton();
+      if (await waitForStatus(/読み込めませんでした/)) {
+        if ((await button.getAttribute("aria-disabled")) !== null) fail(`${label}: the button stays disabled when Turnstile is blocked`);
+      }
+
+      if (failures.length === failuresBefore) console.log(`✓ ${label}: error, success and blocked Turnstile`);
+    }
+
+    for (const href of external) {
+      if (!isAllowedExternal(new URL(href).hostname)) fail(`[${mode.name}] contact button: request to ${href}`);
+    }
+    await context.close();
+  }
 }
 
 if (failures.length > 0) {
