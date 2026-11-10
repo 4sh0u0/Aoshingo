@@ -35,6 +35,6 @@ enum SignalColorMode: String, CaseIterable, Identifiable, Sendable {
 /// Links used in the app.
 enum AppLinks {
     static let repository = URL(string: "https://github.com/4sh0u0/Aoshingo")!
-    static let privacyPolicy = URL(string: "https://github.com/4sh0u0/Aoshingo/blob/main/docs/privacy.md")!
+    static let privacyPolicy = URL(string: "https://4sh0u0.github.io/Aoshingo/privacy/")!
     static let blePicsViewer = URL(string: "https://github.com/yumu19/ble-pics-viewer")!
 }
