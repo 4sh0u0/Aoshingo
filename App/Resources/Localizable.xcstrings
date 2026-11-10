@@ -611,6 +611,26 @@
         }
       }
     },
+    "判定中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirming"
+          }
+        }
+      }
+    },
+    "判定中。実際の信号を確認してください": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirming. Check the actual signal"
+          }
+        }
+      }
+    },
     "協力しない": {
       "localizations": {
         "en": {

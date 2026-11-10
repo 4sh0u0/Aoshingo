@@ -28,7 +28,10 @@ struct SignalAppearance: Equatable {
         static let red = Color(red: 0xD7 / 255, green: 0x26 / 255, blue: 0x1E / 255)
     }
 
-    /// - Parameter stale: no Type 2 for five seconds; the last colour must not be shown as current.
+    /// - Parameters:
+    ///   - state: the confirmed state, or `nil` while signal data is arriving but nothing is confirmed
+    ///     yet (a 青 or 青点滅 waits for a second matching packet, see `SignalDebouncer`).
+    ///   - stale: no Type 2 for five seconds; the last colour must not be shown as current.
     static func make(
         state: SignalState?,
         stale: Bool,
@@ -40,17 +43,31 @@ struct SignalAppearance: Equatable {
         default: mode
         }
         let neutralFill = Color(uiColor: .systemGray4)
-        let neutral = SignalAppearance(
-            symbol: "antenna.radiowaves.left.and.right.slash",
-            title: "更新なし",
-            instruction: "実際の信号を確認",
-            accessibilityTitle: String(localized: "更新なし。実際の信号を確認してください"),
-            fill: neutralFill,
-            foreground: .primary,
-            isDashed: false,
-            blinks: false
-        )
-        guard let state, !stale else { return neutral }
+        if stale {
+            return SignalAppearance(
+                symbol: "antenna.radiowaves.left.and.right.slash",
+                title: "更新なし",
+                instruction: "実際の信号を確認",
+                accessibilityTitle: String(localized: "更新なし。実際の信号を確認してください"),
+                fill: neutralFill,
+                foreground: .primary,
+                isDashed: false,
+                blinks: false
+            )
+        }
+        guard let state else {
+            // Data is current, but a safer state is shown only after it has been confirmed.
+            return SignalAppearance(
+                symbol: "hourglass",
+                title: "判定中",
+                instruction: "実際の信号を確認",
+                accessibilityTitle: String(localized: "判定中。実際の信号を確認してください"),
+                fill: neutralFill,
+                foreground: .primary,
+                isDashed: false,
+                blinks: false
+            )
+        }
 
         switch state {
         case .green, .blinkGreen:

@@ -123,6 +123,7 @@ struct RemainingGauge: View {
             SignalSlotView(slot: 2, signal: .init(remaining: 2, state: .blinkGreen), stale: false, mode: .colorUniversal)
             SignalSlotView(slot: 3, signal: .init(remaining: nil, state: .red), stale: false, mode: .monochrome)
             SignalSlotView(slot: 4, signal: .init(remaining: 3, state: .red), stale: true, mode: .standard)
+            SignalSlotView(slot: 5, signal: nil, stale: false, mode: .standard)
         }
         .padding()
     }

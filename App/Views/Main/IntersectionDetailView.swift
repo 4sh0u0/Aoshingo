@@ -84,7 +84,7 @@ struct IntersectionDetailView: View {
                 ForEach(slots, id: \.slot) { slot in
                     let index = slot.slot - 1
                     let shown = index < confirmed.count ? confirmed[index] : nil
-                    SignalSlotView(slot: slot.slot, signal: shown, stale: stale || shown == nil, mode: colorMode)
+                    SignalSlotView(slot: slot.slot, signal: shown, stale: stale, mode: colorMode)
                 }
             }
         }
