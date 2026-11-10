@@ -24,6 +24,7 @@ jobs:
   check:
     name: Check and build
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: site
@@ -44,11 +45,32 @@ jobs:
         with:
           path: site/public
 
+  # The Worker behind the 「メールアドレスを表示」 button. Cloudflare Workers Builds deploys it (see
+  # site/contact-worker/README.md); this job only tests it.
+  contact-worker:
+    name: Test the contact Worker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site/contact-worker
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/contact-worker/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
   deploy:
     name: Deploy to GitHub Pages
     needs: check
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       pages: write
       id-token: write
