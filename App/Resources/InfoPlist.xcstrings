@@ -1,0 +1,60 @@
+{
+  "sourceLanguage": "ja",
+  "strings": {
+    "CFBundleDisplayName": {
+      "comment": "Bundle display name",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aoshingo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Aoshingo"
+          }
+        }
+      }
+    },
+    "NSBluetoothAlwaysUsageDescription": {
+      "comment": "Privacy - Bluetooth Always Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aoshingo receives the Bluetooth broadcasts (Advanced PICS) of traffic signals at intersections to show the state of pedestrian signals. It only receives and never transmits."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "new",
+            "value": "交差点の信号機が発信する Bluetooth 信号（高度化PICS）を受信して、歩行者用信号の状態を表示するために使います。受信のみで、送信はしません。"
+          }
+        }
+      }
+    },
+    "NSLocationWhenInUseUsageDescription": {
+      "comment": "Privacy - Location When In Use Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only if you share field data, your location is used to work out your rough direction from the intersection (one of 8 sectors). Your location itself is never sent."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "new",
+            "value": "実測データの提供に協力している場合だけ、交差点から見たおおまかな方向（8 方位）を求めるために使います。位置そのものは端末の外に送信しません。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

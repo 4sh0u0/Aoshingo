@@ -1,0 +1,1486 @@
+{
+  "sourceLanguage": "ja",
+  "strings": {
+    "%lld 件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld packets"
+          }
+        }
+      }
+    },
+    "%lld 件 · 平均間隔 %@ 秒 · 最短 %@ 秒": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld packets · mean interval %@ s · shortest %@ s"
+          }
+        }
+      }
+    },
+    "%lld 番": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No. %lld"
+          }
+        }
+      }
+    },
+    "%lld 秒前": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld s ago"
+          }
+        }
+      }
+    },
+    "Aoshingo のライセンス": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aoshingo’s License"
+          }
+        }
+      }
+    },
+    "Aoshingo の高度化PICS アドバタイズ解析は、yumu19/ble-pics-viewer（MIT License, Copyright (c) 2025 Tsubasa Yumura）の解析仕様と実装を参考に、Swift で再実装したものです。受信方法と解析結果を公開してくださった作者に心より感謝します。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aoshingo’s decoding of Advanced PICS advertisements is a Swift reimplementation based on the format and implementation of yumu19/ble-pics-viewer (MIT License, Copyright (c) 2025 Tsubasa Yumura). Our heartfelt thanks to the author for publishing how to receive and decode them."
+          }
+        }
+      }
+    },
+    "Aoshingo は、高度化PICS に対応した交差点の信号機が発信する Bluetooth 信号を受信して、歩行者用信号の状態を表示する非公式アプリです。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aoshingo is an unofficial app that receives the Bluetooth broadcasts of traffic signals at intersections equipped with Advanced PICS and shows the state of the pedestrian signals."
+          }
+        }
+      }
+    },
+    "Aoshingo は非公式アプリです。警察庁、信号機メーカー、信GO! とは関係ありません。受信専用で、信号機に送信することはありません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aoshingo is an unofficial app, not affiliated with the National Police Agency, signal manufacturers or Shingo!. It only receives and never transmits to traffic signals."
+          }
+        }
+      }
+    },
+    "Aoshingo へようこそ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome to Aoshingo"
+          }
+        }
+      }
+    },
+    "Bluetooth Low Energy に対応した端末が必要です。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A device with Bluetooth Low Energy is required."
+          }
+        }
+      }
+    },
+    "Bluetooth がオフです": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth Is Off"
+          }
+        }
+      }
+    },
+    "Bluetooth の使用が許可されていません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth Access Not Allowed"
+          }
+        }
+      }
+    },
+    "PICS 以外のメーカーデータ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manufacturer data not from PICS"
+          }
+        }
+      }
+    },
+    "Service UUID が「なし」の場合、iOS のバックグラウンドでは受信できません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If there is no Service UUID, iOS cannot receive these signals in the background."
+          }
+        }
+      }
+    },
+    "Type %lld が短すぎます（%lld / %lld バイト）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type %lld too short (%lld / %lld bytes)"
+          }
+        }
+      }
+    },
+    "Type %lld の最新パケット": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latest Type %lld packet"
+          }
+        }
+      }
+    },
+    "「残り目安」は 8 段階の目安で、秒数ではありません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“Remaining” is a rough 8-step guide, not a number of seconds."
+          }
+        }
+      }
+    },
+    "あとから設定画面でいつでも変更できます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can change this at any time in Settings."
+          }
+        }
+      }
+    },
+    "おおまかな方向を求めるために位置情報の許可をお願いすることがあります。位置そのものは端末の外に出ません。生データは 90 日後に削除し、交差点ごとの集計だけを残します。送信したデータには識別子がないため、あとから個別に削除することはできません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aoshingo may ask for location access to work out the rough direction. Your location itself never leaves the device. Raw data is deleted after 90 days and only per-intersection totals are kept. Because sent data carries no identifier, it cannot be deleted individually later."
+          }
+        }
+      }
+    },
+    "このビルドには送信先が設定されていないため、データは端末内にだけ保存されます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build has no server configured, so data is only kept on this device."
+          }
+        }
+      }
+    },
+    "この交差点の信号データには使用中の信号がありません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The signal data of this intersection contains no signals in use."
+          }
+        }
+      }
+    },
+    "この端末では App Attest を使えないため送信できません（シミュレーターなど）。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This device cannot use App Attest, so nothing can be sent (for example, the Simulator)."
+          }
+        }
+      }
+    },
+    "この端末では受信できません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Device Cannot Receive"
+          }
+        }
+      }
+    },
+    "これは開発中の試験版（pre-alpha）です。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is an early test version (pre-alpha)."
+          }
+        }
+      }
+    },
+    "その他": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
+          }
+        }
+      }
+    },
+    "どのモードでも、色だけでなく形と文字で信号を示します。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every mode shows the signal with shapes and words, not color alone."
+          }
+        }
+      }
+    },
+    "なし": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        }
+      }
+    },
+    "まだありません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None yet"
+          }
+        }
+      }
+    },
+    "オフにすると、まだ送信していないデータはすぐに削除されます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turning this off immediately deletes data that has not been sent yet."
+          }
+        }
+      }
+    },
+    "カラーユニバーサルデザイン推奨配色の青と朱色。色の見え方の違いがあっても区別しやすい組み合わせです。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blue and vermilion from the Color Universal Design recommended palette, easy to tell apart across color vision differences."
+          }
+        }
+      }
+    },
+    "コントロールセンターまたは設定で Bluetooth をオンにしてください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on Bluetooth in Control Center or Settings."
+          }
+        }
+      }
+    },
+    "サーバーは IP アドレスを記録しません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server does not record IP addresses"
+          }
+        }
+      }
+    },
+    "ソースコードとライセンス全文": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source Code and Full License"
+          }
+        }
+      }
+    },
+    "ソースコード（GitHub）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source Code (GitHub)"
+          }
+        }
+      }
+    },
+    "デモを表示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Demo"
+          }
+        }
+      }
+    },
+    "デモ表示中：実際の信号ではありません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demo: this is not a real signal"
+          }
+        }
+      }
+    },
+    "バージョン": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version"
+          }
+        }
+      }
+    },
+    "プライバシーポリシー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy Policy"
+          }
+        }
+      }
+    },
+    "ヘッダーが短すぎます（%lld バイト）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Header too short (%lld bytes)"
+          }
+        }
+      }
+    },
+    "モノクロ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monochrome"
+          }
+        }
+      }
+    },
+    "ローカル名": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local name"
+          }
+        }
+      }
+    },
+    "不明": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
+          }
+        }
+      }
+    },
+    "不明。実際の信号を確認してください": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown. Check the actual signal"
+          }
+        }
+      }
+    },
+    "交差点": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intersections"
+          }
+        }
+      }
+    },
+    "交差点 ID %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intersection ID %@"
+          }
+        }
+      }
+    },
+    "交差点から見たあなたの方向と、端末の向き（どちらも 8 方位のおおまかな区分）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your direction from the intersection and the direction your device faces (each as one of 8 rough compass sectors)"
+          }
+        }
+      }
+    },
+    "交差点の情報": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intersection"
+          }
+        }
+      }
+    },
+    "今すぐ送信": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send Now"
+          }
+        }
+      }
+    },
+    "位置": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position"
+          }
+        }
+      }
+    },
+    "信号が変わった時刻（秒単位）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When a signal changed (to the second)"
+          }
+        }
+      }
+    },
+    "信号なし": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Signal"
+          }
+        }
+      }
+    },
+    "信号なし。実際の信号を確認してください": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No signal. Check the actual signal"
+          }
+        }
+      }
+    },
+    "信号の周期や、どの番号がどの横断歩道かを調べるため、受信したデータの提供にご協力いただけますか。協力しなくても、すべての機能をそのまま使えます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To learn signal cycles and which number belongs to which crossing, would you share the data you receive? Every feature works the same if you do not."
+          }
+        }
+      }
+    },
+    "信号の番号がどの横断歩道かは、まだ確認できていません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Which crossing each signal number belongs to has not been confirmed yet."
+          }
+        }
+      }
+    },
+    "信号を探しています": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looking for Signals"
+          }
+        }
+      }
+    },
+    "信号データ受信中 · %lld 秒前": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Receiving signal data · %lld s ago"
+          }
+        }
+      }
+    },
+    "信号情報をまだ受信していません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No signal data received yet"
+          }
+        }
+      }
+    },
+    "信号機の交差点 ID と、受信した信号データそのもの": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The intersection ID and the signal data exactly as received"
+          }
+        }
+      }
+    },
+    "停止": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        }
+      }
+    },
+    "停止中 · 最終受信値（%lld 秒前）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped · last received value (%lld s ago)"
+          }
+        }
+      }
+    },
+    "再生中のデータは実測データとして送信しません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Played-back data is never sent as field data."
+          }
+        }
+      }
+    },
+    "協力しない": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don’t Share"
+          }
+        }
+      }
+    },
+    "協力する": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share"
+          }
+        }
+      }
+    },
+    "収集中の信号変化": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signal changes being collected"
+          }
+        }
+      }
+    },
+    "収集中の観測": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observations being collected"
+          }
+        }
+      }
+    },
+    "受信": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reception"
+          }
+        }
+      }
+    },
+    "受信した交差点": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Received Intersections"
+          }
+        }
+      }
+    },
+    "受信していません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not Receiving"
+          }
+        }
+      }
+    },
+    "受信データの記録": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recordings"
+          }
+        }
+      }
+    },
+    "受信データを記録する": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record Received Data"
+          }
+        }
+      }
+    },
+    "受信データ（開発者向け）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Received Data (for Developers)"
+          }
+        }
+      }
+    },
+    "受信パケット数": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Packets received"
+          }
+        }
+      }
+    },
+    "受信中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Receiving"
+          }
+        }
+      }
+    },
+    "受信中は画面を消さない": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Screen On While Receiving"
+          }
+        }
+      }
+    },
+    "受信専用です。信号機に何かを送信したり、操作したりすることはありません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Receive-only: the app never transmits to or operates the traffic signals."
+          }
+        }
+      }
+    },
+    "受信開始": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Receiving"
+          }
+        }
+      }
+    },
+    "名称未受信": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name not received"
+          }
+        }
+      }
+    },
+    "周囲の Bluetooth 広告：%lld 件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth advertisements nearby: %lld"
+          }
+        }
+      }
+    },
+    "完了": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "実機受信中のパケットだけを記録します。記録には位置情報を含まず、送信機は E1、E2… と表記します。記録は共有するまで端末の外に出ません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only packets received live are recorded. Recordings contain no location, and transmitters are named E1, E2, …. Recordings stay on the device until you share them."
+          }
+        }
+      }
+    },
+    "実測データの提供": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Field Data"
+          }
+        }
+      }
+    },
+    "実測データの提供のお願い": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help with Field Data"
+          }
+        }
+      }
+    },
+    "実測データを提供する": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share Field Data"
+          }
+        }
+      }
+    },
+    "実際の信号を確認": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check the actual signal"
+          }
+        }
+      }
+    },
+    "対応交差点の近くでは数秒で表示されます。画面を表示したままにしてください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Near a supported intersection, signals appear within a few seconds. Keep the screen on."
+          }
+        }
+      }
+    },
+    "情報": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
+          }
+        }
+      }
+    },
+    "更新なし": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Updates"
+          }
+        }
+      }
+    },
+    "更新なし · 最終信号受信 %lld 秒前": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No updates · last signal %lld s ago"
+          }
+        }
+      }
+    },
+    "更新なし。実際の信号を確認してください": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No updates. Check the actual signal"
+          }
+        }
+      }
+    },
+    "最も近い交差点を自動で表示中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatically showing the nearest intersection"
+          }
+        }
+      }
+    },
+    "最も近い交差点を自動表示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show the Nearest Automatically"
+          }
+        }
+      }
+    },
+    "最寄り": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nearest"
+          }
+        }
+      }
+    },
+    "最後のエラー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last error"
+          }
+        }
+      }
+    },
+    "最終受信": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last received"
+          }
+        }
+      }
+    },
+    "最終送信": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last sent"
+          }
+        }
+      }
+    },
+    "未受信": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not received"
+          }
+        }
+      }
+    },
+    "標準": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard"
+          }
+        }
+      }
+    },
+    "止まれ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        }
+      }
+    },
+    "残り目安 %lld / 8": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remaining about %lld of 8"
+          }
+        }
+      }
+    },
+    "残り目安 %lld/8": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remaining %lld/8"
+          }
+        }
+      }
+    },
+    "残り目安 —": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remaining —"
+          }
+        }
+      }
+    },
+    "渡り始めないで": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do not start crossing"
+          }
+        }
+      }
+    },
+    "状態": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        }
+      }
+    },
+    "現地確認": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Field Check"
+          }
+        }
+      }
+    },
+    "画面が消えると受信が止まります。VoiceOver の画面カーテンを使うと、画面を暗くしたまま受信を続けられます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reception stops when the screen turns off. With VoiceOver’s Screen Curtain, the screen stays dark while reception continues."
+          }
+        }
+      }
+    },
+    "画面を閉じたり、ほかのアプリに切り替えたりすると受信できません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing is received while the screen is off or another app is in front."
+          }
+        }
+      }
+    },
+    "画面を閉じている間は受信できません。表示を続けてください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing is received while the screen is off or the app is in the background. Keep Aoshingo on screen."
+          }
+        }
+      }
+    },
+    "番号は信号データ内の並び順です。どの横断歩道の信号かはまだ確認できていません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numbers are the order within the signal data. Which crossing each number belongs to has not been confirmed yet."
+          }
+        }
+      }
+    },
+    "白黒と形だけで表示します。青は白地、赤は黒地です。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Black, white and shapes only. Green is white, red is black."
+          }
+        }
+      }
+    },
+    "直近 30 秒の信号履歴（最大 5 件）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signal history, last 30 s (up to 5)"
+          }
+        }
+      }
+    },
+    "破棄したパケット：%lld 件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discarded packets: %lld"
+          }
+        }
+      }
+    },
+    "確認しました": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I Understand"
+          }
+        }
+      }
+    },
+    "緯度・経度、機種、OS のバージョン、言語、広告 ID、端末を識別する ID": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latitude and longitude, device model, OS version, language, advertising ID, or any ID that identifies your device"
+          }
+        }
+      }
+    },
+    "自動": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic"
+          }
+        }
+      }
+    },
+    "色の表示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signal Colors"
+          }
+        }
+      }
+    },
+    "色覚サポート": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color Vision Support"
+          }
+        }
+      }
+    },
+    "表示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display"
+          }
+        }
+      }
+    },
+    "表示は補助情報です。必ず実際の信号と周囲の安全を自分で確認してください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What the app shows is supplementary. Always check the actual signal and your surroundings yourself."
+          }
+        }
+      }
+    },
+    "補助情報です。必ず実際の信号と周囲の安全を確認してください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is supplementary information. Always check the actual signal and your surroundings."
+          }
+        }
+      }
+    },
+    "解析結果（最新）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decoded (latest)"
+          }
+        }
+      }
+    },
+    "記録を再生中：%@。実際の信号ではありません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing recording: %@. This is not a real signal"
+          }
+        }
+      }
+    },
+    "記録ファイル": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recordings"
+          }
+        }
+      }
+    },
+    "記録ファイルを再生": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play a Recording"
+          }
+        }
+      }
+    },
+    "記録ファイルを読み込めませんでした。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The recording could not be read."
+          }
+        }
+      }
+    },
+    "設定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        }
+      }
+    },
+    "設定を開く": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        }
+      }
+    },
+    "設定アプリで Aoshingo に Bluetooth の使用を許可してください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Aoshingo to use Bluetooth in the Settings app."
+          }
+        }
+      }
+    },
+    "謝辞": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acknowledgements"
+          }
+        }
+      }
+    },
+    "謝辞・ライセンス": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acknowledgements & Licenses"
+          }
+        }
+      }
+    },
+    "赤": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Red"
+          }
+        }
+      }
+    },
+    "赤。止まってください": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Red. Stop"
+          }
+        }
+      }
+    },
+    "送信しないもの": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What is not sent"
+          }
+        }
+      }
+    },
+    "送信するもの": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What is sent"
+          }
+        }
+      }
+    },
+    "送信待ちの報告": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reports waiting to be sent"
+          }
+        }
+      }
+    },
+    "送信機の数": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transmitters"
+          }
+        }
+      }
+    },
+    "通常は標準。iOS の「カラー以外で区別」がオンのときは色覚サポートになります。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard colors, switching to Color Vision Support when iOS “Differentiate Without Color” is on."
+          }
+        }
+      }
+    },
+    "進める": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Walk"
+          }
+        }
+      }
+    },
+    "選択した交差点を表示中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing the selected intersection"
+          }
+        }
+      }
+    },
+    "閉じる": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "開発者向け": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Developer"
+          }
+        }
+      }
+    },
+    "電波の強さ（5 dB 単位）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signal strength (in 5 dB steps)"
+          }
+        }
+      }
+    },
+    "電波強度": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signal strength"
+          }
+        }
+      }
+    },
+    "青": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Green"
+          }
+        }
+      }
+    },
+    "青。進めます": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Green. You may walk"
+          }
+        }
+      }
+    },
+    "青点滅": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flashing Green"
+          }
+        }
+      }
+    },
+    "青点滅。渡り始めないでください": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flashing green. Do not start crossing"
+          }
+        }
+      }
+    },
+    "青緑と赤。形と文字も必ず表示します。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blue-green and red, always with shapes and words."
+          }
+        }
+      }
+    },
+    "高度化PICS に対応した交差点の近くで「受信開始」を押してください。対応交差点は全国で約 600 か所です。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Near an intersection equipped with Advanced PICS, tap “Start Receiving”. There are about 600 such intersections in Japan."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

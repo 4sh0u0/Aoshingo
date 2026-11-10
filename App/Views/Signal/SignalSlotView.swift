@@ -1,0 +1,129 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import PICSKit
+import SwiftUI
+
+/// One pedestrian signal slot: symbol, words and the remaining-time indication.
+///
+/// The signal area is content, so it uses an opaque background and never Liquid Glass.
+/// Slot numbers carry no direction: which crossing a slot belongs to is not known yet.
+struct SignalSlotView: View {
+    let slot: Int
+    let signal: PedestrianSignal?
+    let stale: Bool
+    let mode: SignalColorMode
+
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var appearance: SignalAppearance {
+        SignalAppearance.make(
+            state: signal?.state,
+            stale: stale,
+            mode: mode,
+            differentiateWithoutColor: differentiateWithoutColor
+        )
+    }
+
+    var body: some View {
+        let appearance = appearance
+        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+        VStack(spacing: 12) {
+            Text("\(slot) 番")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: appearance.symbol)
+                .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 96 : 72, weight: .bold))
+                .accessibilityHidden(true)
+            VStack(spacing: 2) {
+                Text(appearance.title)
+                    .font(.largeTitle.bold())
+                Text(appearance.instruction)
+                    .font(.title3.weight(.semibold))
+            }
+            .multilineTextAlignment(.center)
+            if !stale, let signal, signal.state != .none {
+                RemainingGauge(remaining: signal.remaining, foreground: appearance.foreground)
+            }
+        }
+        .foregroundStyle(appearance.foreground)
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(appearance.fill, in: shape)
+        .overlay {
+            shape.strokeBorder(
+                appearance.foreground.opacity(appearance.isDashed ? 1 : 0.35),
+                style: StrokeStyle(lineWidth: appearance.isDashed ? 6 : 1.5, dash: appearance.isDashed ? [14, 10] : [])
+            )
+        }
+        .modifier(BlinkModifier(active: appearance.blinks && !reduceMotion))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel(appearance))
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    private func accessibilityLabel(_ appearance: SignalAppearance) -> String {
+        var parts = [String(localized: "\(slot) 番"), appearance.accessibilityTitle]
+        if !stale, let remaining = signal?.remaining {
+            parts.append(String(localized: "残り目安 \(remaining) / 8"))
+        }
+        return parts.joined(separator: "、")
+    }
+}
+
+/// Blinks the slot twice a second for 青点滅. With Reduce Motion the dashed border alone marks it.
+private struct BlinkModifier: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        if active {
+            TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                let on = Int(context.date.timeIntervalSinceReferenceDate * 2).isMultiple(of: 2)
+                content.opacity(on ? 1 : 0.6)
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// Eight segments for the remaining-time indication. It is a rough guide, not seconds.
+struct RemainingGauge: View {
+    let remaining: Int?
+    let foreground: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 4) {
+                ForEach(1...8, id: \.self) { index in
+                    let filled = remaining.map { index <= $0 } ?? false
+                    Capsule()
+                        .fill(filled ? foreground : foreground.opacity(0.2))
+                        .frame(height: 10)
+                }
+            }
+            Group {
+                if let remaining {
+                    Text("残り目安 \(remaining)/8")
+                } else {
+                    Text("残り目安 —")
+                }
+            }
+            .font(.footnote.weight(.medium))
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+#Preview("Signals") {
+    ScrollView {
+        VStack {
+            SignalSlotView(slot: 1, signal: .init(remaining: 5, state: .green), stale: false, mode: .standard)
+            SignalSlotView(slot: 2, signal: .init(remaining: 2, state: .blinkGreen), stale: false, mode: .colorUniversal)
+            SignalSlotView(slot: 3, signal: .init(remaining: nil, state: .red), stale: false, mode: .monochrome)
+            SignalSlotView(slot: 4, signal: .init(remaining: 3, state: .red), stale: true, mode: .standard)
+        }
+        .padding()
+    }
+}
