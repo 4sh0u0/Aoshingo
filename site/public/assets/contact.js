@@ -12,9 +12,9 @@
 
   const CONFIG = {
     // Site Key of the Turnstile widget (public). See site/contact-worker/README.md.
-    sitekey: "",
+    sitekey: "0x4AAAAAAF7uEhKvGl3gY6wm",
     // POST endpoint of the aoshingo-contact Worker.
-    endpoint: "",
+    endpoint: "https://aoshingo-contact.harus-account.workers.dev/v1/email",
   };
 
   const TURNSTILE_URL = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=";
