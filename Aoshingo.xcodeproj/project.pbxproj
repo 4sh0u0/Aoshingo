@@ -16,6 +16,7 @@
 		A05A0000000000000000E007 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		A05A0000000000000000E008 /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
 		A05A0000000000000000E009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A05A0000000000000000E01F /* AoshingoKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = AoshingoKit; path = Packages/AoshingoKit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -44,6 +45,7 @@
 			children = (
 				A05A0000000000000000E005 /* App */,
 				A05A0000000000000000E004 /* Config */,
+				A05A0000000000000000E01F /* AoshingoKit */,
 				A05A0000000000000000E003 /* Products */,
 			);
 			sourceTree = "<group>";
