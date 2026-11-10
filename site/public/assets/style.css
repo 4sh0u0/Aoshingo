@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
  * Aoshingo website styles.
- * No web fonts, no scripts, no third-party requests. Colours meet WCAG 2.2 AA in light, dark and
- * increased-contrast modes; the signal colours are the ones the iOS app uses (App/Views/Signal).
+ * No web fonts and nothing loaded from outside the site except the GitHub and Cloudflare
+ * infrastructure allowed in scripts/check-pages.mjs (see docs/website.md). Colours meet WCAG 2.2 AA
+ * in light, dark and increased-contrast modes; the signal colours are the ones the iOS app uses
+ * (App/Views/Signal).
  */
 
 :root {

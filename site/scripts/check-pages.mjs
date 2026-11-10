@@ -4,8 +4,9 @@
 //   - axe-core (WCAG 2.2 A/AA and best practices) in light, dark, increased-contrast and
 //     forced-colours modes
 //   - no horizontal scrolling at 320 CSS px wide (WCAG 1.4.10 Reflow)
-//   - every internal link and #fragment resolves
-//   - no request leaves the site (no third-party fonts, scripts or trackers)
+//   - every internal link and #fragment resolves, and every resource the page loads exists
+//   - requests that leave the site go only to the GitHub and Cloudflare infrastructure listed in
+//     ALLOWED_EXTERNAL_HOSTS (no other fonts, scripts, analytics or widgets)
 //
 // Set PLAYWRIGHT_CHROMIUM_EXECUTABLE to use an already installed Chromium.
 
@@ -28,6 +29,22 @@ const MODES = [
 ];
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
 
+// Hosts outside the site that pages may load from: only the GitHub and Cloudflare infrastructure the
+// project already runs on (a host also matches its subdomains). Before a page starts loading from one
+// of them, say in "11. このウェブサイト" of the privacy policy what it is used for and what it receives.
+// Cloudflare Web Analytics (cloudflareinsights.com) is analytics rather than infrastructure and is
+// deliberately not listed. Requests to these hosts are blocked during the check, so it stays offline.
+const ALLOWED_EXTERNAL_HOSTS = [
+  "github.com",
+  "githubusercontent.com",
+  "github.io",
+  "cloudflare.com", // for example challenges.cloudflare.com (Turnstile)
+  "workers.dev",
+];
+
+const isAllowedExternal = (hostname) =>
+  ALLOWED_EXTERNAL_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+
 const server = await startServer();
 const browser = await chromium.launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined,
@@ -38,7 +55,10 @@ const fail = (message) => {
   console.error(`✗ ${message}`);
 };
 
-/** Serves requests for the published URL (used by 404.html) from the local files. */
+/**
+ * Serves requests for the published URL (used by 404.html) from the local files, and blocks and
+ * records every other request that leaves the local server.
+ */
 async function routeRequests(context, external) {
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -72,8 +92,19 @@ try {
     await routeRequests(context, external);
     const page = await context.newPage();
 
+    let label = "";
+    const isSite = (url) =>
+      url.origin === server.origin || (url.origin === PUBLISHED_ORIGIN && url.pathname.startsWith(BASE_PATH));
+    page.on("response", (response) => {
+      if (response.request().isNavigationRequest() || response.status() < 400) return;
+      if (isSite(new URL(response.url()))) fail(`${label}: ${response.url()} returned HTTP ${response.status()}`);
+    });
+    page.on("requestfailed", (request) => {
+      if (isSite(new URL(request.url()))) fail(`${label}: ${request.url()} failed (${request.failure()?.errorText})`);
+    });
+
     for (const pagePath of PAGES) {
-      const label = `/${pagePath} [${mode.name}]`;
+      label = `/${pagePath} [${mode.name}]`;
       const response = await page.goto(`${server.url}${pagePath}`, { waitUntil: "load" });
       const expected = pagePath.startsWith("this-page-does-not-exist") ? 404 : 200;
       if (response?.status() !== expected) fail(`${label}: HTTP ${response?.status()}, expected ${expected}`);
@@ -136,7 +167,13 @@ try {
       console.log(`✓ ${label}: ${results.passes.length} axe rules passed`);
     }
 
-    for (const href of external) fail(`[${mode.name}] external request: ${href}`);
+    for (const href of external) {
+      if (isAllowedExternal(new URL(href).hostname)) {
+        console.log(`  [${mode.name}] external request to allowed infrastructure (blocked in the check): ${href}`);
+      } else {
+        fail(`[${mode.name}] external request to a host not in ALLOWED_EXTERNAL_HOSTS: ${href}`);
+      }
+    }
     await context.close();
   }
 } finally {
