@@ -22,8 +22,18 @@ actor AdvertisementRecorder {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let url = Self.directory.appendingPathComponent("aoshingo-\(formatter.string(from: Date())).\(RecordingFormat.fileExtension)")
-        FileManager.default.createFile(atPath: url.path, contents: nil)
+        let stamp = formatter.string(from: Date())
+        // createFile replaces an existing file, so a second recording started within the same second
+        // gets "-2", "-3", … instead of wiping the first one.
+        var url = Self.directory.appendingPathComponent("aoshingo-\(stamp).\(RecordingFormat.fileExtension)")
+        var suffix = 2
+        while FileManager.default.fileExists(atPath: url.path) {
+            url = Self.directory.appendingPathComponent("aoshingo-\(stamp)-\(suffix).\(RecordingFormat.fileExtension)")
+            suffix += 1
+        }
+        guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
+        }
         handle = try FileHandle(forWritingTo: url)
         currentFile = url
         aliases.reset()
@@ -61,6 +71,7 @@ actor AdvertisementRecorder {
         let urls = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
         return urls
             .filter { $0.pathExtension == RecordingFormat.fileExtension }
-            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+            // Without the extension, "…-120000" sorts before "…-120000-2", so the later one comes first.
+            .sorted { $0.deletingPathExtension().lastPathComponent > $1.deletingPathExtension().lastPathComponent }
     }
 }

@@ -236,6 +236,38 @@ struct UploaderTests {
     }
 }
 
+/// An in-memory queue whose writes and bulk deletions can be made to fail, like a full or locked disk.
+private actor FlakyStore: ReportStore {
+    struct DiskError: Error {}
+    private let inner = InMemoryReportStore()
+    var failEnqueue = false
+    var failPurge = false
+
+    func setFailures(enqueue: Bool, purge: Bool) {
+        failEnqueue = enqueue
+        failPurge = purge
+    }
+
+    func enqueue(_ body: Data, at date: Date) async throws {
+        if failEnqueue { throw DiskError() }
+        await inner.enqueue(body, at: date)
+    }
+
+    func pending() async throws -> [PendingReport] { await inner.pending() }
+
+    func remove(id: String) async throws { await inner.remove(id: id) }
+
+    func removeAll() async throws {
+        if failPurge { throw DiskError() }
+        await inner.removeAll()
+    }
+
+    func removeOlder(than date: Date) async throws {
+        if failPurge { throw DiskError() }
+        await inner.removeOlder(than: date)
+    }
+}
+
 @Suite("Field data pipeline")
 struct PipelineTests {
     private func signalPacket(_ state: UInt8) throws -> (PICSPacket, [UInt8]) {
@@ -321,6 +353,59 @@ struct PipelineTests {
         await pipeline.setEnabled(true)
         await store.enqueue(Data("{}".utf8), at: Date())
         #expect(await pipeline.uploadPending().remaining == 1)
+    }
+    @Test("a report the queue cannot take is kept and queued on the next flush")
+    func enqueueFailure() async throws {
+        let clock = Clock()
+        let store = FlakyStore()
+        let pipeline = FieldDataPipeline(store: store, uploader: nil, client: "aoshingo-ios/0.1.0", now: { clock.now })
+        await pipeline.setEnabled(true)
+        let (packet, data) = try signalPacket(0x31)
+        await pipeline.record(packet, manufacturerData: data, at: clock.now, rssi: -60, serviceUUIDs: [], emitter: nil, context: .init())
+
+        await store.setFailures(enqueue: true, purge: false)
+        #expect(await pipeline.flush(force: true) == false)
+        #expect(await store.count() == 0)
+        #expect(await pipeline.status().lastError != nil)
+
+        await store.setFailures(enqueue: false, purge: false)
+        #expect(await pipeline.flush() == true) // the window is empty, but the kept report is queued
+        #expect(await store.count() == 1)
+        #expect(await pipeline.flush(force: true) == false) // nothing left to queue
+    }
+
+    @Test("if deleting on opt-out fails, those reports are never uploaded and deletion is retried")
+    func optOutDeletionFailure() async throws {
+        let transport = FakeTransport()
+        transport.fallback["/v1/challenge"] = challenge
+        transport.script("/v1/attest", token("T1"))
+        transport.fallback["/v1/reports"] = HTTPResponse(status: 202)
+        let clock = Clock()
+        let store = FlakyStore()
+        let uploader = ReportUploader(transport: transport, attestation: FakeAttestation(), keyStorage: MemoryKeyStorage(), sha256: fakeHash, now: { clock.now })
+        let pipeline = FieldDataPipeline(store: store, uploader: uploader, client: "aoshingo-ios/0.1.0", now: { clock.now })
+        await pipeline.setEnabled(true)
+        try await store.enqueue(Data("{\"before\":true}".utf8), at: clock.now)
+
+        await store.setFailures(enqueue: false, purge: true)
+        clock.advance(1)
+        await pipeline.setEnabled(false)
+        #expect(await store.count() == 1)
+        #expect(await pipeline.status().lastError != nil)
+
+        // Opting in again while the disk still refuses deletion: the old report must not be sent.
+        clock.advance(1)
+        await pipeline.setEnabled(true)
+        try await store.enqueue(Data("{\"after\":true}".utf8), at: clock.now)
+        _ = await pipeline.uploadPending()
+        let sent = transport.requests.filter { $0.path == "/v1/reports" }.compactMap { $0.body.map { String(decoding: $0, as: UTF8.self) } }
+        #expect(sent == ["{\"after\":true}"])
+        #expect(try await store.pending().map { String(decoding: $0.body, as: UTF8.self) } == ["{\"before\":true}"])
+
+        // Once deletion works again, the next chance removes it.
+        await store.setFailures(enqueue: false, purge: false)
+        _ = await pipeline.uploadPending()
+        #expect(await store.count() == 0)
     }
 }
 

@@ -88,7 +88,7 @@
 
 ## 記録ファイルの形式
 
-記録ファイル（`aoshingo-YYYYMMDD-HHMMSS.jsonl`）は JSON Lines 形式で、受信したパケット 1 件が 1 行になります。
+記録ファイル（`aoshingo-YYYYMMDD-HHMMSS.jsonl`。同じ秒に記録を始め直したときは末尾に `-2` などが付きます）は JSON Lines 形式で、受信したパケット 1 件が 1 行になります。
 
 ```json
 {"emitter":"E1","manufacturerData":"CE010000022A00001234ABCD311384848484","rssi":-67,"t":1794290000.123}

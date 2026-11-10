@@ -7,6 +7,8 @@ import PICSKit
 ///
 /// Nothing is recorded, queued or sent unless `setEnabled(true)` was called after the user opted in.
 /// Turning collection off discards the current window, deletes the queue and forgets the App Attest key.
+/// If deleting the queue fails, nothing queued before the opt-out is ever uploaded and the deletion is
+/// retried; the app also retries it on every launch while collection is off.
 public actor FieldDataPipeline {
     /// Reports older than this are dropped before upload (the server accepts seven days).
     public static let maximumReportAge: TimeInterval = 6 * 24 * 60 * 60
@@ -53,6 +55,11 @@ public actor FieldDataPipeline {
     private var lastUpload: Date?
     private var lastError: String?
     private var isUploading = false
+    /// A report the queue could not take; it is offered again on the next flush instead of being lost.
+    private var unsaved: (body: Data, date: Date)?
+    /// Set when deleting the queue on opt-out failed. Reports created before it are never uploaded and
+    /// are deleted again at every chance until that succeeds.
+    private var purgeCutoff: Date?
 
     /// - Parameter uploader: `nil` when no server is configured; reports then stay queued.
     public init(
@@ -69,11 +76,22 @@ public actor FieldDataPipeline {
 
     public func setEnabled(_ enabled: Bool) async {
         isEnabled = enabled
-        guard !enabled else { return }
+        guard !enabled else {
+            await retryPurge()
+            return
+        }
         collector.discardAll()
-        try? await store.removeAll()
+        unsaved = nil
         await uploader?.forget()
-        lastError = nil
+        do {
+            try await store.removeAll()
+            purgeCutoff = nil
+            lastError = nil
+        } catch {
+            // The user asked for deletion: never upload these, and keep trying to delete them.
+            purgeCutoff = purgeCutoff ?? now()
+            lastError = String(describing: error)
+        }
     }
 
     public func record(
@@ -98,16 +116,45 @@ public actor FieldDataPipeline {
     }
 
     /// Moves the current window into the queue when it is full or ten minutes old (or always when `force`).
+    /// Returns `true` when something was queued.
     @discardableResult
     public func flush(force: Bool = false) async -> Bool {
-        guard isEnabled, force || collector.shouldFlush(at: now()) else { return false }
-        guard let report = collector.makeReport(client: client), let body = try? report.encoded() else { return false }
+        guard isEnabled else { return false }
+        var queued = false
+        if let pending = unsaved {
+            guard await enqueue(pending.body, at: pending.date) else { return false }
+            unsaved = nil
+            queued = true
+        }
+        guard force || collector.shouldFlush(at: now()) else { return queued }
+        guard let report = collector.makeReport(client: client), let body = try? report.encoded() else { return queued }
+        let date = now()
+        guard await enqueue(body, at: date) else {
+            // makeReport has already emptied the window, so keep the encoded report for the next try.
+            unsaved = (body, date)
+            return false
+        }
+        return true
+    }
+
+    private func enqueue(_ body: Data, at date: Date) async -> Bool {
         do {
-            try await store.enqueue(body, at: now())
+            try await store.enqueue(body, at: date)
             return true
         } catch {
             lastError = String(describing: error)
             return false
+        }
+    }
+
+    /// Deletes what an opt-out failed to delete. Clears the cutoff only once that worked.
+    private func retryPurge() async {
+        guard let cutoff = purgeCutoff else { return }
+        do {
+            try await store.removeOlder(than: cutoff)
+            purgeCutoff = nil
+        } catch {
+            lastError = String(describing: error)
         }
     }
 
@@ -122,7 +169,9 @@ public actor FieldDataPipeline {
         defer { isUploading = false }
 
         try? await store.removeOlder(than: now().addingTimeInterval(-Self.maximumReportAge))
-        let reports = (try? await store.pending()) ?? []
+        await retryPurge()
+        let cutoff = purgeCutoff ?? .distantPast
+        let reports = ((try? await store.pending()) ?? []).filter { $0.createdAt > cutoff }
         uploading: for report in reports {
             guard isEnabled else { break uploading }
             do {
