@@ -2,6 +2,7 @@
 
 > [!NOTE]
 > この文書は pre-alpha（開発中の試験版）段階の草案です。TestFlight や App Store で配布する前に見直します。変更の履歴は、このリポジトリの Git 履歴で確認できます。
+> 公開版は <https://4sh0u0.github.io/Aoshingo/privacy/> です。内容を変えるときは、同じ Pull Request で `site/public/privacy/index.html` も更新してください。
 
 - 対象：iOS アプリ「Aoshingo（青信号）」と、実測データを受け取るサーバー（`server/`）
 - 運営者：Aoshingo の開発者（GitHub：[4sh0u0](https://github.com/4sh0u0)）
