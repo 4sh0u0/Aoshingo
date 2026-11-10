@@ -18,6 +18,23 @@ public actor FieldDataPipeline {
         public var pendingReports: Int
         public var lastUpload: Date?
         public var lastError: String?
+
+        // The synthesized memberwise initializer is internal; the app builds an initial value.
+        public init(
+            isEnabled: Bool,
+            bufferedObservations: Int,
+            bufferedTransitions: Int,
+            pendingReports: Int,
+            lastUpload: Date?,
+            lastError: String?
+        ) {
+            self.isEnabled = isEnabled
+            self.bufferedObservations = bufferedObservations
+            self.bufferedTransitions = bufferedTransitions
+            self.pendingReports = pendingReports
+            self.lastUpload = lastUpload
+            self.lastError = lastError
+        }
     }
 
     public struct UploadSummary: Sendable, Equatable {

@@ -51,7 +51,7 @@ actor AdvertisementRecorder {
             metadata: metadata
         )
         if let line = try? RecordingFormat.encodeLine(record) {
-            try? handle.seekToEnd()
+            _ = try? handle.seekToEnd()
             try? handle.write(contentsOf: line)
         }
     }
