@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-/** Bindings declared in wrangler.jsonc, plus the TOKEN_SECRET secret. */
+/** Bindings declared in cloudflare.config.ts (and wrangler.jsonc for the tests). */
 export interface Env {
   DB: D1Database;
   /** Keyed by the upload token's random ID. */
   REPORTS_RATE_LIMITER: RateLimit;
   /** Keyed by a fixed per-endpoint string ("challenge", "attest", "token"); never by IP. */
   AUTH_RATE_LIMITER: RateLimit;
-  /** Set with `wrangler secret put TOKEN_SECRET`. */
+  /** Uploaded with `cf deploy --secrets-file`; kept by later deploys. */
   TOKEN_SECRET?: string;
   APPLE_TEAM_ID: string;
   APP_BUNDLE_ID: string;

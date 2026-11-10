@@ -41,7 +41,7 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
 - **IP アドレスなどを読みません。** `CF-Connecting-IP`、`X-Forwarded-For`、`CF-IPCountry`、`request.cf` などは
   コード中で一度も参照していません（読むヘッダーは `Content-Type`、`Content-Length`、`Authorization` だけで、
   テストでソースを静的に検査しています）。レート制限も IP ではなく、トークンのランダム ID か固定のキーで行います。
-- **ログを残しません。** `wrangler.jsonc` で Workers Logs・呼び出しログ・トレースを無効にしており、
+- **ログを残しません。** デプロイ設定（`cloudflare.config.ts`）で Workers Logs・呼び出しログ・トレースを無効にしており、
   コードには `console.*` が一切ありません。リクエスト本文やトークンを記録する経路はありません。
 - **端末を特定できる情報を保存しません。** トークンには App Attest の `keyId` を含めず、レポート行にはトークンも
   トークン ID も `keyId` も保存しません（テストで確認しています）。`keyId` は `attest_keys` テーブルにだけ存在し、
@@ -52,15 +52,23 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
 
 ## 開発
 
-Node.js 22 以降が必要です。
+Node.js 22.18 以降が必要です。デプロイには Cloudflare CLI（`cf`、開発用依存として固定）を使います。
 
 ```sh
 cd server
 npm ci                 # package-lock.json どおりにインストール
 npm test               # vitest（workerd + ローカル D1 上で実行）
 npx tsc --noEmit       # 型チェック
-npx wrangler deploy --dry-run --outdir dist   # バンドルの確認（アップロードはしない）
+npx cf build           # バンドルの確認（アップロードはしない）
+npx cf deploy --dry-run   # デプロイされるバインディングの確認（アップロードはしない）
 ```
+
+設定ファイルは 2 つあります。デプロイに使うのは `cloudflare.config.ts`（`cf` が読む）で、
+`wrangler.jsonc` はテスト専用です（`@cloudflare/vitest-plugin` が読むため残しています）。
+バインディング・変数・cron を変えるときは、両方を同じ内容にしてください。
+
+`vite` は vitest の依存として入るので、`package.json` に直接書かないでください。
+書くと `cf` がこのプロジェクトを Vite のアプリと判定し、Wrangler ではなく `vite build` を実行して `cf build` が失敗します。
 
 依存関係はすべて開発用で、バージョンは固定しています。Worker 本体は外部ライブラリを使わず、
 CBOR・DER（X.509）の最小限のパーサーと WebCrypto だけで動きます。
@@ -72,69 +80,91 @@ CBOR・DER（X.509）の最小限のパーサーと WebCrypto だけで動きま
 Cloudflare の **Workers Builds**（GitHub 連携）で、`main` ブランチに `server/` の変更が入るたびに自動でデプロイします。
 GitHub Actions からはデプロイしません（CI はテストだけ）。つまり **PR を `main` にマージすることが本番へのデプロイ**です。
 
-デプロイ時には `npm run deploy` が実行され、未適用の D1 マイグレーションを適用してから `wrangler deploy` します。
+デプロイ時には `npm run deploy` が実行され、`cf d1 migrations apply` で未適用の D1 マイグレーションを適用してから `cf deploy` します。
 
 ### 初回の設定（リポジトリ所有者が 1 回だけ）
 
 1. **D1 データベースを作る**
 
-   Cloudflare ダッシュボードの **Storage & databases → D1** で、`aoshingo-reports` という名前のデータベースを作り、
-   表示された **Database ID** を控えます（`npx wrangler d1 create aoshingo-reports` でも同じです）。
+   `server/` で Cloudflare CLI にログインし（`npx cf auth login`）、データベースを作ります。
+
+   ```sh
+   npx cf d1 create --name aoshingo-reports --primary-location-hint apac
+   ```
+
+   表示された `uuid` が Database ID です（ダッシュボードの **Storage & databases → D1** で作っても同じです）。
 
 2. **ID をリポジトリに書いて `main` に入れる**
 
-   `wrangler.jsonc` の次の 2 か所を書き換え、PR でマージします。どちらも秘密情報ではありません。
+   次の値を書き換え、PR でマージします。どちらも秘密情報ではありません。
 
-   - `d1_databases[0].database_id`：手順 1 の Database ID（`00000000-…` の箇所）
-   - `vars.APPLE_TEAM_ID`：Apple Developer の Membership ページにある 10 文字のチーム ID（`REPLACE_WITH_TEAM_ID` の箇所）
+   - D1 の Database ID：`cloudflare.config.ts` の `DB` の `id`、`package.json` の `deploy` スクリプト、
+     テスト用の `wrangler.jsonc` の `d1_databases[0].database_id`
+   - Apple Developer の Membership ページにある 10 文字のチーム ID：`cloudflare.config.ts` と
+     `wrangler.jsonc` の `APPLE_TEAM_ID`
 
    書き換える前にデプロイが走っても、マイグレーションの段階で失敗するだけで、何も公開されません。
 
-3. **Worker を GitHub リポジトリにつなぐ**
+3. **初回のデプロイ（トークン用の秘密鍵と一緒に）**
 
-   **Workers & Pages → Create application → Import a repository** で GitHub を選び、
-   Cloudflare の GitHub App に `4sh0u0/Aoshingo` だけへのアクセスを許可してから、次のように設定します。
+   `TOKEN_SECRET`（アップロード用トークンの HMAC 鍵、32 文字以上）は `cloudflare.config.ts` で
+   `bindings.secret()` として宣言してあり、値は最初のデプロイで `cf deploy --secrets-file` を使って一緒に送ります。
+   2 回目以降のデプロイ（Workers Builds を含む）は `--secrets-file` なしでも同じ値を引き継ぎます。
+   秘密鍵のファイルは他人が読めない一時ディレクトリに作り、デプロイが終わったらすぐ消します。
+
+   ```sh
+   cd server
+   npm ci
+   npx cf d1 migrations apply <Database ID> --dir migrations
+   d=$(mktemp -d) && chmod 700 "$d"
+   printf '{"TOKEN_SECRET":"%s"}\n' "$(openssl rand -base64 48 | tr -d '\n')" > "$d/secrets.json"
+   npx cf deploy --secrets-file "$d/secrets.json"
+   rm -rf "$d"
+   ```
+
+   秘密鍵はリポジトリにも、Build variables にも書かないでください。
+   値を変えると発行済みトークンはすべて無効になり、アプリは `/v1/token` で取り直します。
+   `TOKEN_SECRET` とチーム ID がそろうまで、`/v1/attest` と `/v1/token` は `500 server_misconfigured` を返します。
+
+4. **Worker を GitHub リポジトリにつなぐ**
+
+   手順 3 で Worker `aoshingo-reports` ができているので、**Workers & Pages** でその Worker を開き、
+   **Settings → Build → Connect** で GitHub を選びます。Cloudflare の GitHub App には
+   `4sh0u0/Aoshingo` だけへのアクセスを許可し、次のように設定します（まだ Worker がない場合は
+   **Create application → Import a repository** から同じ値で設定します）。
 
    | 項目 | 値 |
    | --- | --- |
-   | Project name（Worker 名） | `aoshingo-reports`（`wrangler.jsonc` の `name` と同じにする。違うとビルドが失敗します） |
+   | Project name（Worker 名） | `aoshingo-reports`（`cloudflare.config.ts` の `name` と同じにする。違うとビルドが失敗します） |
    | Production branch | `main` |
    | Build command | 空欄 |
    | Deploy command | `npm run deploy` |
    | Root directory（Advanced settings の Path） | `server` |
    | API token | Create new token（新しく作成） |
 
-   すでに `wrangler deploy` で Worker `aoshingo-reports` を作ってある場合は、Import ではなく、その Worker の **Settings → Build → Connect** から同じ値で接続します。
-
    依存関係は `package-lock.json` から自動でインストールされます。Node.js のバージョンは `server/.node-version`（22）で指定しています。
+   接続後の最初のビルドのログで、`cf d1 migrations apply` と `cf deploy` が成功したことを確認してください。
 
-4. **ビルド用トークンに D1 の権限を足す**
+5. **ビルド用トークンに D1 の権限を足す**
 
    自動で作られるトークンには D1 の権限がないため、そのままではマイグレーションの適用で失敗します。
    **My Profile → API Tokens** で Workers Builds が作ったトークンを開き、**Account → D1 → Edit** を追加して保存します。
    そのあと Worker の **Deployments**（ビルド履歴）で失敗したビルドを **Retry** します。
 
-5. **ビルドの対象を `server/` に絞る**
+6. **ビルドの対象を `server/` に絞る**
 
    Worker の **Settings → Build → Build watch paths** で、Include paths を `server/*` にします。
    iOS アプリやドキュメントだけの変更では、ビルドが走らなくなります。
    同じ画面で、`main` 以外のブランチのビルド（Builds for non-production / Preview branches）はオフのままにします
    （この Worker は `preview_urls` を無効にしています）。
 
-6. **トークン用の秘密鍵を設定**
-
-   Worker の **Settings → Variables and Secrets → Add** で、種類 **Secret**、名前 `TOKEN_SECRET`、
-   値に 32 文字以上のランダムな文字列（例：`openssl rand -base64 48` の出力）を入れて保存します。
-   秘密鍵はリポジトリにも、Build variables にも書かないでください。デプロイし直しても消えません。
-   この値を変更すると発行済みトークンはすべて無効になり、アプリは `/v1/token` で取り直します。
-
-   `TOKEN_SECRET` とチーム ID がそろうまで、`/v1/attest` と `/v1/token` は `500 server_misconfigured` を返します。
-
 7. **動作確認**
 
    ```sh
    curl https://aoshingo-reports.<あなたのサブドメイン>.workers.dev/v1/health
    # => {"ok":true}
+   curl -X POST https://aoshingo-reports.<あなたのサブドメイン>.workers.dev/v1/challenge
+   # => 201 と {"challenge":"…"}（D1 への書き込みを確認）
    ```
 
 8. **iOS アプリの送信先を設定**
@@ -152,7 +182,7 @@ GitHub Actions からはデプロイしません（CI はテストだけ）。�
 ### App Attest の development 環境
 
 Xcode から直接実行するデバッグビルドは App Attest の development 環境を使います。
-その端末で試すときだけ `wrangler.jsonc` の `ALLOW_DEVELOPMENT_ATTESTATION` を `"true"` にしてマージし、
+その端末で試すときだけ `cloudflare.config.ts`（とテスト用の `wrangler.jsonc`）の `ALLOW_DEVELOPMENT_ATTESTATION` を `"true"` にしてマージし、
 リリース前に `"false"` に戻してください。`"false"` に戻すと development 環境の鍵とトークンはすべて使えなくなります。
 
 ### 手元から手動でデプロイする場合
@@ -161,20 +191,23 @@ Git 連携が使えないときは、`server/` で次を実行します（`npm r
 
 ```sh
 npm ci
-npx wrangler login
+npx cf auth login
 npm run deploy
-npx wrangler secret put TOKEN_SECRET   # 初回だけ
 ```
+
+初回だけは、秘密鍵を送るために手順 3 のとおり `--secrets-file` を付けてデプロイします。
 
 スキーマを変えるときは `migrations/` に新しい番号のファイルを追加します。適用済みのファイルは書き換えないでください。
 
 ### データの確認
 
+`<Database ID>` は `cloudflare.config.ts` の `DB` の `id` です。
+
 ```sh
-npx wrangler d1 execute aoshingo-reports --remote \
-  --command "SELECT intersection_id, received_day, observation_count, transition_count FROM reports LIMIT 20"
-npx wrangler d1 execute aoshingo-reports --remote \
-  --command "SELECT * FROM transition_counts ORDER BY count DESC LIMIT 20"
+npx cf d1 query <Database ID> \
+  --sql "SELECT intersection_id, received_day, observation_count, transition_count FROM reports LIMIT 20"
+npx cf d1 query <Database ID> \
+  --sql "SELECT * FROM transition_counts ORDER BY count DESC LIMIT 20"
 ```
 
 ## 料金プランと制限
@@ -205,13 +238,14 @@ Workers Rate Limiting を使っています（期間は 10 秒か 60 秒のみ�
 
 IP アドレスを使わないため、`/v1/challenge` などに大量のリクエストが来ると正規の利用者も一時的に
 `429 rate_limited` になります。これは無料枠（特に D1 の書き込み数）を守るための意図的なトレードオフです。
-値は `wrangler.jsonc` の `ratelimits` で変更できます。`namespace_id` は Cloudflare アカウント内で一意である必要があります。
+値は `cloudflare.config.ts` の `bindings.rateLimit()`（とテスト用の `wrangler.jsonc` の `ratelimits`）で変更できます。namespace は Cloudflare アカウント内で一意である必要があります。
 
 ## ファイル構成
 
 ```
 server/
-├── wrangler.jsonc          Worker の設定（D1、レート制限、変数、cron、ログ無効化）
+├── cloudflare.config.ts    デプロイ設定（D1、レート制限、変数、秘密鍵の宣言、cron、ログ無効化）
+├── wrangler.jsonc          テスト用の設定（vitest が読む。デプロイ設定と同じ内容に保つ）
 ├── migrations/             D1 スキーマ
 ├── src/
 │   ├── index.ts            エントリポイント

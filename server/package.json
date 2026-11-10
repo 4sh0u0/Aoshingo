@@ -7,14 +7,14 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy",
-    "build": "wrangler deploy --dry-run --outdir dist"
+    "deploy": "cf d1 migrations apply ca8ff962-c094-4c66-b9fd-bbf2189ef549 --dir migrations && cf deploy",
+    "build": "cf build"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.4.8",
     "@cloudflare/workers-types": "5.20261023.1",
+    "cf": "1.0.0-beta.28",
     "typescript": "5.9.3",
-    "vite": "7.3.7",
     "vitest": "4.1.12",
     "wrangler": "4.153.0"
   }

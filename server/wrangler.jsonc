@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-// Cloudflare Worker that receives opt-in field data from the Aoshingo iOS app.
-// Deployed by Workers Builds (Cloudflare's Git integration) on every push to main that touches
-// server/. See README.md for the setup and docs/field-data-api.md for the API contract.
+// Test configuration of the Cloudflare Worker that receives opt-in field data from the Aoshingo
+// iOS app. Deploys use cloudflare.config.ts (Cloudflare CLI); this file is kept only because
+// @cloudflare/vitest-plugin reads it. When you change a binding, a variable or a trigger, change
+// both files. See README.md for the setup and docs/field-data-api.md for the API contract.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "aoshingo-reports",
@@ -55,7 +56,8 @@
     "TOKEN_TTL_SECONDS": "21600"
   },
   // TOKEN_SECRET (HMAC key for upload tokens, at least 32 characters) is a secret and is not
-  // stored here. Set it with: npx wrangler secret put TOKEN_SECRET
+  // stored here. The tests set their own value in vitest.config.ts; production gets it from
+  // `cf deploy --secrets-file` (see README.md).
 
   "triggers": {
     // Daily at 18:00 UTC = 03:00 JST: fold expired reports into aggregates, drop old challenges.

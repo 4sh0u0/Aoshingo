@@ -12,7 +12,7 @@ export default defineConfig(async () => {
         wrangler: { configPath: "./wrangler.jsonc" },
         miniflare: {
           bindings: {
-            // Test-only values; production sets TOKEN_SECRET with `wrangler secret put`.
+            // Test-only values; production uploads TOKEN_SECRET with `cf deploy --secrets-file`.
             TOKEN_SECRET: "test-token-secret-0123456789abcdef0123456789",
             APPLE_TEAM_ID: "TEAMID1234",
             TEST_MIGRATIONS: migrations,
