@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Cloudflare Worker that receives opt-in field data from the Aoshingo iOS app.
-// See README.md for deployment steps and docs/field-data-api.md for the API contract.
+// Deployed by Workers Builds (Cloudflare's Git integration) on every push to main that touches
+// server/. See README.md for the setup and docs/field-data-api.md for the API contract.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "aoshingo-reports",
@@ -20,8 +21,9 @@
     {
       "binding": "DB",
       "database_name": "aoshingo-reports",
-      // Placeholder. Run `npx wrangler d1 create aoshingo-reports` and replace this value with
-      // the database_id it prints, then `npx wrangler d1 migrations apply aoshingo-reports --remote`.
+      // Placeholder. Create the database (dashboard: Storage & databases > D1, or
+      // `npx wrangler d1 create aoshingo-reports`) and replace this with its ID. The ID is not a
+      // secret. Deploys from Workers Builds apply migrations first (`npm run deploy`).
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
     }

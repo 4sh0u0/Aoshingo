@@ -67,61 +67,70 @@ CBOR・DER（X.509）の最小限のパーサーと WebCrypto だけで動きま
 `package-lock.json` を作り直す場合は npm 11 以降を使ってください（npm 10 は依存解決中にエラーになることがあります。
 既存の lock ファイルからの `npm ci` は npm 10 でも動きます）。
 
-## デプロイ手順（リポジトリ所有者向け）
+## デプロイ（Cloudflare の Git 連携で自動）
 
-以下はすべて `server/` ディレクトリで実行します。
+Cloudflare の **Workers Builds**（GitHub 連携）で、`main` ブランチに `server/` の変更が入るたびに自動でデプロイします。
+GitHub Actions からはデプロイしません（CI はテストだけ）。つまり **PR を `main` にマージすることが本番へのデプロイ**です。
 
-1. **依存関係をインストール**
+デプロイ時には `npm run deploy` が実行され、未適用の D1 マイグレーションを適用してから `wrangler deploy` します。
 
-   ```sh
-   npm ci
-   ```
+### 初回の設定（リポジトリ所有者が 1 回だけ）
 
-2. **Cloudflare にログイン**
+1. **D1 データベースを作る**
 
-   ```sh
-   npx wrangler login
-   ```
+   Cloudflare ダッシュボードの **Storage & databases → D1** で、`aoshingo-reports` という名前のデータベースを作り、
+   表示された **Database ID** を控えます（`npx wrangler d1 create aoshingo-reports` でも同じです）。
 
-3. **D1 データベースを作成**
+2. **ID をリポジトリに書いて `main` に入れる**
 
-   ```sh
-   npx wrangler d1 create aoshingo-reports
-   ```
+   `wrangler.jsonc` の次の 2 か所を書き換え、PR でマージします。どちらも秘密情報ではありません。
 
-   表示された `database_id` を `wrangler.jsonc` の `d1_databases[0].database_id`
-   （`00000000-0000-0000-0000-000000000000` となっている箇所）に貼り付けます。
+   - `d1_databases[0].database_id`：手順 1 の Database ID（`00000000-…` の箇所）
+   - `vars.APPLE_TEAM_ID`：Apple Developer の Membership ページにある 10 文字のチーム ID（`REPLACE_WITH_TEAM_ID` の箇所）
 
-4. **マイグレーションを適用**
+   書き換える前にデプロイが走っても、マイグレーションの段階で失敗するだけで、何も公開されません。
 
-   ```sh
-   npx wrangler d1 migrations apply aoshingo-reports --remote
-   ```
+3. **Worker を GitHub リポジトリにつなぐ**
 
-5. **トークン用の秘密鍵を設定**（32 文字以上。リポジトリには絶対に書かないこと）
+   **Workers & Pages → Create application → Import a repository** で GitHub を選び、
+   Cloudflare の GitHub App に `4sh0u0/Aoshingo` だけへのアクセスを許可してから、次のように設定します。
 
-   ```sh
-   openssl rand -base64 48 | npx wrangler secret put TOKEN_SECRET
-   ```
+   | 項目 | 値 |
+   | --- | --- |
+   | Project name（Worker 名） | `aoshingo-reports`（`wrangler.jsonc` の `name` と同じにする。違うとビルドが失敗します） |
+   | Production branch | `main` |
+   | Build command | 空欄 |
+   | Deploy command | `npm run deploy` |
+   | Root directory（Advanced settings の Path） | `server` |
+   | API token | Create new token（新しく作成） |
 
-   まだ Worker を一度もデプロイしていない場合、Worker を作成するか聞かれるので「はい」と答えます。
+   依存関係は `package-lock.json` から自動でインストールされます。Node.js のバージョンは `server/.node-version`（22）で指定しています。
+
+4. **ビルド用トークンに D1 の権限を足す**
+
+   自動で作られるトークンには D1 の権限がないため、そのままではマイグレーションの適用で失敗します。
+   **My Profile → API Tokens** で Workers Builds が作ったトークンを開き、**Account → D1 → Edit** を追加して保存します。
+   そのあと Worker の **Deployments**（ビルド履歴）で失敗したビルドを **Retry** します。
+
+5. **ビルドの対象を `server/` に絞る**
+
+   Worker の **Settings → Build → Build watch paths** で、Include paths を `server/*` にします。
+   iOS アプリやドキュメントだけの変更では、ビルドが走らなくなります。
+   同じ画面で、`main` 以外のブランチのビルド（Builds for non-production / Preview branches）はオフのままにします
+   （この Worker は `preview_urls` を無効にしています）。
+
+6. **トークン用の秘密鍵を設定**
+
+   Worker の **Settings → Variables and Secrets → Add** で、種類 **Secret**、名前 `TOKEN_SECRET`、
+   値に 32 文字以上のランダムな文字列（例：`openssl rand -base64 48` の出力）を入れて保存します。
+   秘密鍵はリポジトリにも、Build variables にも書かないでください。デプロイし直しても消えません。
    この値を変更すると発行済みトークンはすべて無効になり、アプリは `/v1/token` で取り直します。
 
-6. **Apple のチーム ID を設定**
+   `TOKEN_SECRET` とチーム ID がそろうまで、`/v1/attest` と `/v1/token` は `500 server_misconfigured` を返します。
 
-   `wrangler.jsonc` の `vars.APPLE_TEAM_ID`（`REPLACE_WITH_TEAM_ID`）を、Apple Developer の
-   Membership ページに表示される 10 文字のチーム ID に書き換えます（秘密情報ではありません）。
-   `APP_BUNDLE_ID` は `io.github.4sh0u0.aoshingo` のままにします。チーム ID が未設定の間、
-   `/v1/attest` と `/v1/token` は `500 server_misconfigured` を返します。
-
-   Xcode から直接実行するデバッグビルドは App Attest の development 環境を使います。
-   その端末で試すときだけ `ALLOW_DEVELOPMENT_ATTESTATION` を `"true"` にし、リリース時は `"false"` に戻してください。
-   `"false"` に戻すと development 環境の鍵とトークンはすべて使えなくなります。
-
-7. **デプロイ**
+7. **動作確認**
 
    ```sh
-   npx wrangler deploy
    curl https://aoshingo-reports.<あなたのサブドメイン>.workers.dev/v1/health
    # => {"ok":true}
    ```
@@ -137,6 +146,25 @@ CBOR・DER（X.509）の最小限のパーサーと WebCrypto だけで動きま
    ```
 
    （xcconfig では `//` 以降がコメント扱いになるため、URL ではなくホスト名で指定します。）
+
+### App Attest の development 環境
+
+Xcode から直接実行するデバッグビルドは App Attest の development 環境を使います。
+その端末で試すときだけ `wrangler.jsonc` の `ALLOW_DEVELOPMENT_ATTESTATION` を `"true"` にしてマージし、
+リリース前に `"false"` に戻してください。`"false"` に戻すと development 環境の鍵とトークンはすべて使えなくなります。
+
+### 手元から手動でデプロイする場合
+
+Git 連携が使えないときは、`server/` で次を実行します（`npm run deploy` は自動デプロイと同じ処理です）。
+
+```sh
+npm ci
+npx wrangler login
+npm run deploy
+npx wrangler secret put TOKEN_SECRET   # 初回だけ
+```
+
+スキーマを変えるときは `migrations/` に新しい番号のファイルを追加します。適用済みのファイルは書き換えないでください。
 
 ### データの確認
 
