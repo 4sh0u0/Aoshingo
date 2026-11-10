@@ -26,7 +26,7 @@ export default defineConfig({
     },
 
     triggers: [
-      // Daily at 18:00 UTC = 03:00 JST: fold expired reports into aggregates, drop old challenges.
+      // Daily at 18:00 UTC = 03:00 JST: fold expired reports into aggregates, drop old usage counters.
       triggers.scheduled({ schedule: "0 18 * * *" }),
     ],
 
@@ -38,8 +38,14 @@ export default defineConfig({
       ALLOW_DEVELOPMENT_ATTESTATION: bindings.text("false"),
       RETENTION_DAYS: bindings.text("90"),
       TOKEN_TTL_SECONDS: bindings.text("21600"),
+      // Daily write budget for API requests (src/budget.ts); over it, writes answer 503 over_capacity.
+      // Sized for the Workers Free plan: 100,000 rows written per day for the whole account (the
+      // cron writes at most about 51,000 more), and a 500 MB database with 90 days of reports.
+      DAILY_WRITE_LIMIT: bindings.text("30000"),
+      DAILY_PAYLOAD_LIMIT_BYTES: bindings.text("3000000"),
+      MAX_DATABASE_BYTES: bindings.text("450000000"),
 
-      // HMAC key for upload tokens (at least 32 characters). The value is never stored in the
+      // HMAC key for upload tokens and challenges (at least 32 characters). The value is never stored in the
       // repository: the first deploy uploads it with `cf deploy --secrets-file`, and later deploys
       // keep it. See README.md.
       TOKEN_SECRET: bindings.secret(),
@@ -58,7 +64,9 @@ export default defineConfig({
         namespace: "1001",
         simple: { limit: 6, period: 60 },
       }),
-      // POST /v1/challenge, /v1/attest and /v1/token, each with its own fixed global key.
+      // Verified attestations (key "attest") and token refreshes per App Attest key (a hash of the
+      // keyId). Checked after verification, so junk requests cannot use it up. /v1/challenge has no
+      // limit: it writes nothing.
       AUTH_RATE_LIMITER: bindings.rateLimit({
         namespace: "1002",
         simple: { limit: 30, period: 60 },

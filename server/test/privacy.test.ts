@@ -6,6 +6,7 @@ import { decodeBase64Url, encodeBase64, encodeBase64Url, toHex } from "../src/en
 import {
   createContext,
   exampleReport,
+  makeToken,
   registerKey,
   reportRequest,
   resetDatabase,
@@ -82,7 +83,8 @@ describe("privacy", () => {
         },
       } as unknown as D1Database,
     });
-    const response = await failing.fetch(new Request("https://reports.example/v1/challenge", { method: "POST" }));
+    const { token } = await makeToken(failing);
+    const response = await failing.fetch(reportRequest(token, exampleReport(failing.clock.seconds)));
     expect(response.status).toBe(500);
     expect(await response.text()).toBe('{"error":"internal_error"}');
   });

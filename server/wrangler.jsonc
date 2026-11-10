@@ -39,7 +39,9 @@
       "simple": { "limit": 6, "period": 60 }
     },
     {
-      // POST /v1/challenge, /v1/attest and /v1/token, each with its own fixed global key.
+      // Verified attestations (key "attest") and token refreshes per App Attest key (a hash of the
+      // keyId). Checked after verification, so junk requests cannot use it up. /v1/challenge has no
+      // limit: it writes nothing.
       "name": "AUTH_RATE_LIMITER",
       "namespace_id": "1002",
       "simple": { "limit": 30, "period": 60 }
@@ -53,14 +55,20 @@
     // "true" accepts keys from the App Attest development environment (debug builds).
     "ALLOW_DEVELOPMENT_ATTESTATION": "false",
     "RETENTION_DAYS": "90",
-    "TOKEN_TTL_SECONDS": "21600"
+    "TOKEN_TTL_SECONDS": "21600",
+    // Daily write budget for API requests (src/budget.ts); over it, writes answer 503 over_capacity.
+    // Sized for the Workers Free plan: 100,000 rows written per day for the whole account (the
+    // cron writes at most about 51,000 more), and a 500 MB database with 90 days of reports.
+    "DAILY_WRITE_LIMIT": "30000",
+    "DAILY_PAYLOAD_LIMIT_BYTES": "3000000",
+    "MAX_DATABASE_BYTES": "450000000"
   },
-  // TOKEN_SECRET (HMAC key for upload tokens, at least 32 characters) is a secret and is not
+  // TOKEN_SECRET (HMAC key for upload tokens and challenges, at least 32 characters) is a secret and is not
   // stored here. The tests set their own value in vitest.config.ts; production gets it from
   // `cf deploy --secrets-file` (see README.md).
 
   "triggers": {
-    // Daily at 18:00 UTC = 03:00 JST: fold expired reports into aggregates, drop old challenges.
+    // Daily at 18:00 UTC = 03:00 JST: fold expired reports into aggregates, drop old usage counters.
     "crons": ["0 18 * * *"]
   }
 }

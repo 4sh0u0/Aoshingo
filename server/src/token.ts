@@ -40,7 +40,8 @@ function hmacKey(secret: string): Promise<CryptoKey> {
   return cachedKey.key;
 }
 
-async function mac(secret: string, payload: Uint8Array): Promise<Uint8Array> {
+/** HMAC-SHA256 with `secret`. Also signs challenges (challenge.ts), which add their own label. */
+export async function hmacSha256(secret: string, payload: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.sign("HMAC", await hmacKey(secret), payload));
 }
 
@@ -56,7 +57,7 @@ function encodePayload(claims: TokenClaims): Uint8Array {
 /** Signs explicit claims. Exposed for tests; request handlers use `issueToken`. */
 export async function signToken(secret: string, claims: TokenClaims): Promise<string> {
   const payload = encodePayload(claims);
-  return encodeBase64Url(concatBytes(payload, await mac(secret, payload)));
+  return encodeBase64Url(concatBytes(payload, await hmacSha256(secret, payload)));
 }
 
 export async function issueToken(
@@ -80,7 +81,7 @@ export async function verifyToken(
   const bytes = decodeBase64Url(token);
   if (bytes === null || bytes.byteLength !== TOKEN_LENGTH) return null;
   const payload = bytes.subarray(0, PAYLOAD_LENGTH);
-  const expected = await mac(secret, payload);
+  const expected = await hmacSha256(secret, payload);
   // Constant-time comparison (workerd extension to SubtleCrypto); both inputs are 32 bytes.
   if (!crypto.subtle.timingSafeEqual(expected, bytes.subarray(PAYLOAD_LENGTH))) return null;
   if (payload[0] !== VERSION) return null;

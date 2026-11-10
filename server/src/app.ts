@@ -7,11 +7,13 @@
 
 import { APPLE_APP_ATTESTATION_ROOT_CA_DER } from "./apple-root";
 import { verifyAssertion, verifyAttestation, VerificationError, type AttestEnvironment } from "./appattest";
-import { consumeChallenge, deleteExpiredChallenges, issueChallenge } from "./challenge";
+import { deleteOldUsage, reserveWrites } from "./budget";
+import { issueChallenge, verifyChallenge } from "./challenge";
 import { decodeBase64, encodeBase64Url, fromHex, toHex } from "./encoding";
 import {
   allowDevelopment,
   appId,
+  budgetLimits,
   ConfigError,
   retentionDays,
   tokenSecret,
@@ -20,11 +22,14 @@ import {
 } from "./env";
 import { errorResponse, HttpError, isJsonContentType, json, parseJson, readBodyLimited } from "./http";
 import { MAX_REPORT_BYTES, validateReport } from "./report";
-import { foldExpiredReports, storeReport, utcDay } from "./storage";
+import { foldExpiredReports, reportPayloads, ROWS_WRITTEN_PER_INTERSECTION, storeReport, utcDay } from "./storage";
 import { issueToken, verifyToken } from "./token";
 
 /** Attest/token request bodies are small; anything bigger is not a genuine client. */
 const MAX_AUTH_BODY_BYTES = 64 * 1024;
+
+/** daily_usage rows older than this many days are deleted by the cron. */
+const USAGE_KEEP_DAYS = 7;
 
 export interface AppOptions {
   /**
@@ -81,6 +86,20 @@ export function createApp(options: AppOptions = {}): App {
     return bytes;
   }
 
+  /** Rate-limit key for one App Attest key: a hash, so the limiter never sees the keyId itself. */
+  async function keyLimitKey(keyId: Uint8Array): Promise<string> {
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", keyId));
+    return `token:${encodeBase64Url(digest.subarray(0, 16))}`;
+  }
+
+  async function checkChallenge(env: Env, challenge: unknown, nowMs: number): Promise<string> {
+    if (typeof challenge !== "string") throw new HttpError(400, "bad_request");
+    if (!(await verifyChallenge(tokenSecret(env), challenge, Math.floor(nowMs / 1000)))) {
+      throw new HttpError(400, "bad_challenge");
+    }
+    return challenge;
+  }
+
   async function tokenResponse(env: Env, environment: AttestEnvironment, nowMs: number): Promise<Response> {
     const { token, expiresAt } = await issueToken(
       tokenSecret(env),
@@ -93,33 +112,31 @@ export function createApp(options: AppOptions = {}): App {
 
   const health: Handler = async () => json(200, { ok: true });
 
+  // Signed, not stored, so it costs no D1 write and needs no rate limit: a limit keyed without
+  // the client's address would only let one client lock everybody else out.
   const challenge: Handler = async (_request, env, nowMs) => {
-    await rateLimit(env.AUTH_RATE_LIMITER, "challenge");
-    const issued = await issueChallenge(env.DB, Math.floor(nowMs / 1000));
+    const issued = await issueChallenge(tokenSecret(env), Math.floor(nowMs / 1000));
     return json(201, issued);
   };
 
   const attest: Handler = async (request, env, nowMs) => {
-    await rateLimit(env.AUTH_RATE_LIMITER, "attest");
-    // Read the configuration first so a misconfigured server does not burn challenges.
+    // Read the configuration first, so a misconfigured server answers 500 for every request.
     const id = appId(env);
     tokenSecret(env);
     tokenTtlSeconds(env);
+    const limits = budgetLimits(env);
 
     const body = await readAuthBody(request);
     const keyId = decodeKeyId(body.keyId);
     const attestation = decodeBlob(body.attestation);
-    if (typeof body.challenge !== "string") throw new HttpError(400, "bad_request");
-    if (!(await consumeChallenge(env.DB, body.challenge, Math.floor(nowMs / 1000)))) {
-      throw new HttpError(400, "bad_challenge");
-    }
+    const challenge = await checkChallenge(env, body.challenge, nowMs);
 
     let result;
     try {
       result = await verifyAttestation({
         attestation,
         keyId,
-        challenge: body.challenge,
+        challenge,
         appId: id,
         allowDevelopment: allowDevelopment(env),
         nowMs,
@@ -129,6 +146,10 @@ export function createApp(options: AppOptions = {}): App {
       if (error instanceof VerificationError) throw new HttpError(401, "attestation_invalid");
       throw error;
     }
+
+    // Only verified attestations count, so junk requests cannot lock out genuine clients.
+    await rateLimit(env.AUTH_RATE_LIMITER, "attest");
+    await reserveWrites(env.DB, limits, utcDay(nowMs), 1);
 
     // Stored apart from report data; created_day is coarse on purpose.
     const inserted = await env.DB.prepare(
@@ -143,18 +164,15 @@ export function createApp(options: AppOptions = {}): App {
   };
 
   const token: Handler = async (request, env, nowMs) => {
-    await rateLimit(env.AUTH_RATE_LIMITER, "token");
     const id = appId(env);
     tokenSecret(env);
     tokenTtlSeconds(env);
+    const limits = budgetLimits(env);
 
     const body = await readAuthBody(request);
     const keyId = decodeKeyId(body.keyId);
     const assertion = decodeBlob(body.assertion);
-    if (typeof body.challenge !== "string") throw new HttpError(400, "bad_request");
-    if (!(await consumeChallenge(env.DB, body.challenge, Math.floor(nowMs / 1000)))) {
-      throw new HttpError(400, "bad_challenge");
-    }
+    const challenge = await checkChallenge(env, body.challenge, nowMs);
 
     const keyIdHex = toHex(keyId);
     const key = await env.DB.prepare(
@@ -175,13 +193,17 @@ export function createApp(options: AppOptions = {}): App {
         assertion,
         publicKey,
         storedSignCount: key.sign_count,
-        challenge: body.challenge,
+        challenge,
         appId: id,
       });
     } catch (error) {
       if (error instanceof VerificationError) throw new HttpError(401, "assertion_invalid");
       throw error;
     }
+
+    // Per key, and only once the assertion is verified.
+    await rateLimit(env.AUTH_RATE_LIMITER, await keyLimitKey(keyId));
+    await reserveWrites(env.DB, limits, utcDay(nowMs), 1);
 
     // Compare-and-set, so two concurrent requests cannot both use the same counter value.
     const updated = await env.DB.prepare(
@@ -197,6 +219,7 @@ export function createApp(options: AppOptions = {}): App {
   const reports: Handler = async (request, env, nowMs) => {
     const nowSeconds = Math.floor(nowMs / 1000);
     const secret = tokenSecret(env);
+    const limits = budgetLimits(env);
     const authorization = request.headers.get("authorization");
     const match = authorization === null ? null : /^Bearer ([^\s]+)$/i.exec(authorization);
     const claims = match === null ? null : await verifyToken(secret, match[1]!, nowSeconds);
@@ -216,8 +239,16 @@ export function createApp(options: AppOptions = {}): App {
     const result = validateReport(parseJson(body), nowSeconds);
     if (!result.ok) throw new HttpError(400, "invalid_report");
 
-    await storeReport(env.DB, result.report, nowMs);
     const { intersections } = result.report;
+    const payloads = reportPayloads(result.report);
+    await reserveWrites(
+      env.DB,
+      limits,
+      utcDay(nowMs),
+      intersections.length * ROWS_WRITTEN_PER_INTERSECTION,
+      payloads.reduce((sum, payload) => sum + payload.length, 0),
+    );
+    await storeReport(env.DB, result.report, nowMs, payloads);
     return json(202, {
       accepted: {
         intersections: intersections.length,
@@ -255,7 +286,7 @@ export function createApp(options: AppOptions = {}): App {
 
     async scheduled(_controller, env) {
       const nowMs = now();
-      await deleteExpiredChallenges(env.DB, Math.floor(nowMs / 1000));
+      await deleteOldUsage(env.DB, utcDay(nowMs - USAGE_KEEP_DAYS * 86_400_000));
       const cutoffDay = utcDay(nowMs - retentionDays(env) * 86_400_000);
       await foldExpiredReports(env.DB, cutoffDay);
     },

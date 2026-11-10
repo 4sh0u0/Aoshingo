@@ -15,6 +15,7 @@
 
 - HTTPS のみ。本文は JSON（`Content-Type: application/json`）、UTF-8。
 - エラーは 2xx 以外のステータスと `{"error": "<コード>"}` の本文で返します。コードはエンドポイントごとに示します。
+- `503 over_capacity` は、サーバーがその日（UTC）に書き込める量の上限に達したことを表します。データは保存されていません。時間をおいて同じ内容を送り直してください。上限は Cloudflare の無料枠を守るためのものです（`server/README.md`）。
 - バイナリ値は base64 で表します。`keyId`、`attestation`、`assertion` はパディング付きの標準 base64（`DCAppAttestService` と `Data.base64EncodedString()` が出力する形式）、チャレンジとトークンはパディングなしの base64url です。
 - 時刻は Unix 秒（整数）です。
 
@@ -26,13 +27,20 @@
 
 ### `POST /v1/challenge`
 
-1 回だけ使えるチャレンジを発行します。有効期間は 300 秒です。リクエスト本文は不要です（`{}` でも可）。
+有効期間 300 秒のチャレンジを発行します。リクエスト本文は不要です（`{}` でも可）。
 
-`201 {"challenge": "<base64url、ランダムな 32 バイト>", "expiresAt": 1794290300}`
+`201 {"challenge": "<base64url、不透明な文字列>", "expiresAt": 1794290300}`
 
-エラー：`429 rate_limited`
+チャレンジはサーバーの秘密鍵で署名したもので、サーバーは保存しません（発行してもデータベースに書き込まないため、レート制限もありません）。クライアントは中身を解釈せず、文字列のまま扱ってください。
 
 クライアントは `clientDataHash = SHA-256（受け取ったチャレンジ文字列そのままの UTF-8 バイト列）` を計算します。
+
+同じチャレンジを有効期間内に 2 回使っても、チャレンジとしては拒否しません。再送攻撃は次の 2 点で防ぎます。
+
+- `/v1/attest`：同じ `keyId` は 1 回しか登録できません（2 回目は `409 key_exists`）。
+- `/v1/token`：assertion のサインカウンタが保存済みの値より大きくなければ `401 assertion_invalid` です。
+
+どちらもチャレンジは `clientDataHash` を通じて署名に含まれるので、チャレンジは「最近作られたリクエストであること」を保証します。クライアントはリクエストごとに新しいチャレンジを取ってください。
 
 ### `POST /v1/attest`
 
@@ -44,7 +52,7 @@ App Attest の鍵を登録し、送信用トークンを返します。鍵ごと
 { "keyId": "<base64>", "attestation": "<base64 CBOR>", "challenge": "<base64url>" }
 ```
 
-Worker はチャレンジを消費し（未知・使用済み・期限切れなら `400 bad_challenge`）、Apple の「Validating apps that connect to your server」に従って attestation（構成証明）を検証します。
+Worker はチャレンジの署名と有効期限を確かめ（このサーバーが発行したものでない、または期限切れなら `400 bad_challenge`）、Apple の「Validating apps that connect to your server」に従って attestation（構成証明）を検証します。
 
 1. CBOR をデコードします。`fmt` は `apple-appattest`、`attStmt.x5c` は `[credCert, intermediate]` であること。
 2. credCert → intermediate → 埋め込んだ Apple App Attestation Root CA の証明書チェーンを、現在時刻での有効期間も含めて検証します。
@@ -55,11 +63,11 @@ Worker はチャレンジを消費し（未知・使用済み・期限切れな�
 7. AAGUID（37..<53 バイト目）が `appattest` の後に `0x00` が 7 個続くもの（本番環境）であること。`appattestdevelop` は `ALLOW_DEVELOPMENT_ATTESTATION` が `"true"` のときだけ受け付けます。
 8. AAGUID の後に長さ付きで続く Credential ID が、デコードした `keyId` と一致すること。
 
-成功したら、Worker は鍵の公開鍵をサインカウント 0 で保存し、トークンを返します。
+検証に通ったら、Worker はレート制限と 1 日の書き込み上限を確かめてから、鍵の公開鍵をサインカウント 0 で保存し、トークンを返します。検証に通らないリクエストはレート制限に数えません。
 
 `200 {"token": "<不透明な文字列>", "expiresAt": 1794311900}`
 
-エラー：`400 bad_request`、`400 bad_challenge`、`401 attestation_invalid`、`409 key_exists`、`429 rate_limited`
+エラー：`400 bad_request`、`400 bad_challenge`、`401 attestation_invalid`、`409 key_exists`、`429 rate_limited`、`503 over_capacity`
 
 ### `POST /v1/token`
 
@@ -71,11 +79,11 @@ Worker はチャレンジを消費し（未知・使用済み・期限切れな�
 { "keyId": "<base64>", "assertion": "<base64 CBOR>", "challenge": "<base64url>" }
 ```
 
-検証内容：CBOR `{signature, authenticatorData}` をデコードし、`nonce = SHA-256(authenticatorData ‖ clientDataHash)` を計算します。保存済みの公開鍵で、`nonce` に対する ECDSA P-256 / SHA-256 の署名（DER 形式）を検証します。rpIdHash は上と同じ条件です。サインカウントは保存済みの値より大きくなければならず、検証後に更新します。
+検証内容：CBOR `{signature, authenticatorData}` をデコードし、`nonce = SHA-256(authenticatorData ‖ clientDataHash)` を計算します。保存済みの公開鍵で、`nonce` に対する ECDSA P-256 / SHA-256 の署名（DER 形式）を検証します。rpIdHash は上と同じ条件です。サインカウントは保存済みの値より大きくなければなりません。検証に通ったら、鍵ごとのレート制限と 1 日の書き込み上限を確かめてから、サインカウントを更新します。`429` や `503` のときサインカウントは更新しないので、同じカウンタから再試行できます。
 
 `200 {"token": "<不透明な文字列>", "expiresAt": 1794311900}`
 
-エラー：`400 bad_request`、`400 bad_challenge`、`401 assertion_invalid`、`404 unknown_key`、`429 rate_limited`
+エラー：`400 bad_request`、`400 bad_challenge`、`401 assertion_invalid`、`404 unknown_key`、`429 rate_limited`、`503 over_capacity`
 
 ### `POST /v1/reports`
 
@@ -125,7 +133,7 @@ Worker はチャレンジを消費し（未知・使用済み・期限切れな�
 
 `202 {"accepted": {"intersections": 1, "observations": 1, "transitions": 1}}`
 
-エラー：`400 invalid_report`、`401 invalid_token`、`413 too_large`、`415 unsupported_media_type`、`429 rate_limited`
+エラー：`400 invalid_report`、`401 invalid_token`、`413 too_large`、`415 unsupported_media_type`、`429 rate_limited`、`503 over_capacity`
 
 ## アプリ側で行う丸めと間引き
 

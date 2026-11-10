@@ -156,7 +156,7 @@ describe("POST /v1/token", () => {
 
     expect((await refresh({ counter: 7 })).status).toBe(200);
     expect(await storedCount(registered.keyId)).toBe(7);
-    expect(context.authLimiter.keys.filter((key) => key === "token")).toHaveLength(2);
+    expect(context.authLimiter.keys.filter((key) => key.startsWith("token:"))).toHaveLength(2);
   });
 
   it("rejects a non-increasing counter", async () => {
@@ -210,7 +210,7 @@ describe("POST /v1/token", () => {
     expect(await response.json()).toEqual({ error: "unknown_key" });
   });
 
-  it("returns 400 bad_challenge for a reused challenge", async () => {
+  it("rejects a replayed request: the counter, not the challenge, stops replays", async () => {
     const challenge = await getChallenge(context);
     const assertion = await buildAssertion({
       privateKey: registered.credentialKey.privateKey,
@@ -220,9 +220,25 @@ describe("POST /v1/token", () => {
     });
     const body = { keyId: encodeBase64(registered.keyId), assertion: encodeBase64(assertion), challenge };
     expect((await context.fetch(postJson("/v1/token", body))).status).toBe(200);
-    const reused = await context.fetch(postJson("/v1/token", body));
-    expect(reused.status).toBe(400);
-    expect(await reused.json()).toEqual({ error: "bad_challenge" });
+    const replayed = await context.fetch(postJson("/v1/token", body));
+    expect(replayed.status).toBe(401);
+    expect(await replayed.json()).toEqual({ error: "assertion_invalid" });
+    expect(await storedCount(registered.keyId)).toBe(1);
+  });
+
+  it("returns 400 bad_challenge for a challenge the server did not issue", async () => {
+    const assertion = await buildAssertion({
+      privateKey: registered.credentialKey.privateKey,
+      challenge: CHALLENGE,
+      appId: APP_ID,
+      counter: 1,
+    });
+    const response = await context.fetch(
+      postJson("/v1/token", { keyId: encodeBase64(registered.keyId), assertion: encodeBase64(assertion), challenge: CHALLENGE }),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "bad_challenge" });
+    expect(await storedCount(registered.keyId)).toBe(0);
   });
 
   it("returns 400 bad_request for malformed requests", async () => {

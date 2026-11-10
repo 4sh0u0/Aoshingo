@@ -62,6 +62,9 @@ export async function createContext(overrides: Partial<Env> = {}): Promise<TestC
     ALLOW_DEVELOPMENT_ATTESTATION: "false",
     RETENTION_DAYS: "90",
     TOKEN_TTL_SECONDS: "21600",
+    DAILY_WRITE_LIMIT: "30000",
+    DAILY_PAYLOAD_LIMIT_BYTES: "3000000",
+    MAX_DATABASE_BYTES: "450000000",
     ...overrides,
   };
   const app = createApp({ attestationRootForTesting: pki.rootDer, now: () => clock.ms });
@@ -78,7 +81,7 @@ export async function createContext(overrides: Partial<Env> = {}): Promise<TestC
 
 export async function resetDatabase(): Promise<void> {
   await bindings.DB.batch(
-    ["challenges", "attest_keys", "reports", "transition_counts", "observation_counts"].map((table) =>
+    ["attest_keys", "reports", "transition_counts", "observation_counts", "daily_usage"].map((table) =>
       bindings.DB.prepare(`DELETE FROM ${table}`),
     ),
   );
@@ -168,4 +171,11 @@ export function exampleReport(nowSeconds: number) {
       },
     ],
   };
+}
+
+/** The daily_usage row for `day`, or null. */
+export async function usage(day: string): Promise<{ rows_written: number; payload_bytes: number } | null> {
+  return bindings.DB.prepare("SELECT rows_written, payload_bytes FROM daily_usage WHERE day = ?1")
+    .bind(day)
+    .first<{ rows_written: number; payload_bytes: number }>();
 }

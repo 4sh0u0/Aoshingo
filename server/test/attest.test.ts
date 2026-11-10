@@ -266,7 +266,7 @@ describe("POST /v1/attest", () => {
       environment: "production",
       created_day: new Date(context.clock.ms).toISOString().slice(0, 10),
     });
-    expect(context.authLimiter.keys).toEqual(["challenge", "attest"]);
+    expect(context.authLimiter.keys).toEqual(["attest"]);
   });
 
   it("returns 409 key_exists for an already registered key", async () => {
@@ -365,16 +365,13 @@ describe("POST /v1/attest", () => {
     expect(await response.json()).toEqual({ error: "bad_challenge" });
   });
 
-  it("reports server_misconfigured without consuming the challenge", async () => {
-    for (const overrides of [{ APPLE_TEAM_ID: "REPLACE_WITH_TEAM_ID" }, { TOKEN_SECRET: undefined }]) {
+  it("reports server_misconfigured before looking at the request", async () => {
+    const challenge = await getChallenge(context);
+    for (const overrides of [{ APPLE_TEAM_ID: "REPLACE_WITH_TEAM_ID" }, { TOKEN_SECRET: undefined }, { DAILY_WRITE_LIMIT: "" }]) {
       const broken = await createContext(overrides);
-      const challenge = await getChallenge(broken);
       const response = await broken.fetch(postJson("/v1/attest", { keyId: "", attestation: "", challenge }));
       expect(response.status).toBe(500);
       expect(await response.json()).toEqual({ error: "server_misconfigured" });
-      expect(
-        await env.DB.prepare("SELECT count(*) AS n FROM challenges WHERE challenge = ?1").bind(challenge).first("n"),
-      ).toBe(1);
     }
   });
 

@@ -2,6 +2,7 @@
 
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { budgetLimits } from "../src/env";
 import { BASE } from "./helpers/context";
 
 describe("routing (deployed entry point)", () => {
@@ -36,7 +37,15 @@ describe("routing (deployed entry point)", () => {
     const response = await exports.default.fetch(`${BASE}/v1/challenge`, { method: "POST" });
     expect(response.status).toBe(201);
     const body = (await response.json()) as { challenge: string; expiresAt: number };
-    expect(body.challenge).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(body.challenge).toMatch(/^[A-Za-z0-9_-]{76}$/);
+  });
+
+  it("has the budget variables declared in wrangler.jsonc", () => {
+    expect(budgetLimits(env)).toEqual({
+      rowsPerDay: 30_000,
+      payloadBytesPerDay: 3_000_000,
+      maxDatabaseBytes: 450_000_000,
+    });
   });
 
   it("has the rate-limit bindings declared in wrangler.jsonc", async () => {

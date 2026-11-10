@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import type { BudgetLimits } from "./budget";
+
 /** Bindings declared in cloudflare.config.ts (and wrangler.jsonc for the tests). */
 export interface Env {
   DB: D1Database;
   /** Keyed by the upload token's random ID. */
   REPORTS_RATE_LIMITER: RateLimit;
-  /** Keyed by a fixed per-endpoint string ("challenge", "attest", "token"); never by IP. */
+  /**
+   * Counts verified attestations ("attest") and token refreshes per key ("token:" + a hash of the
+   * keyId). Checked only after verification, so junk requests cannot use it up. Never keyed by IP.
+   */
   AUTH_RATE_LIMITER: RateLimit;
   /** Uploaded with `cf deploy --secrets-file`; kept by later deploys. */
   TOKEN_SECRET?: string;
@@ -14,6 +19,12 @@ export interface Env {
   ALLOW_DEVELOPMENT_ATTESTATION: string;
   RETENTION_DAYS: string;
   TOKEN_TTL_SECONDS: string;
+  /** Rows written per UTC day by API requests (src/budget.ts). */
+  DAILY_WRITE_LIMIT: string;
+  /** Report payload bytes stored per UTC day. */
+  DAILY_PAYLOAD_LIMIT_BYTES: string;
+  /** New writes are refused once the D1 database is larger than this. */
+  MAX_DATABASE_BYTES: string;
 }
 
 /** Raised when a variable or secret is missing or invalid; reported as 500 server_misconfigured. */
@@ -60,4 +71,12 @@ export function retentionDays(env: Env): number {
 
 export function tokenTtlSeconds(env: Env): number {
   return parseInteger("TOKEN_TTL_SECONDS", env.TOKEN_TTL_SECONDS, 60, 7 * 24 * 3600);
+}
+
+export function budgetLimits(env: Env): BudgetLimits {
+  return {
+    rowsPerDay: parseInteger("DAILY_WRITE_LIMIT", env.DAILY_WRITE_LIMIT, 1, 10_000_000),
+    payloadBytesPerDay: parseInteger("DAILY_PAYLOAD_LIMIT_BYTES", env.DAILY_PAYLOAD_LIMIT_BYTES, 1, 10_000_000_000),
+    maxDatabaseBytes: parseInteger("MAX_DATABASE_BYTES", env.MAX_DATABASE_BYTES, 1, 10_000_000_000),
+  };
 }
