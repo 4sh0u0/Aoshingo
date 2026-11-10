@@ -59,6 +59,8 @@ struct SafetyNoticeView: View {
                 Text("確認しました")
                     .frame(maxWidth: .infinity)
             }
+            // Large text, like the receive control, so white on the accent color meets WCAG 3:1 in dark mode.
+            .font(.title3.weight(.semibold))
             .controlSize(.large)
             .prominentControlStyle()
             .padding()
