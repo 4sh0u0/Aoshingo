@@ -21,10 +21,9 @@
     {
       "binding": "DB",
       "database_name": "aoshingo-reports",
-      // Placeholder. Create the database (dashboard: Storage & databases > D1, or
-      // `npx wrangler d1 create aoshingo-reports`) and replace this with its ID. The ID is not a
-      // secret. Deploys from Workers Builds apply migrations first (`npm run deploy`).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // Created in APAC. The ID is not a secret. Deploys from Workers Builds apply migrations
+      // first (`npm run deploy`).
+      "database_id": "ca8ff962-c094-4c66-b9fd-bbf2189ef549",
       "migrations_dir": "migrations"
     }
   ],
@@ -47,8 +46,8 @@
   ],
 
   "vars": {
-    // Your 10-character Apple Developer team ID (not secret). Attestation is refused until set.
-    "APPLE_TEAM_ID": "REPLACE_WITH_TEAM_ID",
+    // Apple Developer team ID of the app (not secret).
+    "APPLE_TEAM_ID": "XTCC8DPHBX",
     "APP_BUNDLE_ID": "io.github.4sh0u0.aoshingo",
     // "true" accepts keys from the App Attest development environment (debug builds).
     "ALLOW_DEVELOPMENT_ATTESTATION": "false",

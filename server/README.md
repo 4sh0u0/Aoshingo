@@ -104,6 +104,8 @@ GitHub Actions からはデプロイしません（CI はテストだけ）。�
    | Root directory（Advanced settings の Path） | `server` |
    | API token | Create new token（新しく作成） |
 
+   すでに `wrangler deploy` で Worker `aoshingo-reports` を作ってある場合は、Import ではなく、その Worker の **Settings → Build → Connect** から同じ値で接続します。
+
    依存関係は `package-lock.json` から自動でインストールされます。Node.js のバージョンは `server/.node-version`（22）で指定しています。
 
 4. **ビルド用トークンに D1 の権限を足す**
