@@ -51,6 +51,7 @@ struct SafetyNoticeView: View {
                 NoticeRow(systemImage: "antenna.radiowaves.left.and.right", text: "受信専用です。信号機に何かを送信したり、操作したりすることはありません。")
                 NoticeRow(systemImage: "testtube.2", text: "これは開発中の試験版（pre-alpha）です。")
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
         .safeAreaInset(edge: .bottom) {
@@ -82,6 +83,7 @@ struct CollectionConsentView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
         .safeAreaInset(edge: .bottom) {
@@ -140,6 +142,8 @@ struct CollectionDetails: View {
 struct NoticeRow: View {
     let systemImage: String
     let text: LocalizedStringKey
+    /// Fixed icon column, so the text lines up whatever the symbol's width; scales with Dynamic Type.
+    @ScaledMetric(relativeTo: .body) private var iconWidth: CGFloat = 28
 
     var body: some View {
         Label {
@@ -147,6 +151,7 @@ struct NoticeRow: View {
         } icon: {
             Image(systemName: systemImage)
                 .foregroundStyle(.tint)
+                .frame(width: iconWidth)
                 .accessibilityHidden(true)
         }
     }
