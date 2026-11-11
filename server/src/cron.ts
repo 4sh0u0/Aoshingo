@@ -5,9 +5,10 @@
 // service_state, since the Worker keeps no logs. That row holds only times, counts and the
 // database size.
 //
-// Free plan limits per run: D1 queries 1 (usage) + 2 per fold chunk (at most 40) + 1 (keys) +
-// 1 (record) = 43 of 50. Rows written at most about 51,000 (fold) + 10,000 (keys) + a few, which
-// with the API's DAILY_WRITE_LIMIT of 30,000 stays below the account's 100,000 per day.
+// Free plan limits per run: D1 queries 1 (usage) + 2 per fold chunk (the chunk query and one batch
+// with all its statements; at most 40) + 1 (keys) + 1 (record) = 43 of 50. Rows written at most
+// about 51,000 (fold) + 10,000 (keys) + a few, which with the API's DAILY_WRITE_LIMIT of 30,000
+// stays below the account's 100,000 per day.
 
 import { deleteOldUsage } from "./budget";
 import { deleteUnusedKeys, KEY_DELETE_LIMIT, KEY_RETENTION_DAYS } from "./keys";

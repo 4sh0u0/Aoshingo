@@ -7,6 +7,11 @@ import Foundation
 enum SettingsKey {
     static let onboardingCompleted = "onboardingCompleted"
     static let collectionConsent = "collectionConsent"
+    /// The `CollectionConsent.currentVersion` the user agreed to when they chose "協力する".
+    static let collectionConsentVersion = "collectionConsentVersion"
+    /// Set when the user had agreed to an older list of collected data, so the consent page is shown
+    /// again on its own (without the safety notice).
+    static let collectionConsentReview = "collectionConsentReview"
     static let colorMode = "colorMode"
     static let keepScreenOn = "keepScreenOn"
     static let recordingEnabled = "recordingEnabled"
@@ -17,6 +22,11 @@ enum CollectionConsent: String, CaseIterable, Sendable {
     case undecided
     case granted
     case declined
+
+    /// Version of what is collected (`CollectionDetails`). Raise it whenever more data is sent; users
+    /// who agreed to an older version are asked again, and nothing is collected until they answer.
+    /// 1 = report schema 1 (0.1.0), 2 = report schema 2.
+    static let currentVersion = 2
 }
 
 /// How signal colours are drawn. Shapes and text are always shown in every mode.

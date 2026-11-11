@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import FieldDataKit
 import PICSKit
 import SwiftUI
 
@@ -38,7 +39,7 @@ struct IntersectionDetailView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 IntersectionInfoSection(state: state, now: now)
-                FieldTestSection(state: state)
+                FieldTestSection(state: state, source: source)
                 RawDataSection(state: state)
             }
         }
@@ -135,9 +136,12 @@ private struct IntersectionInfoSection: View {
     }
 }
 
-/// The open questions of the field test: Service UUID, transmitters, advertising intervals.
+/// The open questions of the field test: Service UUID, transmitters, advertising intervals, and
+/// tester labels for which slot belongs to which crosswalk.
 private struct FieldTestSection: View {
     let state: IntersectionState
+    let source: AppModel.Source
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         GroupBox("現地確認") {
@@ -163,6 +167,16 @@ private struct FieldTestSection: View {
                 Text("Service UUID が「なし」の場合、iOS のバックグラウンドでは受信できません。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                if source == .live {
+                    if model.field.isEnabled {
+                        Divider()
+                        FieldLabelControls(state: state)
+                    } else if model.field.canContribute {
+                        Text("実測データの提供をオンにすると、どの番号がどの横断歩道の信号かを記録できます（テスター向け）。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .font(.callout)
         }
@@ -175,6 +189,86 @@ private struct FieldTestSection: View {
         let meanText = mean.formatted(.number.precision(.fractionLength(2)))
         let shortestText = shortest.formatted(.number.precision(.fractionLength(2)))
         return String(localized: "\(stats.count) 件 · 平均間隔 \(meanText) 秒 · 最短 \(shortestText) 秒")
+    }
+}
+
+/// Buttons for tester labels, uploaded with the field data (docs/field-test.md).
+private struct FieldLabelControls: View {
+    let state: IntersectionState
+    @Environment(AppModel.self) private var model
+    @State private var feedback: String?
+    @ScaledMetric(relativeTo: .body) private var buttonWidth: CGFloat = 80
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("横断歩道の対応を記録（テスター向け）")
+                .font(.subheadline.weight(.semibold))
+                .accessibilityAddTraits(.isHeader)
+            Text("横断歩道の手前で、渡る方向に iPhone を向けてから、その横断歩道の信号の番号を押してください。端末の向きと、交差点から見たおおまかな位置を記録して、実測データと一緒に送ります。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: buttonWidth), spacing: 8)], alignment: .leading, spacing: 8) {
+                ForEach(state.activeSlots, id: \.slot) { slot in
+                    Button("\(slot.slot) 番") {
+                        record(.crosswalk, slot: slot.slot)
+                    }
+                    .accessibilityHint("いま向いている方向の横断歩道を、この番号の信号として記録します")
+                }
+            }
+            .buttonStyle(.bordered)
+            Button("押しボタンを押した") {
+                record(.button, slot: nil)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityHint("押しボタンを押した時刻を記録します")
+            if let feedback {
+                Text(feedback)
+                    .font(.footnote)
+            }
+        }
+    }
+
+    private func record(_ kind: FieldReport.Label.Kind, slot: Int?) {
+        let id = state.id
+        Task {
+            let result = await model.field.label(kind, slot: slot, intersectionID: id)
+            let message = Self.message(for: result, kind: kind, slot: slot)
+            feedback = message
+            AccessibilityAnnouncer.announce(message)
+        }
+    }
+
+    private static func message(for result: FieldDataModel.LabelResult, kind: FieldReport.Label.Kind, slot: Int?) -> String {
+        switch result {
+        case .recorded(let heading):
+            switch kind {
+            case .crosswalk:
+                if let slot, let heading {
+                    return String(localized: "\(slot) 番を記録しました（\(directionName(heading))向き）")
+                }
+                return String(localized: "記録しました")
+            case .button:
+                return String(localized: "押しボタンを押したことを記録しました")
+            }
+        case .noHeading:
+            return String(localized: "端末の向きが分からないため記録しませんでした。iPhone を水平に持って少し待ち、もう一度押してください。")
+        case .notRecorded:
+            return String(localized: "記録できませんでした")
+        }
+    }
+
+    /// Names of the eight 45° sectors, 0 = north, clockwise (Bucketing.sector).
+    private static func directionName(_ sector: Int) -> String {
+        switch sector {
+        case 0: String(localized: "北")
+        case 1: String(localized: "北東")
+        case 2: String(localized: "東")
+        case 3: String(localized: "南東")
+        case 4: String(localized: "南")
+        case 5: String(localized: "南西")
+        case 6: String(localized: "西")
+        default: String(localized: "北西")
+        }
     }
 }
 

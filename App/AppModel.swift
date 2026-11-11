@@ -76,8 +76,7 @@ final class AppModel {
                 self?.handle(event)
             }
         }
-        let stored = UserDefaults.standard.string(forKey: SettingsKey.collectionConsent)
-        let consent = stored.flatMap(CollectionConsent.init(rawValue:)) ?? .undecided
+        let consent = Self.migrateConsent()
         Task { await field.apply(consent) }
     }
 
@@ -250,8 +249,29 @@ final class AppModel {
 
     // MARK: - Consent
 
+    /// The stored consent, after withdrawing a "協力する" given for an older list of collected data.
+    /// The privacy policy promises to ask again before sending more, so such a consent turns back
+    /// into "undecided" (which also deletes anything queued under it) and the consent page reappears.
+    private static func migrateConsent() -> CollectionConsent {
+        let defaults = UserDefaults.standard
+        let stored = defaults.string(forKey: SettingsKey.collectionConsent).flatMap(CollectionConsent.init(rawValue:)) ?? .undecided
+        // A missing version (0) is the first release, which did not store one.
+        guard stored == .granted,
+              defaults.integer(forKey: SettingsKey.collectionConsentVersion) < CollectionConsent.currentVersion
+        else { return stored }
+        defaults.set(CollectionConsent.undecided.rawValue, forKey: SettingsKey.collectionConsent)
+        defaults.set(true, forKey: SettingsKey.collectionConsentReview)
+        defaults.set(false, forKey: SettingsKey.onboardingCompleted)
+        return .undecided
+    }
+
     func applyConsent(_ consent: CollectionConsent) {
-        UserDefaults.standard.set(consent.rawValue, forKey: SettingsKey.collectionConsent)
+        let defaults = UserDefaults.standard
+        defaults.set(consent.rawValue, forKey: SettingsKey.collectionConsent)
+        if consent == .granted {
+            defaults.set(CollectionConsent.currentVersion, forKey: SettingsKey.collectionConsentVersion)
+        }
+        defaults.set(false, forKey: SettingsKey.collectionConsentReview)
         Task {
             await field.apply(consent)
             field.setReceiving(source == .live)

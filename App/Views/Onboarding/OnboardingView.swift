@@ -6,6 +6,7 @@ import SwiftUI
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @AppStorage(SettingsKey.onboardingCompleted) private var onboardingCompleted = false
+    @AppStorage(SettingsKey.collectionConsentReview) private var reviewingConsent = false
     @State private var page = Page.safety
 
     enum Page {
@@ -15,11 +16,14 @@ struct OnboardingView: View {
 
     var body: some View {
         NavigationStack {
-            switch page {
+            // Someone asked again after the collected data changed has already seen the safety notice.
+            switch reviewingConsent ? .collection : page {
             case .safety:
                 SafetyNoticeView { page = .collection }
             case .collection:
-                CollectionConsentView(unavailability: model.field.unavailability) { consent in
+                CollectionConsentView(unavailability: model.field.unavailability, isReview: reviewingConsent) { consent in
+                    // applyConsent clears the review flag; keep this page while the cover goes away.
+                    page = .collection
                     model.applyConsent(consent)
                     onboardingCompleted = true
                 }
@@ -72,6 +76,8 @@ struct SafetyNoticeView: View {
 /// When this build or device cannot send field data, "協力する" is unavailable and the reason is shown.
 struct CollectionConsentView: View {
     let unavailability: FieldDataModel.Unavailability?
+    /// The user had agreed to an older list of collected data.
+    var isReview = false
     let decide: (CollectionConsent) -> Void
 
     var body: some View {
@@ -80,6 +86,9 @@ struct CollectionConsentView: View {
                 Text("実測データの提供のお願い")
                     .font(.title.bold())
                     .accessibilityAddTraits(.isHeader)
+                if isReview {
+                    NoticeRow(systemImage: "exclamationmark.circle", text: "送信する内容が増えました。新しい内容を確かめて、協力するかどうかをもう一度選んでください。選ぶまでは何も送信しません。")
+                }
                 Text("信号の周期や、どの番号がどの横断歩道かを調べるため、受信したデータの提供にご協力いただけますか。協力しなくても、すべての機能をそのまま使えます。")
                 CollectionDetails()
                 Link("プライバシーポリシー", destination: AppLinks.privacyPolicy)
@@ -136,16 +145,18 @@ struct CollectionDetails: View {
             Text("送信するもの")
                 .font(.headline)
             NoticeRow(systemImage: "dot.radiowaves.left.and.right", text: "信号機の交差点 ID と、受信した信号データそのもの")
-            NoticeRow(systemImage: "clock", text: "信号が変わった時刻（秒単位）")
-            NoticeRow(systemImage: "cellularbars", text: "電波の強さ（5 dB 単位）")
-            NoticeRow(systemImage: "location.north.line", text: "交差点から見たあなたの方向と、端末の向き（どちらも 8 方位のおおまかな区分）")
+            NoticeRow(systemImage: "clock", text: "信号や「残り目安」が変わった時刻（秒単位）と、それぞれが続いた時間（0.1 秒単位）")
+            NoticeRow(systemImage: "cellularbars", text: "電波の強さ（5 dB 単位）、受信の間隔、送信機の数と送信出力")
+            NoticeRow(systemImage: "location.north.line", text: "交差点から見たあなたの方向と距離、端末の向き、歩く向きと速さ（どれもおおまかな区分）")
+            NoticeRow(systemImage: "person.2.wave.2", text: "周りにある Bluetooth 機器のおおよその数（混み具合の目安。機器の識別子は送りません）")
+            NoticeRow(systemImage: "hand.tap", text: "「現地確認」欄で印を付けたときは、その印（信号の番号と端末の向き）")
             NoticeRow(systemImage: "key", text: "不正防止のための鍵の ID（インストールごとに 1 つ）。鍵の登録と送信用トークンの取得のときだけ送り、実測データとは結び付けません")
             Text("送信しないもの")
                 .font(.headline)
                 .padding(.top, 4)
             NoticeRow(systemImage: "location.slash", text: "あなたの現在地（緯度・経度）、機種、OS のバージョン、言語、広告 ID")
             NoticeRow(systemImage: "network.slash", text: "サーバーは IP アドレスを記録しません")
-            Text("おおまかな方向を求めるために位置情報の許可をお願いすることがあります。位置そのものは端末の外に出ません。同じ送信用トークン（最長 6 時間有効）で送ったデータは、サーバーが受け取るときに同じ端末からのものと分かります。サーバーはトークンを実測データと一緒には保存しません。生データは 90 日後に削除し、交差点ごとの集計だけを残します。送信したデータには識別子がないため、あとから個別に削除することはできません。")
+            Text("おおまかな方向と距離を求めるために位置情報の許可をお願いすることがあります。位置そのものは端末の外に出ませんが、方向と距離を合わせると、交差点のまわり数十 m のどのあたりにいたかは分かります。同じ送信用トークン（最長 6 時間有効）で送ったデータは、サーバーが受け取るときに同じ端末からのものと分かります。サーバーはトークンを実測データと一緒には保存しません。生データは 90 日後に削除し、交差点ごとの集計だけを残します。送信したデータには識別子がないため、あとから個別に削除することはできません。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

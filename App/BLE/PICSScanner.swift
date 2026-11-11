@@ -38,6 +38,9 @@ struct ReceivedAdvertisement: Sendable {
     var isConnectable: Bool?
     /// Per-phone identifier of the transmitter. Never uploaded; recordings replace it with an alias.
     var peripheralID: UUID
+    /// Distinct non-PICS Bluetooth devices seen in the last `NearbyDeviceCounter.window`, a rough
+    /// measure of how crowded the place is. Only a coarse bucket of it is uploaded with field data.
+    var nearbyDevices: Int? = nil
 }
 
 enum ScannerEvent: Sendable {
@@ -56,6 +59,7 @@ final class PICSScanner: NSObject, CBCentralManagerDelegate, @unchecked Sendable
     private var wantsScanning = false
     private var continuation: AsyncStream<ScannerEvent>.Continuation?
     private let counters = Counters()
+    private var nearby = NearbyDeviceCounter()
 
     /// Events for the main actor. Only one consumer is supported.
     let events: AsyncStream<ScannerEvent>
@@ -92,6 +96,7 @@ final class PICSScanner: NSObject, CBCentralManagerDelegate, @unchecked Sendable
         queue.async { [self] in
             wantsScanning = false
             if central?.isScanning == true { central?.stopScan() }
+            nearby = NearbyDeviceCounter()
         }
     }
 
@@ -116,25 +121,56 @@ final class PICSScanner: NSObject, CBCentralManagerDelegate, @unchecked Sendable
         advertisementData: [String: Any],
         rssi RSSI: NSNumber
     ) {
+        let now = Date()
         guard let data = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data,
               data.count >= 2,
               PICSParser.companyID(ofManufacturerData: data) == PICS.companyID
         else {
             counters.incrementOther()
+            nearby.saw(peripheral.identifier, at: now)
             return
         }
         let serviceUUIDs = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? [])
             + (advertisementData[CBAdvertisementDataOverflowServiceUUIDsKey] as? [CBUUID] ?? [])
         continuation?.yield(.advertisement(ReceivedAdvertisement(
-            timestamp: Date(),
+            timestamp: now,
             manufacturerData: Array(data),
             rssi: RSSI.intValue,
             serviceUUIDs: serviceUUIDs.map(\.uuidString),
             localName: advertisementData[CBAdvertisementDataLocalNameKey] as? String,
             txPower: (advertisementData[CBAdvertisementDataTxPowerLevelKey] as? NSNumber)?.intValue,
             isConnectable: (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue,
-            peripheralID: peripheral.identifier
+            peripheralID: peripheral.identifier,
+            nearbyDevices: nearby.count(at: now)
         )))
+    }
+}
+
+/// Counts distinct devices seen recently. The identifiers are CoreBluetooth's per-app aliases; they
+/// stay in memory for at most `window` (plus the pruning interval) and are never stored or sent.
+/// Devices that rotate their address may be counted more than once, so this is only an estimate.
+struct NearbyDeviceCounter {
+    static let window: TimeInterval = 30
+    /// Pruning walks the whole table, so it runs at most this often however many advertisements arrive.
+    static let pruneInterval: TimeInterval = 1
+
+    private var lastSeen: [UUID: Date] = [:]
+    private var lastPrune = Date.distantPast
+
+    mutating func saw(_ id: UUID, at time: Date) {
+        lastSeen[id] = time
+        pruneIfDue(at: time)
+    }
+
+    mutating func count(at time: Date) -> Int {
+        pruneIfDue(at: time)
+        return lastSeen.values.reduce(0) { $0 + (time.timeIntervalSince($1) <= Self.window ? 1 : 0) }
+    }
+
+    private mutating func pruneIfDue(at time: Date) {
+        guard time.timeIntervalSince(lastPrune) >= Self.pruneInterval else { return }
+        lastPrune = time
+        lastSeen = lastSeen.filter { time.timeIntervalSince($0.value) <= Self.window }
     }
 }
 

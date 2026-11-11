@@ -47,6 +47,7 @@ describe("privacy", () => {
     const { results } = await env.DB.prepare("SELECT * FROM reports").all<Record<string, unknown>>();
     expect(results).toHaveLength(1);
     expect(Object.keys(results[0]!).sort()).toEqual([
+      "aggregate_items",
       "client",
       "id",
       "intersection_id",
@@ -86,6 +87,31 @@ describe("privacy", () => {
       "created_day",
       "last_used_day",
     ]);
+  });
+
+  it("keeps no finer time than the JST weekday and hour in aggregates", async () => {
+    const columns: Record<string, string[]> = {};
+    for (const table of ["transition_counts", "observation_counts", "duration_counts", "range_counts", "crosswalk_labels"]) {
+      const { results } = await env.DB.prepare("SELECT name FROM pragma_table_info(?1) ORDER BY cid").bind(table).all();
+      columns[table] = results.map((row) => row.name as string);
+    }
+    expect(columns).toEqual({
+      transition_counts: ["intersection_id", "slot", "from_state", "to_state", "hour_jst", "count"],
+      observation_counts: ["intersection_id", "message_type", "rssi", "bearing", "heading", "count"],
+      duration_counts: [
+        "intersection_id",
+        "kind",
+        "slot",
+        "state",
+        "step",
+        "weekday_jst",
+        "hour_jst",
+        "seconds",
+        "count",
+      ],
+      range_counts: ["intersection_id", "rssi", "distance", "bearing", "count"],
+      crosswalk_labels: ["intersection_id", "slot", "bearing", "heading", "distance", "count"],
+    });
   });
 
   it("answers unexpected failures with a bare 500 that reveals nothing", async () => {

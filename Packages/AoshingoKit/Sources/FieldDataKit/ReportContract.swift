@@ -6,10 +6,16 @@ import PICSKit
 /// The server's rules for `POST /v1/reports` (docs/field-data-api.md, server/src/report.ts).
 ///
 /// The server rejects a whole report for a single bad value, and a rejected report is dropped, so
-/// reports are brought into line before they are queued: invalid observations and transitions are
-/// dropped, invalid optional values become `null`, and reports are split so that every body has at
-/// most 50 intersections, unique intersection IDs, at most 600 observations and 300 transitions per
-/// intersection and at most 256 KiB.
+/// reports are brought into line before they are queued (schema 2):
+///
+/// - Invalid observations, transitions, steps, packet statistics, coverage periods and labels are
+///   dropped; invalid optional values become `null`, including emitter numbers outside
+///   `0..<emitters`. `emitterInfo` is cut or padded with `null`s to `emitters` entries.
+/// - An intersection without any observation, transition, step or label is dropped.
+/// - `packets`, `coverage` and `labels` are cut to 96, 60 and 20 entries. Reports are split so that
+///   every body has at most 50 intersections, unique intersection IDs, at most 600 observations,
+///   300 transitions and 600 steps per intersection and at most 256 KiB. A split intersection repeats
+///   `emitterInfo` in every piece and carries `packets`, `coverage` and `labels` in the first only.
 public enum ReportContract {
     public static let maximumBodyBytes = 256 * 1024
     public static let maximumIntersections = 50
@@ -17,14 +23,25 @@ public enum ReportContract {
     public static let maximumEmitters = 32
     public static let maximumObservations = 600
     public static let maximumTransitions = 300
+    public static let maximumSteps = 600
+    public static let maximumPackets = 96
+    public static let maximumCoverage = 60
+    public static let maximumLabels = 20
+    public static let maximumPacketCount = 100_000
+    /// The longest transition `gap`, in milliseconds.
+    public static let maximumGap = 5000
     public static let maximumClientLength = 40
     /// Length of `raw` in hexadecimal digits.
     public static let rawLength = 24...128
     public static let slots = 1...6
+    /// Remaining-time indications ("残り目安") in steps.
+    public static let remainingRange = 1...8
+    /// PICS message types the server accepts.
+    public static let messageTypes = 0...2
     /// The server accepts `t` at most this far ahead of its clock.
     public static let maximumFutureSkew: TimeInterval = 300
-    /// The server accepts `t` up to seven days old at upload time and queued reports are deleted
-    /// after six days, so observations more than one day older than their report are dropped.
+    /// The server accepts times (`t`, `start`, `end`) up to seven days old at upload time and queued
+    /// reports are deleted after six days, so entries more than one day older than their report are dropped.
     public static let maximumAgeWhenQueued: TimeInterval = 7 * 24 * 60 * 60 - FieldDataPipeline.maximumReportAge
 
     /// JSON bodies for `report` that the server accepts, in the original order. Empty when nothing
@@ -90,27 +107,102 @@ public enum ReportContract {
         for uuid in intersection.serviceUUIDs.compactMap(Bucketing.serviceUUID) where !serviceUUIDs.contains(uuid) {
             serviceUUIDs.append(uuid)
         }
+        let emitters = min(max(intersection.emitters, 0), maximumEmitters)
+        func emitter(_ value: Int?) -> Int? { value.flatMap { (0..<emitters).contains($0) ? $0 : nil } }
+
+        var emitterInfo = intersection.emitterInfo.prefix(emitters).map { info in
+            FieldReport.EmitterInfo(txPower: Bucketing.txPower(info.txPower), connectable: info.connectable)
+        }
+        emitterInfo += Array(repeating: FieldReport.EmitterInfo(), count: emitters - emitterInfo.count)
+
         let observations = intersection.observations.compactMap { observation -> FieldReport.Observation? in
             guard times.contains(observation.t),
                   isValidRaw(observation.raw, intersectionID: intersection.id)
             else { return nil }
             var observation = observation
             if let rssi = observation.rssi, !((-130...0).contains(rssi) && rssi.isMultiple(of: 5)) { observation.rssi = nil }
-            if let bearing = observation.bearing, !(0...7).contains(bearing) { observation.bearing = nil }
-            if let heading = observation.heading, !(0...7).contains(heading) { observation.heading = nil }
+            observation.bearing = sector(observation.bearing)
+            observation.heading = sector(observation.heading)
+            observation.emitter = emitter(observation.emitter)
+            observation.distance = member(observation.distance, of: Bucketing.distanceRings)
+            observation.accuracy = member(observation.accuracy, of: Bucketing.accuracyClasses)
+            observation.course = sector(observation.course)
+            observation.speed = observation.speed.flatMap { Bucketing.speedClasses.contains($0) ? $0 : nil }
+            observation.nearby = member(observation.nearby, of: Bucketing.nearbyClasses)
             return observation
         }
-        let transitions = intersection.transitions.filter {
-            times.contains($0.t) && slots.contains($0.slot) && $0.from != $0.to
+        let transitions = intersection.transitions.compactMap { transition -> FieldReport.Transition? in
+            guard times.contains(transition.t), slots.contains(transition.slot), transition.from != transition.to else { return nil }
+            var transition = transition
+            transition.emitter = emitter(transition.emitter)
+            transition.gap = multiple(transition.gap, of: 100, upTo: maximumGap)
+            transition.held = multiple(transition.held, of: 100, upTo: Bucketing.maximumDuration)
+            transition.cycle = multiple(transition.cycle, of: 100, upTo: Bucketing.maximumDuration)
+            return transition
         }
-        guard !observations.isEmpty || !transitions.isEmpty else { return nil }
+        let steps = intersection.steps.compactMap { step -> FieldReport.Step? in
+            var step = step
+            step.from = step.from.flatMap { remainingRange.contains($0) ? $0 : nil }
+            step.to = step.to.flatMap { remainingRange.contains($0) ? $0 : nil }
+            guard times.contains(step.t), slots.contains(step.slot), step.from != step.to else { return nil }
+            step.emitter = emitter(step.emitter)
+            step.held = multiple(step.held, of: 100, upTo: Bucketing.maximumDuration)
+            return step
+        }
+        var packetKeys: Set<[Int]> = []
+        let packets = intersection.packets.compactMap { stats -> FieldReport.PacketStats? in
+            guard (0..<emitters).contains(stats.emitter), messageTypes.contains(stats.type),
+                  (1...maximumPacketCount).contains(stats.count),
+                  packetKeys.insert([stats.emitter, stats.type]).inserted
+            else { return nil }
+            var stats = stats
+            stats.minInterval = multiple(stats.minInterval, of: 10, upTo: Bucketing.maximumInterval)
+            stats.medianInterval = multiple(stats.medianInterval, of: 10, upTo: Bucketing.maximumInterval)
+            if stats.count == 1 {
+                stats.minInterval = nil
+                stats.medianInterval = nil
+            } else if let minimum = stats.minInterval, let median = stats.medianInterval, minimum > median {
+                stats.minInterval = nil
+                stats.medianInterval = nil
+            }
+            return stats
+        }
+        let coverage = intersection.coverage.filter { times.contains($0.start) && times.contains($0.end) && $0.start <= $0.end }
+        let labels = intersection.labels.compactMap { label -> FieldReport.Label? in
+            var label = label
+            label.slot = label.slot.flatMap { slots.contains($0) ? $0 : nil }
+            guard times.contains(label.t), label.kind != .crosswalk || label.slot != nil else { return nil }
+            label.heading = sector(label.heading)
+            label.bearing = sector(label.bearing)
+            label.distance = member(label.distance, of: Bucketing.distanceRings)
+            return label
+        }
+        guard !(observations.isEmpty && transitions.isEmpty && steps.isEmpty && labels.isEmpty) else { return nil }
         return FieldReport.Intersection(
             id: intersection.id,
             serviceUUIDs: Array(serviceUUIDs.prefix(maximumServiceUUIDs)),
-            emitters: min(max(intersection.emitters, 0), maximumEmitters),
+            emitters: emitters,
+            emitterInfo: emitterInfo,
             observations: observations,
-            transitions: transitions
+            transitions: transitions,
+            steps: steps,
+            // These are not split across reports (they go into the first piece only), so they are cut to their limits.
+            packets: Array(packets.prefix(maximumPackets)),
+            coverage: Array(coverage.prefix(maximumCoverage)),
+            labels: Array(labels.prefix(maximumLabels))
         )
+    }
+
+    private static func sector(_ value: Int?) -> Int? {
+        value.flatMap { (0...7).contains($0) ? $0 : nil }
+    }
+
+    private static func member(_ value: Int?, of allowed: [Int]) -> Int? {
+        value.flatMap { allowed.contains($0) ? $0 : nil }
+    }
+
+    private static func multiple(_ value: Int?, of step: Int, upTo maximum: Int) -> Int? {
+        value.flatMap { (0...maximum).contains($0) && $0.isMultiple(of: step) ? $0 : nil }
     }
 
     // MARK: - Splitting
@@ -142,30 +234,46 @@ public enum ReportContract {
     }
 
     /// Splits one intersection into entries within the per-intersection list limits and `budget` bytes.
+    /// Observations, transitions and steps are divided; every piece repeats `emitterInfo` (so emitter
+    /// numbers stay valid), and `packets`, `coverage` and `labels` stay in the first piece only.
     static func pieces(of intersection: FieldReport.Intersection, budget: Int) -> [FieldReport.Intersection] {
         let observations = intersection.observations
         let transitions = intersection.transitions
+        let steps = intersection.steps
         if observations.count <= maximumObservations, transitions.count <= maximumTransitions,
-           encodedSize(intersection) <= budget {
+           steps.count <= maximumSteps, encodedSize(intersection) <= budget {
             return [intersection]
         }
-        guard observations.count + transitions.count > 1 else { return [] } // A single entry that cannot fit.
+        // A single entry that cannot fit.
+        guard observations.count + transitions.count + steps.count > 1 else { return [] }
         var first = intersection
         var second = intersection
+        second.packets = []
+        second.coverage = []
+        second.labels = []
         let observationSplit = observations.count / 2
         let transitionSplit = transitions.count / 2
-        if observationSplit == 0, transitionSplit == 0 {
-            // One observation and one transition.
-            first.transitions = []
-            second.observations = []
+        let stepSplit = steps.count / 2
+        if observationSplit == 0, transitionSplit == 0, stepSplit == 0 {
+            // At most one entry of each kind, and at least two in all: the first piece takes one.
+            if !observations.isEmpty {
+                first.transitions = []
+                first.steps = []
+                second.observations = []
+            } else {
+                first.steps = []
+                second.transitions = []
+            }
         } else {
             first.observations = Array(observations[..<observationSplit])
             first.transitions = Array(transitions[..<transitionSplit])
+            first.steps = Array(steps[..<stepSplit])
             second.observations = Array(observations[observationSplit...])
             second.transitions = Array(transitions[transitionSplit...])
+            second.steps = Array(steps[stepSplit...])
         }
         return [first, second]
-            .filter { !($0.observations.isEmpty && $0.transitions.isEmpty) }
+            .filter { !($0.observations.isEmpty && $0.transitions.isEmpty && $0.steps.isEmpty && $0.labels.isEmpty) }
             .flatMap { pieces(of: $0, budget: budget) }
     }
 
