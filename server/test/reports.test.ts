@@ -74,8 +74,6 @@ const ACCEPTED: [string, Mutation][] = [
   ["600 observations", (r) => (intersection(r).observations = Array(600).fill(observation(r)))],
   ["observation t = now - 7 days", (r, now) => set(observation(r), "t", now - 7 * DAY)],
   ["observation t = now + 300", (r, now) => set(observation(r), "t", now + 300)],
-  ["raw of 24 characters (an unknown message type with only the header)", (r) =>
-    set(observation(r), "raw", "CE010000632A0000" + ID)],
   ["raw of 128 characters", (r) => set(observation(r), "raw", rawWithId(ID, 128))],
   ["rssi 0", (r) => set(observation(r), "rssi", 0)],
   ["rssi -130", (r) => set(observation(r), "rssi", -130)],
@@ -264,7 +262,7 @@ const int32 = (value: number) => {
   return [...new Uint8Array(view.buffer)];
 };
 
-/** Packets that PICSParser.parse(manufacturerData:) accepts; the server must accept them all. */
+/** Packets of a known type that PICSParser.parse(manufacturerData:) accepts; the app uploads them, so the server must accept them all. */
 const PARSER_ACCEPTS: [string, string][] = [
   // Vectors of PICSParserTests.swift.
   ["type 0 with a UTF-8 name (24 bytes)", pics(0, 24, { 10: utf8("交差点A") })],
@@ -273,12 +271,10 @@ const PARSER_ACCEPTS: [string, string][] = [
   ["type 2 with one signal (11 bytes)", pics(2, 11, { 10: [0x13] })],
   ["type 2 with two signals (12 bytes)", pics(2, 12, { 10: [0x83, 0x21] })],
   ["type 2 as iOS delivers it (16 bytes)", pics(2, 16)],
-  ["unknown type 99 with only the header (10 bytes)", pics(99, 10)],
   ["type 0 with NUL, an invalid byte and a BOM in the name", pics(0, 24, { 10: [0xef, 0xbb, 0xbf, 0x58, 0x00, 0xff] })],
   // Lengths the parser accepts beyond what it reads.
   ["type 0 longer than 24 bytes", pics(0, 31)],
   ["type 1 longer than 18 bytes", pics(1, 25)],
-  ["unknown type 3 with a body", pics(3, 20)],
   ["the longest raw the server takes (62 payload bytes)", pics(2, 62)],
 ];
 
@@ -287,6 +283,9 @@ const PARSER_REJECTS: [string, string][] = [
   ["type 0 one byte short (23 bytes)", pics(0, 23)],
   ["type 1 one byte short (17 bytes)", pics(1, 17)],
   ["type 2 without a signal byte (10 bytes)", pics(2, 10)],
+  // Types the parser does not decode; the app does not upload them (ReportContract.isUploadable).
+  ["unknown type 99 with only the header (10 bytes)", pics(99, 10)],
+  ["unknown type 3 with a body (20 bytes)", pics(3, 20)],
 ];
 
 describe("raw PICS packets (rules of PICSParser in PICSPacket.swift)", () => {

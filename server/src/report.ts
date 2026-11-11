@@ -16,13 +16,13 @@ const MAX_PAST_SECONDS = 7 * 24 * 3600;
 /**
  * Smallest PICS payload (the bytes after the company ID) per message type, from
  * PICSParser.minimumLength in Packages/AoshingoKit/Sources/PICSKit/PICSPacket.swift. The app
- * uploads a packet only when that parser accepts it, so the server accepts exactly the same
- * packets: the 10-byte common header, plus for type 0 (name) bytes 10..<24, type 1 (position)
- * bytes 10..<18 and type 2 (signals) at least one signal byte. Other message types carry only
- * the header as far as the parser knows; the app still uploads them, so they are accepted.
- * Update both together.
+ * uploads a packet only when that parser accepts it and its type is one the parser decodes
+ * (ReportContract.isUploadable in FieldDataKit), so the server accepts exactly those packets:
+ * the 10-byte common header, plus for type 0 (name) bytes 10..<24, type 1 (position) bytes
+ * 10..<18 and type 2 (signals) at least one signal byte. Other message types are rejected
+ * (`null`), because the server could not tell what their bytes contain. Update both together.
  */
-export function picsMinimumLength(messageType: number): number {
+export function picsMinimumLength(messageType: number): number | null {
   switch (messageType) {
     case 0:
       return 24;
@@ -31,7 +31,7 @@ export function picsMinimumLength(messageType: number): number {
     case 2:
       return 11;
     default:
-      return 10;
+      return null;
   }
 }
 const MAX_FUTURE_SECONDS = 300;
@@ -127,7 +127,9 @@ function validateObservation(value: unknown, intersectionId: string, nowSeconds:
     invalid(`${where}.raw`);
   }
   // The message type is payload byte 2 (hex characters 8..<10); see picsMinimumLength.
-  if ((raw.length - 4) / 2 < picsMinimumLength(parseInt(raw.slice(8, 10), 16))) invalid(`${where}.raw length`);
+  const minimum = picsMinimumLength(parseInt(raw.slice(8, 10), 16));
+  if (minimum === null) invalid(`${where}.raw message type`);
+  if ((raw.length - 4) / 2 < minimum) invalid(`${where}.raw length`);
   // Bytes 6..<10 after the two company-ID bytes, i.e. bytes 8..<12 of raw (hex characters 16..<24).
   if (raw.slice(16, 24) !== intersectionId) invalid(`${where}.raw intersection`);
   const rssi = nullableInteger(value, "rssi", -130, 0, where);
