@@ -144,6 +144,7 @@ public actor FieldDataPipeline {
         }
     }
 
+    /// Records one live advertisement (see `FieldCollector.record`). Does nothing while disabled.
     public func record(
         _ packet: PICSPacket,
         manufacturerData: [UInt8],
@@ -151,6 +152,8 @@ public actor FieldDataPipeline {
         rssi: Int?,
         serviceUUIDs: [String],
         emitter: String?,
+        txPower: Int? = nil,
+        connectable: Bool? = nil,
         context: ObservationContext
     ) {
         guard isEnabled else { return }
@@ -161,12 +164,29 @@ public actor FieldDataPipeline {
             rssi: rssi,
             serviceUUIDs: serviceUUIDs,
             emitter: emitter,
+            txPower: txPower,
+            connectable: connectable,
             context: context
         )
     }
 
-    /// Forgets the last signal state of every intersection, so a change across a pause in reception
-    /// (for example while the app was in the background) is not recorded as a transition.
+    /// Records a tester's mark (see `FieldCollector.recordLabel`).
+    /// - Returns: `false` when nothing was recorded, including while collection is disabled.
+    @discardableResult
+    public func recordLabel(
+        _ kind: FieldReport.Label.Kind,
+        slot: Int?,
+        intersectionID: String,
+        at timestamp: Date,
+        context: ObservationContext
+    ) -> Bool {
+        guard isEnabled else { return false }
+        return collector.recordLabel(kind, slot: slot, intersectionID: intersectionID, at: timestamp, context: context)
+    }
+
+    /// Forgets the signal timing of every intersection, so a change across a pause in reception
+    /// (for example while the app was in the background) is not recorded as a transition or step,
+    /// and no `held` or `cycle` spans the pause.
     public func receptionDidPause() {
         collector.resetSignalStates()
     }
