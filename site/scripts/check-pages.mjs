@@ -55,8 +55,7 @@ const isAllowedExternal = (hostname) => ALLOWED_EXTERNAL_HOSTS.has(hostname);
 const REPOSITORY_BLOB_PREFIX = "https://github.com/4sh0u0/Aoshingo/blob/main/";
 const REPOSITORY_ROOT = path.resolve(PUBLIC_DIR, "../..");
 const PENDING_REPOSITORY_FILES = new Set([
-  "docs/field-data-api.md", // added by PR #1 (pre-alpha app and server)
-  "docs/field-test.md", // added by PR #1
+  // e.g. "docs/new-guide.md", // added by PR #N
 ]);
 
 // The 「メールアドレスを表示」 button. The check replaces the real Turnstile script and the Worker with
