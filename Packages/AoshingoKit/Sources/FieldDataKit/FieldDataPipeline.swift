@@ -165,7 +165,14 @@ public actor FieldDataPipeline {
         )
     }
 
+    /// Forgets the last signal state of every intersection, so a change across a pause in reception
+    /// (for example while the app was in the background) is not recorded as a transition.
+    public func receptionDidPause() {
+        collector.resetSignalStates()
+    }
+
     /// Moves the current window into the queue when it is full or ten minutes old (or always when `force`).
+    /// The report is checked against the server's rules first and split if needed (`ReportContract`).
     /// Returns `true` when something was queued.
     @discardableResult
     public func flush(force: Bool = false) async -> Bool {
@@ -181,8 +188,9 @@ public actor FieldDataPipeline {
         }
         guard force || collector.shouldFlush(at: now()) else { return queued > 0 }
         // makeReport empties the window, so the encoded reports are kept until the queue takes them.
-        guard let report = collector.makeReport(client: client), let body = try? report.encoded() else { return queued > 0 }
-        unsaved = [(body: body, date: now())]
+        guard let report = collector.makeReport(client: client) else { return queued > 0 }
+        let date = now()
+        unsaved = ReportContract.encode(report, now: date).map { (body: $0, date: date) }
         queued += await enqueueUnsaved(epoch: epoch).queued
         return queued > 0
     }

@@ -196,6 +196,43 @@ struct CollectorTests {
         #expect(try collector.requireReport(client: nil).intersections.count == FieldCollector.maxIntersections)
     }
 
+    @Test("a change after a pause in reception is not a transition")
+    func gapResetsTransitions() throws {
+        var collector = FieldCollector()
+        try collector.feed(signalData([0x31]), at: 0)       // red at 10:00
+        try collector.feed(signalData([0x33]), at: 1800)    // green at 10:30
+        try collector.feed(signalData([0x31]), at: 1800 + FieldCollector.maxTransitionGap + 0.5)
+        try collector.feed(signalData([0x33]), at: 1800 + FieldCollector.maxTransitionGap + 0.5 + FieldCollector.maxTransitionGap)
+        let report = try collector.requireReport(client: nil)
+        #expect(report.intersections[0].transitions == [
+            .init(t: 1_794_290_000 + 1800 + 10, slot: 1, from: .red, to: .green),
+        ])
+    }
+
+    @Test("resetSignalStates (app in the background) starts every intersection afresh")
+    func resetSignalStates() throws {
+        var collector = FieldCollector()
+        try collector.feed(signalData([0x31]), at: 0)
+        collector.resetSignalStates()
+        try collector.feed(signalData([0x33]), at: 1)
+        try collector.feed(signalData([0x31]), at: 2)
+        let report = try collector.requireReport(client: nil)
+        #expect(report.intersections[0].observations.count == 3)
+        #expect(report.intersections[0].transitions == [.init(t: 1_794_290_002, slot: 1, from: .green, to: .red)])
+    }
+
+    @Test("packets the server would refuse as raw are ignored: unknown types and odd lengths")
+    func unknownTypes() throws {
+        var collector = FieldCollector()
+        var unknown = signalData([0x31])
+        unknown[4] = 7 // message type 7
+        try collector.feed(unknown, at: 0)
+        try collector.feed(signalData([0x31] + [UInt8](repeating: 0x44, count: 60)), at: 0) // 73 bytes
+        #expect(collector.isEmpty)
+        try collector.feed(signalData([0x31] + [UInt8](repeating: 0x44, count: 51)), at: 0) // 64 bytes
+        #expect(collector.observationCount == 1)
+    }
+
     @Test("discardAll forgets the window and the last states")
     func discard() throws {
         var collector = FieldCollector()

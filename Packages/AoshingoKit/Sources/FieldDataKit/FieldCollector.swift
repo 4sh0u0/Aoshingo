@@ -21,12 +21,19 @@ public struct ObservationContext: Sendable, Hashable {
 /// Sampling keeps the upload small: per intersection and message type a packet is kept when its
 /// content (ignoring the message ID byte) changed and at least one second passed, or when the
 /// resample interval passed (5 s for signals, 60 s for the static name and position messages).
+/// Packets the server would not accept as `raw` (unknown message types, odd lengths) are ignored.
+///
+/// A transition is recorded only when the previous signal packet of that intersection arrived at
+/// most `maxTransitionGap` earlier: after a longer pause in reception (out of range, or the app in
+/// the background) the time of the change is unknown, so it is not recorded.
 public struct FieldCollector: Sendable {
     public static let maxIntersections = 50
     public static let maxObservationsPerIntersection = 600
     public static let maxTransitionsPerIntersection = 300
     public static let maxWindow: TimeInterval = 600
     public static let minimumChangedInterval: TimeInterval = 1
+    /// The same as the app's "stale" threshold for signal data.
+    public static let maxTransitionGap: TimeInterval = PICS.staleInterval
 
     public static func resampleInterval(forType type: UInt8) -> TimeInterval {
         type == 0 || type == 1 ? 60 : 5
@@ -49,7 +56,7 @@ public struct FieldCollector: Sendable {
     private var buckets: [String: Bucket] = [:]
     private var lastKept: [SampleKey: (content: [UInt8], at: Date)] = [:]
     // Kept across report windows so the first transition of a window is not lost. Local only.
-    private var lastStates: [String: [SignalState]] = [:]
+    private var lastStates: [String: (states: [SignalState], at: Date)] = [:]
     private var coordinates: [String: Coordinate] = [:]
 
     public init() {}
@@ -73,6 +80,7 @@ public struct FieldCollector: Sendable {
         emitter: String? = nil,
         context: ObservationContext = ObservationContext()
     ) {
+        guard ReportContract.isUploadable(packet, manufacturerData: manufacturerData) else { return }
         let id = packet.intersectionID
         if let coordinate = packet.coordinate { coordinates[id] = coordinate }
 
@@ -88,7 +96,7 @@ public struct FieldCollector: Sendable {
         if let emitter { buckets[id]!.emitters.insert(emitter) }
 
         if let signals = packet.signals {
-            recordTransitions(id: id, signals: signals, seconds: seconds)
+            recordTransitions(id: id, signals: signals, at: timestamp)
         }
 
         guard buckets[id]!.observations.count < Self.maxObservationsPerIntersection,
@@ -140,13 +148,22 @@ public struct FieldCollector: Sendable {
         self = FieldCollector()
     }
 
-    private mutating func recordTransitions(id: String, signals: [PedestrianSignal], seconds: Int) {
+    /// Forgets the last known signal states (for example when the app goes to the background), so the
+    /// next packet of each intersection starts afresh instead of producing a transition.
+    public mutating func resetSignalStates() {
+        lastStates.removeAll()
+    }
+
+    private mutating func recordTransitions(id: String, signals: [PedestrianSignal], at timestamp: Date) {
         let states = signals.map(\.state)
-        defer { lastStates[id] = states }
+        defer { lastStates[id] = (states, timestamp) }
         guard let previous = lastStates[id] else { return }
-        for (index, state) in states.enumerated() where index < previous.count && previous[index] != state {
+        let gap = timestamp.timeIntervalSince(previous.at)
+        guard gap >= 0, gap <= Self.maxTransitionGap else { return }
+        let seconds = Bucketing.seconds(timestamp)
+        for (index, state) in states.enumerated() where index < previous.states.count && previous.states[index] != state {
             guard buckets[id]!.transitions.count < Self.maxTransitionsPerIntersection else { return }
-            buckets[id]!.transitions.append(FieldReport.Transition(t: seconds, slot: index + 1, from: previous[index], to: state))
+            buckets[id]!.transitions.append(FieldReport.Transition(t: seconds, slot: index + 1, from: previous.states[index], to: state))
         }
     }
 

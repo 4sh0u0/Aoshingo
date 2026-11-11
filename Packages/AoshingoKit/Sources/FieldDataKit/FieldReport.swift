@@ -86,9 +86,15 @@ public struct FieldReport: Sendable, Hashable, Codable {
 
     /// Deterministic JSON (sorted keys).
     public func encoded() throws -> Data {
+        try Self.makeEncoder().encode(self)
+    }
+
+    /// The encoder for report bodies. Parts encode to the same bytes alone as inside a report,
+    /// which `ReportContract` relies on to measure them.
+    static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(self)
+        return encoder
     }
 
     /// The client string sent with reports, for example `aoshingo-ios/0.1.0`.

@@ -268,6 +268,23 @@ struct PipelineTests {
         #expect(await pipeline.flush(force: true) == false) // nothing left to queue
     }
 
+    @Test("after a pause in reception, a changed signal is not recorded as a transition")
+    func receptionPause() async throws {
+        let clock = Clock()
+        let pipeline = FieldDataPipeline(store: InMemoryReportStore(), uploader: Self.makeUploader(clock: clock), client: "aoshingo-ios/0.1.0", now: { clock.now })
+        await pipeline.setEnabled(true)
+        let (red, redData) = try Self.signalPacket(0x31)
+        let (green, greenData) = try Self.signalPacket(0x33)
+        await pipeline.record(red, manufacturerData: redData, at: clock.now, rssi: -60, serviceUUIDs: [], emitter: nil, context: .init())
+        await pipeline.receptionDidPause()
+        clock.advance(1)
+        await pipeline.record(green, manufacturerData: greenData, at: clock.now, rssi: -60, serviceUUIDs: [], emitter: nil, context: .init())
+        #expect(await pipeline.status().bufferedTransitions == 0)
+        clock.advance(1)
+        await pipeline.record(red, manufacturerData: redData, at: clock.now, rssi: -60, serviceUUIDs: [], emitter: nil, context: .init())
+        #expect(await pipeline.status().bufferedTransitions == 1)
+    }
+
     @Test("if deleting on opt-out fails, those reports are never uploaded and deletion is retried")
     func optOutDeletionFailure() async throws {
         let transport = FakeTransport()
@@ -326,5 +343,18 @@ struct FileReportStoreTests {
 
         try await store.removeAll()
         #expect(try await store.pending().isEmpty)
+    }
+
+    @Test("the queue directory is excluded from backups")
+    func excludedFromBackup() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("aoshingo-tests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = FileReportStore(directory: directory)
+        try await store.enqueue(Data("{}".utf8), at: Date())
+        #expect(try await store.pending().count == 1)
+        #if canImport(Darwin)
+        let values = try directory.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        #expect(values.isExcludedFromBackup == true)
+        #endif
     }
 }

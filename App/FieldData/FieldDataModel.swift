@@ -97,6 +97,7 @@ final class FieldDataModel {
     func setReceiving(_ receiving: Bool) {
         guard isEnabled, receiving else {
             location.stop()
+            Task { [pipeline] in await pipeline.receptionDidPause() }
             return
         }
         location.start()
@@ -144,6 +145,8 @@ final class FieldDataModel {
             MainActor.assumeIsolated { task.end() }
         }
         Task {
+            // Nothing is received in the background, so a change seen afterwards is not a transition.
+            await pipeline.receptionDidPause()
             await flushAndUpload(force: true)
             task.end()
         }

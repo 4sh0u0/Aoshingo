@@ -56,7 +56,8 @@ public actor InMemoryReportStore: ReportStore {
 }
 
 /// Queue stored as one file per report in a directory (for example Application Support), so that
-/// reports survive the app being terminated before upload.
+/// reports survive the app being terminated before upload. The directory is excluded from backups:
+/// reports are short-lived and must not outlive an opt-out in an iCloud or computer backup.
 public actor FileReportStore: ReportStore {
     public let directory: URL
     public let capacity: Int
@@ -68,6 +69,7 @@ public actor FileReportStore: ReportStore {
 
     public func enqueue(_ body: Data, at date: Date) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        Self.excludeFromBackup(directory)
         let milliseconds = Int64((date.timeIntervalSince1970 * 1000).rounded())
         let name = "\(String(format: "%015lld", milliseconds))-\(UUID().uuidString).json"
         try body.write(to: directory.appendingPathComponent(name), options: [.atomic])
@@ -113,6 +115,17 @@ public actor FileReportStore: ReportStore {
             .contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "json" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// Sets `isExcludedFromBackup` on Apple platforms (it is a no-op elsewhere). Done on every
+    /// enqueue so that a directory created by an earlier version is covered too.
+    static func excludeFromBackup(_ url: URL) {
+        #if canImport(Darwin)
+        var url = url
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? url.setResourceValues(values)
+        #endif
     }
 
     private static func date(of url: URL) -> Date {
