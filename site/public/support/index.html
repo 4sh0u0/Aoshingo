@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>サポート｜Aoshingo（青信号）</title>
+  <meta name="description" content="Aoshingo の使い方、表示の見かた、よくある質問、不具合の報告やお問い合わせの方法をまとめています。">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="canonical" href="https://4sh0u0.github.io/Aoshingo/support/">
+  <link rel="icon" href="../assets/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/contact.js" defer></script>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Aoshingo">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="og:title" content="サポート｜Aoshingo（青信号）">
+  <meta property="og:description" content="Aoshingo の使い方、表示の見かた、よくある質問、お問い合わせの方法。">
+  <meta property="og:url" content="https://4sh0u0.github.io/Aoshingo/support/">
+  <meta property="og:image" content="https://4sh0u0.github.io/Aoshingo/assets/og.png">
+  <meta property="og:image:alt" content="Aoshingo のアイコンと「歩行者用信号の状態を iPhone で受信して表示」の文字">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="../"><img src="../assets/icon-128.png" alt="" width="40" height="40">Aoshingo</a>
+      <nav class="site-nav" aria-label="サイト">
+        <ul>
+          <li><a href="../">トップ</a></li>
+          <li><a href="./" aria-current="page">サポート</a></li>
+          <li><a href="../privacy/">プライバシー</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="page-header">
+      <div class="wrap">
+        <h1>サポート</h1>
+        <p>Aoshingo の使い方、表示の見かた、よくある質問、不具合の報告やお問い合わせの方法をまとめています。Aoshingo は現在 pre-alpha（開発中の試験版）で、内容は開発に合わせて変わります。</p>
+      </div>
+    </div>
+
+    <div class="wrap section">
+      <nav class="toc" aria-labelledby="toc-title">
+        <h2 id="toc-title">このページの内容</h2>
+        <ol>
+          <li><a href="#start">はじめかた</a></li>
+          <li><a href="#voiceover">VoiceOver で使う</a></li>
+          <li><a href="#display">表示の見かた</a></li>
+          <li><a href="#colors">表示の色を変える</a></li>
+          <li><a href="#faq">よくある質問</a></li>
+          <li><a href="#contact">お問い合わせ・不具合の報告</a></li>
+          <li><a href="#site-accessibility">このサイトのアクセシビリティ</a></li>
+        </ol>
+      </nav>
+
+      <div class="doc">
+        <section class="notice" aria-labelledby="safety-title">
+          <h2 id="safety-title">安全のために</h2>
+          <p>Aoshingo の表示は補助情報です。横断の安全を保証するものではありません。必ず実際の信号と周囲の安全を自分で確認してください。車道や横断歩道の上で立ち止まって操作しないでください。</p>
+        </section>
+
+        <h2 id="start">はじめかた</h2>
+        <ol>
+          <li>初回起動時に注意事項を確認し、実測データの提供に協力するかどうかを選びます。どちらを選んでも、使える機能は同じです。</li>
+          <li>対応交差点の近くで「受信開始」を押します。Bluetooth の使用を求められたら許可してください。</li>
+          <li>数秒で、最寄りの交差点の名前と信号が表示されます。</li>
+          <li>受信中は画面を表示したままにしてください。設定の「受信中は画面を消さない」は初期状態でオンです。</li>
+          <li>終わったら「停止」を押します。</li>
+        </ol>
+        <p>信号の近くにいなくても、右上の「その他」メニューから「デモを表示」を選ぶと、画面を確かめられます。デモ中は「デモ表示中：実際の信号ではありません」と表示されます。</p>
+
+        <h2 id="voiceover">VoiceOver で使う</h2>
+        <ul>
+          <li>各信号は 1 つの要素として、「1 番、青。進めます、残り目安 5 / 8」のように読み上げられます。</li>
+          <li>画面カーテン（VoiceOver がオンのときに 3 本指でトリプルタップ）を使うと、画面を暗くしたまま受信を続けられます。</li>
+          <li>受信が 5 秒以上途切れると、信号は「更新なし。実際の信号を確認してください」と読み上げられます。古い色を現在の色として伝えることはありません。</li>
+        </ul>
+
+        <h2 id="display">表示の見かた</h2>
+        <p>信号は、信号データの中の並び順で「1 番」〜「6 番」と表示します。どの番号がどの横断歩道の信号かは、まだ確認できていません。</p>
+        <div class="table-wrap">
+          <table>
+            <caption id="display-caption">信号の表示と意味</caption>
+            <thead>
+              <tr>
+                <th scope="col">表示</th>
+                <th scope="col">意味</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">青・進める</th>
+                <td>歩行者用信号が青です。歩く人の図形で示します。</td>
+              </tr>
+              <tr>
+                <th scope="row">青点滅・渡り始めないで</th>
+                <td>青が点滅しています。これから渡り始めないでください。太い破線の枠でも示します。</td>
+              </tr>
+              <tr>
+                <th scope="row">赤・止まれ</th>
+                <td>歩行者用信号が赤です。立ち止まった人の図形で示します。</td>
+              </tr>
+              <tr>
+                <th scope="row">更新なし</th>
+                <td>5 秒以上、信号データが届いていません。実際の信号を確認してください。</td>
+              </tr>
+              <tr>
+                <th scope="row">信号なし</th>
+                <td>信号機から「信号なし」が送られています。実際の信号を確認してください。</td>
+              </tr>
+              <tr>
+                <th scope="row">不明</th>
+                <td>解釈できない値を受信しました。実際の信号を確認してください。</td>
+              </tr>
+              <tr>
+                <th scope="row">残り目安 5/8</th>
+                <td>信号機が送る 8 段階の目安です。秒数ではありません。一部の交差点にしかありません。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>危険側への変化（青 → 青点滅 → 赤）はすぐに反映し、安全側への変化（赤 → 青）は 2 回続けて同じ値を受信したときだけ反映します。</p>
+
+        <h2 id="colors">表示の色を変える</h2>
+        <p>「設定」→「表示」→「色の表示」で選べます。どのモードでも、色だけでなく図形と文字で信号を示します。</p>
+        <dl class="spec">
+          <div>
+            <dt>自動</dt>
+            <dd>通常は「標準」です。iOS の「カラー以外で区別」がオンのときは「色覚サポート」になります。</dd>
+          </div>
+          <div>
+            <dt>標準</dt>
+            <dd>日本の信号に近い青緑と赤です。</dd>
+          </div>
+          <div>
+            <dt>色覚サポート</dt>
+            <dd>カラーユニバーサルデザイン推奨配色の青と朱色です。色の見え方に違いがあっても区別しやすい組み合わせです。</dd>
+          </div>
+          <div>
+            <dt>モノクロ</dt>
+            <dd>白黒と形だけで表示します。青は白地、赤は黒地です。</dd>
+          </div>
+        </dl>
+
+        <section class="faq" aria-labelledby="faq">
+          <h2 id="faq">よくある質問</h2>
+
+          <h3 id="faq-where">対応している交差点はどこですか？</h3>
+          <p>高度化PICS が整備された、全国で約 600 か所の交差点です。設置場所は e-Gov データポータルの「<a href="https://data.e-gov.go.jp/data/dataset/npa_20221124_0054/resource/6f7e83e1-be28-4030-961f-3b489c9f6ad8">高度化PICS整備交差点_csv</a>」で公開されています。それ以外の交差点では何も受信しません。</p>
+
+          <h3 id="faq-nothing">交差点の近くにいるのに、何も表示されません。</h3>
+          <p>次の点を確かめてください。</p>
+          <ul>
+            <li>その交差点が、上の一覧に載っている対応交差点かどうか。</li>
+            <li>「受信開始」を押しているか。</li>
+            <li>Bluetooth がオンになっていて、設定アプリで Aoshingo に Bluetooth の使用を許可しているか。</li>
+            <li>Aoshingo が画面に表示されているか。</li>
+          </ul>
+          <p>建物の陰など、電波が届きにくい場所もあります。交差点の角の歩道で、数秒待ってみてください。</p>
+
+          <h3 id="faq-stale">「更新なし」と表示されます。</h3>
+          <p>5 秒以上、信号データが届いていないことを示しています。交差点から離れた、電波が遮られた、などが考えられます。最後に受信した色が今も正しいとは限らないため、古い色は表示しません。実際の信号を確認してください。</p>
+
+          <h3 id="faq-remaining">「残り目安」は何秒ですか？</h3>
+          <p>秒数ではありません。信号機が送る 8 段階の目安で、一部の交差点にしかありません。実際の残り時間とどう対応するかは、現地で確認を進めています。</p>
+
+          <h3 id="faq-direction">どの番号がどの横断歩道か分かりますか？</h3>
+          <p>まだ分かっていません。そのため「前方」などの方向は表示しません。現地で確認を進めており、分かった交差点から対応する予定です。</p>
+
+          <h3 id="faq-background">画面を消すと受信が止まるのはなぜですか？</h3>
+          <p>iOS では、アプリが画面に表示されていないと、この種類の Bluetooth 信号を受信し続けることができないためです。画面を暗くしたい場合は、VoiceOver の画面カーテンを使うと受信を続けられます。</p>
+
+          <h3 id="faq-send">信号機に何かを送信していますか？ 青信号を延長できますか？</h3>
+          <p>いいえ。Aoshingo は受信専用で、信号機に送信したり、操作したりすることはありません。青時間を延長する機能もありません。</p>
+
+          <h3 id="faq-official">警察や「信GO!」の公式アプリですか？</h3>
+          <p>いいえ。警察庁、信号機メーカー、「信GO!」とは関係のない、個人が開発している非公式のオープンソースアプリです。</p>
+
+          <h3 id="faq-data">実測データの提供をやめるには？</h3>
+          <p>「設定」→「実測データの提供」で「実測データを提供する」をオフにしてください。まだ送信していないデータはすぐに削除され、以後は何も送信しません。詳しくは<a href="../privacy/">プライバシーポリシー</a>をご覧ください。</p>
+
+          <h3 id="faq-get">どこで入手できますか？</h3>
+          <p>開発中のため、まだ配布していません。TestFlight での試験配布や App Store での公開を始めたら、このサイトでお知らせします。開発者の方は、<a href="https://github.com/4sh0u0/Aoshingo">GitHub</a> のソースコードから Xcode でビルドできます。</p>
+
+          <h3 id="faq-android">Android 版はありますか？</h3>
+          <p>現在は iPhone 版だけを開発しています。</p>
+        </section>
+
+        <h2 id="contact">お問い合わせ・不具合の報告</h2>
+        <p>不具合の報告、ご意見、ご質問は、<a href="https://github.com/4sh0u0/Aoshingo/issues">GitHub の Issue</a> で受け付けています。新しく書くときは「<a href="https://github.com/4sh0u0/Aoshingo/issues/new">New issue</a>」から作成してください（GitHub のアカウントが必要です）。</p>
+        <p><strong>Issue は誰でも読める公開の場所です。</strong>氏名、住所、メールアドレスなどの個人情報は書かないでください。受信した時刻と交差点名から、いつその交差点にいたかが分かることにもご注意ください。</p>
+        <div class="contact-email" data-contact-email hidden>
+          <p>GitHub のアカウントがない場合や、公開の場所に書きにくい内容は、メールでも受け付けます。迷惑メールを防ぐため、アドレスはボタンを押したあとに表示します。表示の前に、Cloudflare Turnstile でロボットによる操作でないかを確かめます（<a href="../privacy/#website">プライバシーポリシーの「11. このウェブサイト」</a>）。</p>
+          <p><button type="button" class="button button-secondary" data-contact-button>メールアドレスを表示</button></p>
+          <div class="contact-widget" data-contact-widget hidden></div>
+          <p class="contact-status" role="status" data-contact-status></p>
+          <p class="contact-result" data-contact-result hidden></p>
+        </div>
+        <noscript>
+          <p>メールアドレスの表示にはスクリプトを使います。スクリプトを使えない場合は、GitHub の Issue をご利用ください。</p>
+        </noscript>
+        <p>不具合を報告するときは、次の内容を書いていただけると調べやすくなります。</p>
+        <ul>
+          <li>iPhone の機種と iOS のバージョン</li>
+          <li>アプリのバージョン（「設定」→「情報」→「バージョン」）</li>
+          <li>何をしたときに、何が起きたか</li>
+          <li>交差点名（差し支えなければ）</li>
+          <li>スクリーンショットや画面収録（あれば）</li>
+        </ul>
+        <p>現地で受信した記録を共有していただける場合は、「<a href="https://github.com/4sh0u0/Aoshingo/blob/main/docs/field-test.md">現地確認の手順</a>」をご覧ください。</p>
+
+        <h2 id="site-accessibility">このサイトのアクセシビリティ</h2>
+        <p>このサイトは、ウェブアクセシビリティの国際基準 WCAG 2.2 の適合レベル AA を目標に作っています。</p>
+        <ul>
+          <li>スクリーンリーダーで見出しやランドマークから移動できるようにしています。</li>
+          <li>キーボードだけで操作でき、フォーカスの位置が見えるようにしています。</li>
+          <li>ブラウザーの文字サイズの変更や拡大、iPhone の「さらに大きな文字」、ダークモード、「コントラストを上げる」の設定に合わせて表示が変わります。</li>
+          <li>文章と表は、スクリプトを読み込まなくても読めるようにしています。スクリプトを使うのは「メールアドレスを表示」ボタンだけです。</li>
+        </ul>
+        <p>使いにくい点があれば、<a href="#contact">お問い合わせ</a>の方法でお知らせください。</p>
+
+        <p class="back-to-top"><a href="#main">ページの先頭へ戻る</a></p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav class="footer-nav" aria-label="フッター">
+        <ul>
+          <li><a href="../">トップ</a></li>
+          <li><a href="./">サポート</a></li>
+          <li><a href="../privacy/">プライバシーポリシー</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo">ソースコード（GitHub）</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo/blob/main/LICENSE">ライセンス</a></li>
+        </ul>
+      </nav>
+      <p>Aoshingo は非公式アプリです。警察庁、信号機メーカー、「信GO!」とは関係ありません。</p>
+      <p class="small">Apple、iPhone、iOS、App Store、TestFlight、VoiceOver は Apple Inc. の商標です。iPhone の商標は、アイホン株式会社のライセンスにもとづき使用されています。Bluetooth は Bluetooth SIG, Inc. の登録商標です。</p>
+      <p class="small">© 2026 4sh0u0 and the Aoshingo contributors</p>
+    </div>
+  </footer>
+</body>
+</html>

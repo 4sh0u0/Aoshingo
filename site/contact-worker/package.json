@@ -1,0 +1,20 @@
+{
+  "name": "aoshingo-contact",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "deploy": "cf deploy",
+    "build": "cf build"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261023.1",
+    "cf": "1.0.0-beta.28",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12",
+    "wrangler": "4.153.0"
+  }
+}

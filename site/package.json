@@ -1,0 +1,22 @@
+{
+  "name": "aoshingo-site",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Aoshingo website (GitHub Pages)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "npm run check:html && npm run check:pages",
+    "check:html": "html-validate \"public/**/*.html\"",
+    "check:pages": "node scripts/check-pages.mjs",
+    "serve": "node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "html-validate": "11.17.0",
+    "playwright": "1.64.1"
+  }
+}

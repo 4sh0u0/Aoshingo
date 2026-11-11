@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>プライバシーポリシー｜Aoshingo（青信号）</title>
+  <meta name="description" content="iOS アプリ「Aoshingo（青信号）」と、実測データを受け取るサーバー、このウェブサイトでの情報の扱いについて説明します。">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="canonical" href="https://4sh0u0.github.io/Aoshingo/privacy/">
+  <link rel="icon" href="../assets/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/contact.js" defer></script>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Aoshingo">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="og:title" content="プライバシーポリシー｜Aoshingo（青信号）">
+  <meta property="og:description" content="Aoshingo のアプリ、サーバー、ウェブサイトでの情報の扱い。">
+  <meta property="og:url" content="https://4sh0u0.github.io/Aoshingo/privacy/">
+  <meta property="og:image" content="https://4sh0u0.github.io/Aoshingo/assets/og.png">
+  <meta property="og:image:alt" content="Aoshingo のアイコンと「歩行者用信号の状態を iPhone で受信して表示」の文字">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="../"><img src="../assets/icon-128.png" alt="" width="40" height="40">Aoshingo</a>
+      <nav class="site-nav" aria-label="サイト">
+        <ul>
+          <li><a href="../">トップ</a></li>
+          <li><a href="../support/">サポート</a></li>
+          <li><a href="./" aria-current="page">プライバシー</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="page-header">
+      <div class="wrap">
+        <h1>プライバシーポリシー</h1>
+        <p class="page-meta">対象：iOS アプリ「Aoshingo（青信号）」、実測データを受け取るサーバー、このウェブサイト<br>
+          運営者：Aoshingo の開発者（GitHub：<a href="https://github.com/4sh0u0">4sh0u0</a>）<br>
+          制定日：2026 年 11 月 11 日</p>
+      </div>
+    </div>
+
+    <div class="wrap section">
+      <nav class="toc" aria-labelledby="toc-title">
+        <h2 id="toc-title">目次</h2>
+        <ol>
+          <li><a href="#policy">基本方針</a></li>
+          <li><a href="#on-device">端末の中だけで扱う情報</a></li>
+          <li><a href="#location">位置情報</a></li>
+          <li><a href="#field-data">実測データの提供（任意）</a></li>
+          <li><a href="#app-attest">不正なデータを防ぐ仕組み（App Attest）</a></li>
+          <li><a href="#server">サーバーでの扱い</a></li>
+          <li><a href="#purpose">利用目的</a></li>
+          <li><a href="#third-party">第三者への提供</a></li>
+          <li><a href="#stop">提供の停止と削除</a></li>
+          <li><a href="#changes">このポリシーの変更</a></li>
+          <li><a href="#website">このウェブサイト</a></li>
+          <li><a href="#contact">お問い合わせ</a></li>
+        </ol>
+      </nav>
+
+      <div class="doc">
+        <h2 id="policy">1. 基本方針</h2>
+        <ul>
+          <li>アカウント登録は不要です。広告、アクセス解析、トラッキング、第三者の SDK は使っていません。</li>
+          <li>受信したデータは、初期状態では端末の外に送信しません。</li>
+          <li>端末の外に送信するのは、利用者が「実測データの提供に協力する」を選んだ場合の、「<a href="#field-data">4. 実測データの提供</a>」に書いた情報だけです。</li>
+        </ul>
+
+        <h2 id="on-device">2. 端末の中だけで扱う情報</h2>
+        <div class="table-wrap">
+          <table>
+            <caption id="on-device-caption">端末の中だけで扱う情報と使い方</caption>
+            <thead>
+              <tr>
+                <th scope="col">情報</th>
+                <th scope="col">使い方</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">受信した Bluetooth 信号（高度化PICS）</th>
+                <td>信号の状態を表示するために、メモリ上で扱います。受信のみで、信号機には何も送信しません。</td>
+              </tr>
+              <tr>
+                <th scope="row">受信データの記録ファイル</th>
+                <td>設定で「受信データを記録する」をオンにしたときだけ作ります。端末内（アプリの書類フォルダ）に保存し、利用者が共有しない限り端末の外に出ません。受信した信号データ（交差点 ID と、信号機が発信する交差点の位置を含む）と受信時刻を記録します。送信機は E1、E2… と表記します。利用者の現在地（緯度・経度）は含みませんが、交差点 ID、交差点の位置、受信した時刻を含むため、いつどの交差点にいたかは分かります。共有するときはご注意ください。</td>
+              </tr>
+              <tr>
+                <th scope="row">設定</th>
+                <td>表示の配色、画面を消さない設定、実測データの提供の選択などを端末内に保存します。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>アプリを削除すると、これらはすべて端末から削除されます。</p>
+
+        <h2 id="location">3. 位置情報</h2>
+        <ul>
+          <li>位置情報の利用許可は、実測データの提供に協力している場合だけ求めます。協力しない場合は求めません。</li>
+          <li>位置情報は、交差点から見たおおまかな方向（8 方位）を端末内で計算するためだけに使います。利用者の現在地の緯度・経度は、保存も送信もしません。</li>
+          <li>許可しなくても、すべての機能を使えます。その場合、方向は「不明」として送信します。</li>
+        </ul>
+
+        <h2 id="field-data">4. 実測データの提供（任意）</h2>
+        <p>初回起動時に協力するかどうかを選べます。どちらを選んでも、使える機能は同じです。設定画面でいつでも変更できます。</p>
+
+        <h3 id="sent">送信する情報</h3>
+        <p>協力している場合だけ、アプリが実際の信号を受信している間に、次の情報を送信します。デモや記録ファイルの再生中のデータは送信しません。</p>
+        <div class="table-wrap">
+          <table>
+            <caption id="sent-caption">送信する情報と内容</caption>
+            <thead>
+              <tr>
+                <th scope="col">情報</th>
+                <th scope="col">内容</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">交差点 ID</th>
+                <td>信号機が発信している 8 桁の ID</td>
+              </tr>
+              <tr>
+                <th scope="row">受信した信号データ</th>
+                <td>信号機が発信しているデータそのもの（交差点名、交差点の位置、信号の状態など）。間引いて送信します。</td>
+              </tr>
+              <tr>
+                <th scope="row">信号が変わった時刻</th>
+                <td>信号ごとの状態の変化（例：赤 → 青）と、その時刻（秒単位）</td>
+              </tr>
+              <tr>
+                <th scope="row">電波強度</th>
+                <td>5 dB 単位に丸めた値</td>
+              </tr>
+              <tr>
+                <th scope="row">方向</th>
+                <td>交差点から見た利用者の方向と、端末の向きを、それぞれ 8 方位に丸めた値</td>
+              </tr>
+              <tr>
+                <th scope="row">送信機の情報</th>
+                <td>Service UUID と、送信機の数</td>
+              </tr>
+              <tr>
+                <th scope="row">アプリのバージョン</th>
+                <td>例：<code>aoshingo-ios/0.1.0</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="not-sent">送信しない情報</h3>
+        <p>利用者の現在地（緯度・経度）、機種、OS のバージョン、言語・地域、広告 ID、氏名・メールアドレスなどの個人情報は送信しません。なお、受信した信号データには、信号機が発信する交差点の位置が含まれます。</p>
+        <p>インストールごとに異なる値として、App Attest の鍵の ID（keyId）を送ります。送るのは鍵の登録と送信用トークンの取得のときだけで、実測データの送信には含めません（「<a href="#app-attest">5. 不正なデータを防ぐ仕組み</a>」）。</p>
+
+        <h3 id="timing">送信のタイミング</h3>
+        <p>受信中はおよそ 1 分ごとに、アプリを閉じたときにも、未送信のデータをまとめて送信します。1 回の送信に含めるのは最大 10 分間のデータです。送信に失敗したときは、間隔を広げながら再試行します。サーバーがその日の受け付けの上限に達しているときは、翌日（UTC）まで待ちます。送信できなかったデータは端末内に最大 50 件まで保存し、6 日を過ぎたものは送信せずに削除します。</p>
+        <p>送信には、最長 6 時間有効な送信用トークンを付けます。その間の送信には同じトークンを使うため、サーバーは受け取るときに、同じ時間帯の送信どうしを同じ端末からのものと見分けられます。サーバーはトークンを確かめるためだけに使い、実測データと一緒には保存しません。ただし、送信内容の時刻は秒単位なので、保存したデータを時刻順に並べると、同じ人が続けて通った交差点を推測できる可能性があります。</p>
+        <p>通信内容と形式の詳細は「<a href="https://github.com/4sh0u0/Aoshingo/blob/main/docs/field-data-api.md">送信 API の仕様</a>」をご覧ください。</p>
+
+        <h2 id="app-attest">5. 不正なデータを防ぐ仕組み（App Attest）</h2>
+        <p>偽造されたデータの混入を防ぐため、Apple の App Attest を使い、送信元が正規の Aoshingo アプリであることを確認します。</p>
+        <ul>
+          <li>協力をオンにすると、アプリは端末の安全な領域（Secure Enclave）に鍵を作り、Apple のサーバーで証明を受けます。この処理には <a href="https://www.apple.com/legal/privacy/">Apple のプライバシーポリシー</a>が適用されます。</li>
+          <li>鍵の ID（keyId）は、協力をオンにしたインストールごとに 1 つ作られる値です。鍵の登録と送信用トークンの取得のときだけ、開発者のサーバーに送ります。</li>
+          <li>サーバーは鍵の ID、公開鍵、署名の回数、App Attest の環境（開発用か本番か）、登録した日と最後に使われた日（どちらも日単位）を、実測データとは別の表に保存し、実測データとは結び付けません。実測データの行には、鍵の ID も送信用トークンも保存しません。</li>
+          <li>サーバーは、最後に使われた日から 30 日を過ぎた鍵の ID と公開鍵を削除します（最後に使われてから最長で 31 日と 18 時間ほど）。</li>
+          <li>送信用トークンには鍵の ID を含めません。協力をオフにすると、アプリはこの鍵を破棄し、もう一度オンにすると新しい鍵を作ります。</li>
+        </ul>
+
+        <h2 id="server">6. サーバーでの扱い</h2>
+        <ul>
+          <li>サーバーは <a href="https://workers.cloudflare.com/">Cloudflare Workers</a> と D1 データベースで運用しています。</li>
+          <li>通信を届けるために Cloudflare は IP アドレスを処理しますが、サーバーのプログラムは IP アドレスや国などを示すヘッダーを読まず、記録もしません。アクセスログやトレースの記録は無効にしています。Cloudflare 自身の扱いについては <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare のプライバシーポリシー</a>をご覧ください。</li>
+          <li>受け取った日時は「日」単位でだけ記録します。送信内容に含まれる信号の変化や受信の時刻（秒単位）は、そのまま保存します。</li>
+          <li>受け取った実測データは 90 日間保存し、その後は毎日 1 回の処理で交差点ごとの集計（信号ごとの変化の回数を時間帯別に数えたもの、電波強度と方向ごとの受信回数など）に置き換えてから削除します。受け取ってから削除するまでは、最長で 91 日と 18 時間ほどです。集計には個々の送信を区別できる情報は残りません。集計は期限を定めずに保存します。</li>
+          <li>削除したデータも、Cloudflare D1 の復元機能（Time Travel）により、削除から 7 日間はデータベースごと削除前の状態に戻せる形で残ります。戻せるのはサーバーの運用者だけです。</li>
+        </ul>
+
+        <h2 id="purpose">7. 利用目的</h2>
+        <ul>
+          <li>信号の番号（1 番〜6 番）がどの横断歩道に当たるかを確かめるため</li>
+          <li>信号機ごとの発信間隔、送信機の数、受信できる範囲を調べるため</li>
+          <li>「残り目安」の表示や、信号の判定の正確さを改善するため</li>
+        </ul>
+        <p>集計結果を公開する場合は、事前にこのポリシーを更新してお知らせします。</p>
+
+        <h2 id="third-party">8. 第三者への提供</h2>
+        <p>実測データを販売したり、広告などの目的で第三者に提供したりすることはありません。サーバーの運用（Cloudflare）と不正防止（Apple）のために、上に書いた範囲でこれらの事業者が処理することがあります。法令に基づいて開示を求められた場合は、法令に従って対応します。</p>
+
+        <h2 id="stop">9. 提供の停止と削除</h2>
+        <ul>
+          <li>設定画面で実測データの提供をオフにすると、端末内の未送信のデータはすぐに削除され、以後は何も送信しません。</li>
+          <li>すでに送信したデータは、利用者や端末と結び付けて保存していないため、個別に探して削除することができません。受け取ってから最長で 91 日と 18 時間ほどで集計に置き換えられ、個々のデータは削除されます。</li>
+        </ul>
+
+        <h2 id="changes">10. このポリシーの変更</h2>
+        <p>内容を変更するときは、このページと GitHub のリポジトリで変更を公開し、重要な変更はリリースノートでもお知らせします。送信する情報を増やす場合は、改めて利用者の同意を得ます。</p>
+
+        <h2 id="website">11. このウェブサイト</h2>
+        <ul>
+          <li>このウェブサイトは <a href="https://docs.github.com/ja/pages">GitHub Pages</a> で公開しています。GitHub は、セキュリティのために、サイトを閲覧した人の IP アドレスを記録します。GitHub 自身の扱いについては <a href="https://docs.github.com/ja/site-policy/privacy-policies/github-general-privacy-statement">GitHub のプライバシーに関する声明</a>をご覧ください。</li>
+          <li>このサイト自体は、Cookie、アクセス解析、広告、外部のフォントを使っていません。開発者がこのサイトの閲覧者の情報を集めることはありません。</li>
+          <li>サポートページとこのページの「メールアドレスを表示」ボタンを押したときだけ、迷惑メールを防ぐために Cloudflare の <a href="https://developers.cloudflare.com/turnstile/">Turnstile</a> を使います。ボタンを押すと、ブラウザーは Cloudflare（challenges.cloudflare.com）からスクリプトを読み込み、ロボットによる操作でないかを確かめます。このとき Cloudflare は、確かめるために必要な情報（IP アドレス、ブラウザーや端末の情報など）を処理し、確認のために Cloudflare のドメインで Cookie やブラウザーの保存領域を使うことがあります。ボタンを押さなければ、Turnstile は読み込まれません。Cloudflare の扱いについては、<a href="https://www.cloudflare.com/turnstile-privacy-policy/">Turnstile のプライバシーに関する補足（英語）</a>と <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare のプライバシーポリシー</a>をご覧ください。</li>
+          <li>確認が済むと、ブラウザーは確認の結果（1 回だけ使える符号）を、開発者が Cloudflare Workers で動かしているプログラムに送ります。プログラムは、その結果が正しいことを Cloudflare に問い合わせてから、メールアドレスを返します。通信を届けるために Cloudflare は IP アドレスを処理しますが、このプログラムは IP アドレスや国などを示すヘッダーを読まず、何も保存せず、アクセスログやトレースの記録も無効にしています。</li>
+          <li>ほかに GitHub や Cloudflare のサービスをこのサイトで使うときは、使い始める前に、サービスの名前、使う目的、そのサービスに送られる情報をこの節に書き加えます。</li>
+        </ul>
+
+        <h2 id="contact">12. お問い合わせ</h2>
+        <p><a href="https://github.com/4sh0u0/Aoshingo/issues">GitHub の Issue</a> でお問い合わせください。Issue は公開されるため、個人情報は書かないでください。</p>
+        <div class="contact-email" data-contact-email hidden>
+          <p>公開の場所に書きにくい内容は、メールでも受け付けます。迷惑メールを防ぐため、アドレスはボタンを押したあとに表示します。表示の前に、上の「11. このウェブサイト」に書いたとおり Cloudflare Turnstile を使います。</p>
+          <p><button type="button" class="button button-secondary" data-contact-button>メールアドレスを表示</button></p>
+          <div class="contact-widget" data-contact-widget hidden></div>
+          <p class="contact-status" role="status" data-contact-status></p>
+          <p class="contact-result" data-contact-result hidden></p>
+        </div>
+        <noscript>
+          <p>メールアドレスの表示にはスクリプトを使います。スクリプトを使えない場合は、GitHub の Issue をご利用ください。</p>
+        </noscript>
+        <p>メールでお問い合わせいただいた場合、メールアドレスと内容は、返信と対応のためだけに使い、法令に基づく場合を除いて第三者に提供しません。</p>
+
+        <p class="back-to-top"><a href="#main">ページの先頭へ戻る</a></p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav class="footer-nav" aria-label="フッター">
+        <ul>
+          <li><a href="../">トップ</a></li>
+          <li><a href="../support/">サポート</a></li>
+          <li><a href="./">プライバシーポリシー</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo">ソースコード（GitHub）</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo/blob/main/LICENSE">ライセンス</a></li>
+        </ul>
+      </nav>
+      <p>Aoshingo は非公式アプリです。警察庁、信号機メーカー、「信GO!」とは関係ありません。</p>
+      <p class="small">Apple、iPhone、iOS、App Store、TestFlight、VoiceOver は Apple Inc. の商標です。iPhone の商標は、アイホン株式会社のライセンスにもとづき使用されています。Bluetooth は Bluetooth SIG, Inc. の登録商標です。</p>
+      <p class="small">© 2026 4sh0u0 and the Aoshingo contributors</p>
+    </div>
+  </footer>
+</body>
+</html>
