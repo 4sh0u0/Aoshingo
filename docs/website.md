@@ -99,9 +99,9 @@ App Store に登録するのは `site/public/privacy/index.html` の公開版で
 
 ## 画像を作り直す
 
-アプリのアイコンを変えたら、アイコンと OGP 画像を作り直します。Pillow と、Inter Display・IPA P ゴシックのフォントが必要です。
+アプリのアイコンを変えたら、アイコンと OGP 画像を作り直します。元になる 1024 × 1024 の PNG は `Tools/AppIcon/export.sh` が書き出します（[Tools/AppIcon/README.md](../Tools/AppIcon/README.md)）。Pillow と、Inter Display・IPA P ゴシックのフォントが必要です。
 
 ```bash
 python3 site/scripts/make-images.py \
-  App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png site/public/assets
+  docs/assets/brand/aoshingo-icon-1024.png site/public/assets
 ```
