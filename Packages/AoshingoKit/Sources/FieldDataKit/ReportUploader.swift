@@ -45,6 +45,9 @@ public enum AttestationError: Error, Sendable, Equatable {
     /// The key can no longer be used (for example after a restore to another device, or when it
     /// was already attested once).
     case invalidKey
+    /// App Attest could not reach Apple. Apple asks to try again later with the same key; after
+    /// any other attestation error the key is discarded.
+    case serverUnavailable
 }
 
 /// The App Attest key this installation uses. The key ID never travels with report data.
@@ -257,7 +260,8 @@ public actor ReportUploader {
     ///
     /// The challenge comes first, so a server that is down or out of capacity costs no new key.
     /// A new key is saved (as not attested) as soon as it exists and reused by later attempts; it is
-    /// replaced only when App Attest reports it invalid or the server rejects its attestation.
+    /// replaced only when App Attest reports it invalid or fails it (other than `serverUnavailable`),
+    /// or the server rejects its attestation.
     private func attest(epoch: UInt64) async throws -> TokenResponse {
         let challenge = try await fetchChallenge(epoch: epoch)
         let clientDataHash = sha256(Data(challenge.utf8))
@@ -274,25 +278,13 @@ public actor ReportUploader {
 
         let attestationObject: Data
         do {
-            try checkBeforeStarting(epoch)
-            attestationObject = try await attestation.attestKey(key.id, clientDataHash: clientDataHash)
-        } catch AttestationError.invalidKey {
-            try checkStillCurrent(epoch)
-            keyStorage.save(nil)
+            attestationObject = try await attestKey(key, clientDataHash: clientDataHash, epoch: epoch)
+        } catch AttestationError.invalidKey where reused {
             // A reused key may have been attested before its upload failed; App Attest allows that
-            // only once. A key generated just now is not retried in this attempt.
-            guard reused else { throw AttestationError.invalidKey }
+            // only once. A key generated just now is not replaced within the same attempt.
             key = try await generateKey(epoch: epoch)
-            try checkBeforeStarting(epoch)
-            do {
-                attestationObject = try await attestation.attestKey(key.id, clientDataHash: clientDataHash)
-            } catch AttestationError.invalidKey {
-                try checkStillCurrent(epoch)
-                keyStorage.save(nil)
-                throw AttestationError.invalidKey
-            }
+            attestationObject = try await attestKey(key, clientDataHash: clientDataHash, epoch: epoch)
         }
-        try checkStillCurrent(epoch)
 
         let response = try await postJSON("/v1/attest", [
             "keyId": key.id,
@@ -321,6 +313,23 @@ public actor ReportUploader {
         default:
             throw UploadError.server(status: response.status, code: Self.errorCode(response.body))
         }
+    }
+
+    /// Attests `key`. On failure the key is forgotten, except when App Attest asks to retry it later.
+    private func attestKey(_ key: AttestKey, clientDataHash: Data, epoch: UInt64) async throws -> Data {
+        try checkBeforeStarting(epoch)
+        let attestationObject: Data
+        do {
+            attestationObject = try await attestation.attestKey(key.id, clientDataHash: clientDataHash)
+        } catch AttestationError.serverUnavailable {
+            throw AttestationError.serverUnavailable
+        } catch {
+            try checkStillCurrent(epoch)
+            keyStorage.save(nil)
+            throw error
+        }
+        try checkStillCurrent(epoch)
+        return attestationObject
     }
 
     private func generateKey(epoch: UInt64) async throws -> AttestKey {

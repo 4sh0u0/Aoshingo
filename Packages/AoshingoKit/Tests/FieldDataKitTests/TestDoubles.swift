@@ -149,6 +149,8 @@ final class FakeAttestation: AttestationProvider, @unchecked Sendable {
     var assertionError: (any Error)?
     /// Keys for which `attestKey` throws `AttestationError.invalidKey` (for example, already attested).
     var unattestableKeys: Set<String> = []
+    /// Thrown by `attestKey` (once per entry) before anything else.
+    var attestErrors: [any Error] = []
     var attestGate: Gate?
     private(set) var generatedKeys = 0
     private(set) var attestedKeys: [String] = []
@@ -167,6 +169,7 @@ final class FakeAttestation: AttestationProvider, @unchecked Sendable {
         let gate = lock.withLock { attestGate }
         try await gate?.pass()
         return try lock.withLock {
+            if !attestErrors.isEmpty { throw attestErrors.removeFirst() }
             if unattestableKeys.contains(keyID) { throw AttestationError.invalidKey }
             hashes.append(clientDataHash)
             attestedKeys.append(keyID)

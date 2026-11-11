@@ -135,6 +135,30 @@ struct AttestationRetryTests {
         #expect(await fixture.uploader.retryNotBefore == start.addingTimeInterval(60))
     }
 
+    @Test("App Attest's serverUnavailable keeps the key for later; other App Attest errors discard it")
+    func attestKeyErrors() async throws {
+        struct SystemFailure: Error {}
+        let fixture = Fixture()
+        fixture.transport.fallback["/v1/challenge"] = challengeResponse
+        fixture.attestation.attestErrors = [AttestationError.serverUnavailable, SystemFailure()]
+        await #expect(throws: AttestationError.serverUnavailable) { try await fixture.uploader.upload(Data()) }
+        #expect(fixture.keys.load() == pending("key-1"))
+        #expect(await fixture.uploader.retryNotBefore == start.addingTimeInterval(60))
+
+        fixture.clock.advance(60)
+        await #expect(throws: SystemFailure.self) { try await fixture.uploader.upload(Data()) }
+        #expect(fixture.keys.load() == nil)
+        #expect(fixture.attestation.generatedKeys == 1)
+        #expect(await fixture.uploader.retryNotBefore == start.addingTimeInterval(60 + 120))
+
+        fixture.clock.advance(120)
+        fixture.transport.script("/v1/attest", tokenResponse("T1"))
+        fixture.transport.script("/v1/reports", HTTPResponse(status: 202))
+        #expect(try await fixture.uploader.upload(Data()) == .accepted)
+        #expect(fixture.keys.load() == attested("key-2"))
+        #expect(!fixture.transport.paths.dropLast(2).contains("/v1/attest")) // nothing was posted for key-1
+    }
+
     @Test("401 attestation_invalid discards the key and stops for a day")
     func attestationRejected() async throws {
         let fixture = Fixture()

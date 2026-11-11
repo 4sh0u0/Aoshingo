@@ -19,6 +19,8 @@ struct AppAttestProvider: AttestationProvider {
             return try await DCAppAttestService.shared.attestKey(keyID, clientDataHash: clientDataHash)
         } catch let error as DCError where error.code == .invalidKey {
             throw AttestationError.invalidKey
+        } catch let error as DCError where error.code == .serverUnavailable {
+            throw AttestationError.serverUnavailable
         }
     }
 
