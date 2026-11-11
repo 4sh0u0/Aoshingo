@@ -18,6 +18,7 @@ struct SignalSlotView: View {
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @AccessibilityFocusState private var isAccessibilityFocused: Bool
 
     private var appearance: SignalAppearance {
         SignalAppearance.make(
@@ -62,15 +63,25 @@ struct SignalSlotView: View {
         .modifier(BlinkModifier(active: appearance.blinks && !reduceMotion))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel(appearance))
-        .accessibilityAddTraits(.updatesFrequently)
+        // The remaining time is the value, so its steps never make VoiceOver re-read the label.
+        .accessibilityValue(remainingDescription)
+        .accessibilityFocused($isAccessibilityFocused)
+        .onChange(of: appearance.accessibilityTitle) { _, title in
+            // Only a real change of what the signal means is announced, and only for the slot that
+            // VoiceOver is on (which is what `.updatesFrequently` used to re-read).
+            guard isAccessibilityFocused else { return }
+            AccessibilityAnnouncer.announce([String(localized: "\(slot) 番"), title].joined(separator: "、"))
+        }
     }
 
     private func accessibilityLabel(_ appearance: SignalAppearance) -> String {
-        var parts = [intersectionName, String(localized: "\(slot) 番"), appearance.accessibilityTitle]
-        if !stale, let remaining = signal?.remaining {
-            parts.append(String(localized: "残り目安 \(remaining) / 8"))
-        }
-        return parts.joined(separator: "、")
+        [intersectionName, String(localized: "\(slot) 番"), appearance.accessibilityTitle].joined(separator: "、")
+    }
+
+    /// Spoken as the accessibility value; empty when there is nothing current to say.
+    private var remainingDescription: String {
+        guard !stale, let remaining = signal?.remaining else { return "" }
+        return String(localized: "残り目安 \(remaining) / 8")
     }
 }
 
