@@ -13,9 +13,9 @@ export interface Env {
   TURNSTILE_SECRET_KEY?: string;
   /** The address to show. */
   CONTACT_EMAIL?: string;
-  /** Comma-separated origins of the website, for example "https://4sh0u0.github.io". */
+  /** Comma-separated origins of the website, for example "https://aoshingo.4sh.es". */
   ALLOWED_ORIGINS?: string;
-  /** Comma-separated hostnames the Turnstile widget may be solved on, for example "4sh0u0.github.io". */
+  /** Comma-separated hostnames the Turnstile widget may be solved on, for example "aoshingo.4sh.es". */
   ALLOWED_HOSTNAMES?: string;
   /** Workers Rate Limiting for successful verifications. */
   REVEAL_RATE_LIMITER: RateLimit;

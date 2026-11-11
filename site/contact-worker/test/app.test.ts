@@ -5,7 +5,7 @@ import appSource from "../src/app.ts?raw";
 import indexSource from "../src/index.ts?raw";
 import { type Env, type Fetcher, handleRequest, MAX_BODY_BYTES, PATH, SITEVERIFY_URL, TURNSTILE_ACTION } from "../src/app";
 
-const SITE = "https://4sh0u0.github.io";
+const SITE = "https://aoshingo.4sh.es";
 const ENDPOINT = `https://aoshingo-contact.example.workers.dev${PATH}`;
 const EMAIL = "contact@example.com";
 const TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
@@ -16,7 +16,7 @@ function makeEnv(overrides: Partial<Env> = {}, allowReveal = true) {
     TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
     CONTACT_EMAIL: EMAIL,
     ALLOWED_ORIGINS: SITE,
-    ALLOWED_HOSTNAMES: "4sh0u0.github.io",
+    ALLOWED_HOSTNAMES: "aoshingo.4sh.es",
     REVEAL_RATE_LIMITER: { limit },
     ...overrides,
   };
@@ -27,7 +27,7 @@ function siteverify(result: unknown, status = 200) {
   return vi.fn<Fetcher>(async () => new Response(JSON.stringify(result), { status }));
 }
 
-const passed = { success: true, hostname: "4sh0u0.github.io", action: TURNSTILE_ACTION };
+const passed = { success: true, hostname: "aoshingo.4sh.es", action: TURNSTILE_ACTION };
 
 function post(body: string = new URLSearchParams({ token: TOKEN }).toString(), headers: Record<string, string> = {}) {
   return new Request(ENDPOINT, {
@@ -73,7 +73,7 @@ describe("POST /v1/email", () => {
   it.each([
     ["a failed challenge", { success: false, "error-codes": ["invalid-input-response"] }],
     ["another action", { ...passed, action: "login" }],
-    ["no action", { success: true, hostname: "4sh0u0.github.io" }],
+    ["no action", { success: true, hostname: "aoshingo.4sh.es" }],
     ["another hostname", { ...passed, hostname: "evil.example" }],
     ["no hostname", { success: true, action: TURNSTILE_ACTION }],
     ["a non-object body", "ok"],

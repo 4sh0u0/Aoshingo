@@ -21,7 +21,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 import { BASE_PATH, PUBLIC_DIR, startServer } from "./serve.mjs";
 
-const PUBLISHED_ORIGIN = "https://4sh0u0.github.io";
+const PUBLISHED_ORIGIN = "https://aoshingo.4sh.es";
 const PAGES = ["", "guide/", "support/", "about/", "privacy/", "this-page-does-not-exist/"];
 const MODES = [
   { name: "light", options: { colorScheme: "light" } },
@@ -41,7 +41,6 @@ const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-
 // receives. Requests to these hosts are blocked during the check, so it stays offline.
 const ALLOWED_EXTERNAL_HOSTS = new Set([
   "github.com",
-  "4sh0u0.github.io",
   "challenges.cloudflare.com", // Turnstile, only after the 「メールアドレスを表示」 button is pressed
   "aoshingo-contact.harus-account.workers.dev", // site/contact-worker
 ]);

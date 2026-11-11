@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Minimal static server for previewing site/public the way GitHub Pages serves it:
-// under the /Aoshingo/ base path, with index.html for directories, a redirect to the
+// Minimal static server for previewing site/public the way GitHub Pages serves it at
+// https://aoshingo.4sh.es/: from the root, with index.html for directories, a redirect to the
 // trailing-slash URL, and 404.html for missing paths.
 //
-//   npm run serve            -> http://localhost:8000/Aoshingo/
+//   npm run serve            -> http://localhost:8000/
 //   PORT=9000 npm run serve
 
 import { createReadStream } from "node:fs";
@@ -13,7 +13,8 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const BASE_PATH = "/Aoshingo/";
+// The site lives at the root of its custom domain. Pages link to each other with relative paths.
+export const BASE_PATH = "/";
 export const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
 
 const TYPES = {
