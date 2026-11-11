@@ -2,7 +2,8 @@
 
 import Foundation
 
-/// UserDefaults keys (the only data stored with UserDefaults; required-reason code CA92.1).
+/// UserDefaults keys for the app settings (required-reason code CA92.1). FieldDataKit's
+/// `UserDefaultsStateStore` also keeps its upload state under the `fieldData.` prefix.
 enum SettingsKey {
     static let onboardingCompleted = "onboardingCompleted"
     static let collectionConsent = "collectionConsent"

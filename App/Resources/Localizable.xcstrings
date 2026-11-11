@@ -181,22 +181,32 @@
         }
       }
     },
-    "おおまかな方向を求めるために位置情報の許可をお願いすることがあります。位置そのものは端末の外に出ません。生データは 90 日後に削除し、交差点ごとの集計だけを残します。送信したデータには識別子がないため、あとから個別に削除することはできません。": {
+    "あなたの現在地（緯度・経度）、機種、OS のバージョン、言語、広告 ID": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aoshingo may ask for location access to work out the rough direction. Your location itself never leaves the device. Raw data is deleted after 90 days and only per-intersection totals are kept. Because sent data carries no identifier, it cannot be deleted individually later."
+            "value": "Your location (latitude and longitude), device model, OS version, language, or advertising ID"
           }
         }
       }
     },
-    "このビルドには送信先が設定されていないため、データは端末内にだけ保存されます。": {
+    "おおまかな方向を求めるために位置情報の許可をお願いすることがあります。位置そのものは端末の外に出ません。同じ送信用トークン（最長 6 時間有効）で送ったデータは、サーバーが受け取るときに同じ端末からのものと分かります。サーバーはトークンを実測データと一緒には保存しません。生データは 90 日後に削除し、交差点ごとの集計だけを残します。送信したデータには識別子がないため、あとから個別に削除することはできません。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This build has no server configured, so data is only kept on this device."
+            "value": "Aoshingo may ask for location access to work out the rough direction. Your location itself never leaves the device. Data sent with the same upload token (valid for up to 6 hours) can be recognised by the server as coming from the same device when it arrives; the server does not store the token with the field data. Raw data is deleted after 90 days and only per-intersection totals are kept. Because sent data carries no identifier, it cannot be deleted individually later."
+          }
+        }
+      }
+    },
+    "このビルドには送信先が設定されていないため、実測データを提供できません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build has no server configured, so field data cannot be shared."
           }
         }
       }
@@ -427,6 +437,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unknown. Check the actual signal"
+          }
+        }
+      }
+    },
+    "不正防止のための鍵の ID（インストールごとに 1 つ）。鍵の登録と送信用トークンの取得のときだけ送り、実測データとは結び付けません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A key ID for fraud prevention (one per installation). It is sent only to register the key and to get an upload token, and is never linked to the field data"
           }
         }
       }
@@ -791,6 +811,16 @@
         }
       }
     },
+    "名称未受信（ID %@）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name not received (ID %@)"
+          }
+        }
+      }
+    },
     "周囲の Bluetooth 広告：%lld 件": {
       "localizations": {
         "en": {
@@ -811,12 +841,12 @@
         }
       }
     },
-    "実機受信中のパケットだけを記録します。記録には位置情報を含まず、送信機は E1、E2… と表記します。記録は共有するまで端末の外に出ません。": {
+    "実機受信中のパケットだけを記録します。記録にあなたの現在地は含まれませんが、交差点 ID と交差点の位置、受信した時刻は含まれるため、いつどの交差点にいたかは分かります。送信機は E1、E2… と表記します。記録は共有するまで端末の外に出ません。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Only packets received live are recorded. Recordings contain no location, and transmitters are named E1, E2, …. Recordings stay on the device until you share them."
+            "value": "Only packets received live are recorded. Recordings do not contain your location, but they do contain the intersection ID, the intersection's position and the time of reception, so they show when you were at which intersection. Transmitters are named E1, E2, …. Recordings stay on the device until you share them."
           }
         }
       }
@@ -911,6 +941,16 @@
         }
       }
     },
+    "最も近い交差点が変わりました：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nearest intersection changed: %@"
+          }
+        }
+      }
+    },
     "最も近い交差点を自動で表示中": {
       "localizations": {
         "en": {
@@ -931,12 +971,32 @@
         }
       }
     },
+    "最も近い交差点：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nearest intersection: %@"
+          }
+        }
+      }
+    },
     "最寄り": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Nearest"
+          }
+        }
+      }
+    },
+    "最後に破棄した理由：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last discard reason: %@"
           }
         }
       }
@@ -1137,16 +1197,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "I Understand"
-          }
-        }
-      }
-    },
-    "緯度・経度、機種、OS のバージョン、言語、広告 ID、端末を識別する ID": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Latitude and longitude, device model, OS version, language, advertising ID, or any ID that identifies your device"
           }
         }
       }
