@@ -98,7 +98,8 @@ final class PICSScanner: NSObject, CBCentralManagerDelegate, @unchecked Sendable
     private func startScanIfPossible() {
         guard wantsScanning, let central, central.state == .poweredOn, !central.isScanning else { return }
         // No service filter and duplicates allowed: PICS advertises only manufacturer data, and every
-        // repeat carries a new signal state. This only works in the foreground.
+        // repeat carries a new signal state. This only works in the foreground. The same advertisement
+        // can be delivered more than once; SignalDebouncer does not count such repeats as confirmation.
         central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
     }
 

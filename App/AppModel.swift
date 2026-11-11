@@ -30,7 +30,7 @@ final class AppModel {
     private(set) var source: Source = .idle
     private(set) var bluetooth: BluetoothAvailability = .unknown
     private(set) var store = IntersectionStore()
-    /// Debounced signals per intersection (danger at once, safety after two packets).
+    /// Debounced signals per intersection (danger at once, safety after two packets at least 0.5 s apart).
     private(set) var confirmed: [String: [PedestrianSignal?]] = [:]
     private(set) var picsPacketCount = 0
     private(set) var otherAdvertisementCount = 0
@@ -263,7 +263,7 @@ final class AppModel {
             var slots = debouncers[id] ?? SlotDebouncers()
             // After a gap, a "safe" state has to be confirmed again.
             if wasStale { slots.reset() }
-            slots.feed(signals)
+            slots.feed(signals, at: advertisement.timestamp)
             debouncers[id] = slots
             confirmed[id] = slots.confirmed
         }

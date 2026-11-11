@@ -30,7 +30,7 @@ struct SignalAppearance: Equatable {
 
     /// - Parameters:
     ///   - state: the confirmed state, or `nil` while signal data is arriving but nothing is confirmed
-    ///     yet (a 青 or 青点滅 waits for a second matching packet, see `SignalDebouncer`).
+    ///     yet (a 青 or 青点滅 waits for a second matching packet at least 0.5 s later, see `SignalDebouncer`).
     ///   - stale: no Type 2 for five seconds; the last colour must not be shown as current.
     static func make(
         state: SignalState?,
