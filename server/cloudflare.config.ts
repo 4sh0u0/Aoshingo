@@ -26,7 +26,8 @@ export default defineConfig({
     },
 
     triggers: [
-      // Daily at 18:00 UTC = 03:00 JST: fold expired reports into aggregates, drop old usage counters.
+      // Daily at 18:00 UTC = 03:00 JST: fold expired reports into aggregates, delete unused App
+      // Attest keys and old usage counters (src/cron.ts).
       triggers.scheduled({ schedule: "0 18 * * *" }),
     ],
 
@@ -38,11 +39,12 @@ export default defineConfig({
       ALLOW_DEVELOPMENT_ATTESTATION: bindings.text("false"),
       RETENTION_DAYS: bindings.text("90"),
       TOKEN_TTL_SECONDS: bindings.text("21600"),
-      // Daily write budget for API requests (src/budget.ts); over it, writes answer 503 over_capacity.
-      // Sized for the Workers Free plan: 100,000 rows written per day for the whole account (the
-      // cron writes at most about 51,000 more), and a 500 MB database with 90 days of reports.
+      // Daily write budget for API requests (src/budget.ts); over it, writes and new challenges
+      // answer 503 over_capacity. Sized for the Workers Free plan: 100,000 rows written per day for
+      // the whole account (the cron writes at most about 61,000 more), and a 500 MB database. The
+      // storage limit counts payload plus 500 bytes per row, so 90 days of reports stay near 300 MB.
       DAILY_WRITE_LIMIT: bindings.text("30000"),
-      DAILY_PAYLOAD_LIMIT_BYTES: bindings.text("3000000"),
+      DAILY_STORAGE_LIMIT_BYTES: bindings.text("3000000"),
       MAX_DATABASE_BYTES: bindings.text("450000000"),
 
       // HMAC key for upload tokens and challenges (at least 32 characters). The value is never stored in the
@@ -66,7 +68,7 @@ export default defineConfig({
       }),
       // Verified attestations (key "attest") and token refreshes per App Attest key (a hash of the
       // keyId). Checked after verification, so junk requests cannot use it up. /v1/challenge has no
-      // limit: it writes nothing.
+      // limit: it only reads.
       AUTH_RATE_LIMITER: bindings.rateLimit({
         namespace: "1002",
         simple: { limit: 30, period: 60 },

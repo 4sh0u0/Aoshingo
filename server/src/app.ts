@@ -7,8 +7,9 @@
 
 import { APPLE_APP_ATTESTATION_ROOT_CA_DER } from "./apple-root";
 import { verifyAssertion, verifyAttestation, VerificationError, type AttestEnvironment } from "./appattest";
-import { deleteOldUsage, reserveWrites } from "./budget";
+import { checkCapacity, reserveWrites } from "./budget";
 import { issueChallenge, verifyChallenge } from "./challenge";
+import { runDailyJobs } from "./cron";
 import { decodeBase64, encodeBase64Url, fromHex, toHex } from "./encoding";
 import {
   allowDevelopment,
@@ -21,15 +22,13 @@ import {
   type Env,
 } from "./env";
 import { errorResponse, HttpError, isJsonContentType, json, parseJson, readBodyLimited } from "./http";
+import { findKey, insertKey, KEY_REFRESH_COST, KEY_WRITE_COST, updateCounter } from "./keys";
 import { MAX_REPORT_BYTES, validateReport } from "./report";
-import { foldExpiredReports, reportPayloads, ROWS_WRITTEN_PER_INTERSECTION, storeReport, utcDay } from "./storage";
+import { reportPayloads, reportWriteCost, storeReport, utcDay } from "./storage";
 import { issueToken, verifyToken } from "./token";
 
 /** Attest/token request bodies are small; anything bigger is not a genuine client. */
 const MAX_AUTH_BODY_BYTES = 64 * 1024;
-
-/** daily_usage rows older than this many days are deleted by the cron. */
-const USAGE_KEEP_DAYS = 7;
 
 export interface AppOptions {
   /**
@@ -114,8 +113,16 @@ export function createApp(options: AppOptions = {}): App {
 
   // Signed, not stored, so it costs no D1 write and needs no rate limit: a limit keyed without
   // the client's address would only let one client lock everybody else out.
+  //
+  // When today's budget can no longer store one more key (or the database is full), it answers
+  // 503 over_capacity before the client asks Apple to attest a new key that could not be
+  // registered. That check is one read; a later request can still get 503 if others use up the
+  // rest first.
   const challenge: Handler = async (_request, env, nowMs) => {
-    const issued = await issueChallenge(tokenSecret(env), Math.floor(nowMs / 1000));
+    const secret = tokenSecret(env);
+    const limits = budgetLimits(env);
+    await checkCapacity(env.DB, limits, utcDay(nowMs), KEY_WRITE_COST);
+    const issued = await issueChallenge(secret, Math.floor(nowMs / 1000));
     return json(201, issued);
   };
 
@@ -149,16 +156,13 @@ export function createApp(options: AppOptions = {}): App {
 
     // Only verified attestations count, so junk requests cannot lock out genuine clients.
     await rateLimit(env.AUTH_RATE_LIMITER, "attest");
-    await reserveWrites(env.DB, limits, utcDay(nowMs), 1);
+    const day = utcDay(nowMs);
+    await reserveWrites(env.DB, limits, day, KEY_WRITE_COST);
 
-    // Stored apart from report data; created_day is coarse on purpose.
-    const inserted = await env.DB.prepare(
-      `INSERT INTO attest_keys (key_id, public_key, sign_count, environment, created_day)
-       VALUES (?1, ?2, 0, ?3, ?4) ON CONFLICT (key_id) DO NOTHING`,
-    )
-      .bind(toHex(keyId), toHex(result.publicKey), result.environment, utcDay(nowMs))
-      .run();
-    if (inserted.meta.changes !== 1) throw new HttpError(409, "key_exists");
+    // Stored apart from report data; the days are coarse on purpose.
+    if (!(await insertKey(env.DB, toHex(keyId), toHex(result.publicKey), result.environment, day))) {
+      throw new HttpError(409, "key_exists");
+    }
 
     return tokenResponse(env, result.environment, nowMs);
   };
@@ -175,11 +179,8 @@ export function createApp(options: AppOptions = {}): App {
     const challenge = await checkChallenge(env, body.challenge, nowMs);
 
     const keyIdHex = toHex(keyId);
-    const key = await env.DB.prepare(
-      "SELECT public_key, sign_count, environment FROM attest_keys WHERE key_id = ?1",
-    )
-      .bind(keyIdHex)
-      .first<{ public_key: string; sign_count: number; environment: AttestEnvironment }>();
+    // Unknown also after the cron deleted the key for not being used; the app then attests a new key.
+    const key = await findKey(env.DB, keyIdHex);
     if (key === null) throw new HttpError(404, "unknown_key");
     if (key.environment === "development" && !allowDevelopment(env)) {
       throw new HttpError(401, "assertion_invalid");
@@ -203,15 +204,12 @@ export function createApp(options: AppOptions = {}): App {
 
     // Per key, and only once the assertion is verified.
     await rateLimit(env.AUTH_RATE_LIMITER, await keyLimitKey(keyId));
-    await reserveWrites(env.DB, limits, utcDay(nowMs), 1);
+    const day = utcDay(nowMs);
+    await reserveWrites(env.DB, limits, day, KEY_REFRESH_COST);
 
-    // Compare-and-set, so two concurrent requests cannot both use the same counter value.
-    const updated = await env.DB.prepare(
-      "UPDATE attest_keys SET sign_count = ?1 WHERE key_id = ?2 AND sign_count < ?1",
-    )
-      .bind(counter, keyIdHex)
-      .run();
-    if (updated.meta.changes !== 1) throw new HttpError(401, "assertion_invalid");
+    // Compare-and-set, so two concurrent requests cannot both use the same counter value. It also
+    // records the day of use, which keeps the key from being deleted as unused.
+    if (!(await updateCounter(env.DB, keyIdHex, counter, day))) throw new HttpError(401, "assertion_invalid");
 
     return tokenResponse(env, key.environment, nowMs);
   };
@@ -241,13 +239,7 @@ export function createApp(options: AppOptions = {}): App {
 
     const { intersections } = result.report;
     const payloads = reportPayloads(result.report);
-    await reserveWrites(
-      env.DB,
-      limits,
-      utcDay(nowMs),
-      intersections.length * ROWS_WRITTEN_PER_INTERSECTION,
-      payloads.reduce((sum, payload) => sum + payload.length, 0),
-    );
+    await reserveWrites(env.DB, limits, utcDay(nowMs), reportWriteCost(payloads));
     await storeReport(env.DB, result.report, nowMs, payloads);
     return json(202, {
       accepted: {
@@ -285,10 +277,7 @@ export function createApp(options: AppOptions = {}): App {
     },
 
     async scheduled(_controller, env) {
-      const nowMs = now();
-      await deleteOldUsage(env.DB, utcDay(nowMs - USAGE_KEEP_DAYS * 86_400_000));
-      const cutoffDay = utcDay(nowMs - retentionDays(env) * 86_400_000);
-      await foldExpiredReports(env.DB, cutoffDay);
+      await runDailyJobs(env.DB, now(), retentionDays(env));
     },
   };
 }

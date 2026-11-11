@@ -5,14 +5,17 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { issueChallenge, verifyChallenge } from "../src/challenge";
 import { decodeBase64Url, encodeBase64, encodeBase64Url } from "../src/encoding";
 import { buildAttestation } from "./helpers/appattest";
+import { utcDay } from "../src/storage";
 import {
   APP_ID,
   BASE,
   createContext,
   makeToken,
+  meteredDatabase,
   postJson,
   resetDatabase,
   TOKEN_SECRET,
+  usage,
   type TestContext,
 } from "./helpers/context";
 
@@ -23,23 +26,79 @@ beforeEach(async () => {
   context = await createContext();
 });
 
-async function challengeRows(): Promise<unknown> {
-  return env.DB.prepare("SELECT count(*) AS n FROM challenges").first("n");
+function challengeRequest(): Request {
+  return new Request(`${BASE}/v1/challenge`, { method: "POST" });
+}
+
+async function expectOverCapacity(response: Response): Promise<void> {
+  expect(response.status).toBe(503);
+  expect(await response.json()).toEqual({ error: "over_capacity" });
+}
+
+/** Sets today's daily_usage counters. */
+async function setUsage(ctx: TestContext, rows: number, bytes: number): Promise<void> {
+  await env.DB.prepare("INSERT INTO daily_usage (day, rows_written, stored_bytes) VALUES (?1, ?2, ?3)")
+    .bind(utcDay(ctx.clock.ms), rows, bytes)
+    .run();
 }
 
 describe("POST /v1/challenge", () => {
-  it("issues a signed challenge valid for 300 s without writing to D1 or using a rate limit", async () => {
-    const response = await context.fetch(new Request(`${BASE}/v1/challenge`, { method: "POST" }));
+  it("issues a signed challenge valid for 300 s with one read, no D1 write and no rate limit", async () => {
+    const { db, meter } = meteredDatabase();
+    const metered = await createContext({ DB: db });
+    const response = await metered.fetch(challengeRequest());
     expect(response.status).toBe(201);
     const body = (await response.json()) as { challenge: string; expiresAt: number };
     expect(Object.keys(body).sort()).toEqual(["challenge", "expiresAt"]);
     expect(body.challenge).toMatch(/^[A-Za-z0-9_-]{76}$/);
     expect(decodeBase64Url(body.challenge)?.byteLength).toBe(57);
-    expect(body.expiresAt).toBe(context.clock.seconds + 300);
-    expect(await verifyChallenge(TOKEN_SECRET, body.challenge, context.clock.seconds)).toBe(true);
-    expect(await challengeRows()).toBe(0);
+    expect(body.expiresAt).toBe(metered.clock.seconds + 300);
+    expect(await verifyChallenge(TOKEN_SECRET, body.challenge, metered.clock.seconds)).toBe(true);
+    expect(meter).toEqual({ queries: 1, rowsWritten: 0 });
     expect(await env.DB.prepare("SELECT count(*) AS n FROM daily_usage").first("n")).toBe(0);
-    expect(context.authLimiter.keys).toEqual([]);
+    expect(metered.authLimiter.keys).toEqual([]);
+  });
+
+  it("no longer has a challenges table", async () => {
+    const tables = await env.DB.prepare("SELECT name FROM sqlite_schema WHERE name LIKE 'challenges%'").all();
+    expect(tables.results).toEqual([]);
+  });
+
+  it("issues challenges while one more key fits into today's budget", async () => {
+    // A key costs 2 rows (its row and the counter) and 300 bytes.
+    const limited = await createContext({ DAILY_WRITE_LIMIT: "100", DAILY_STORAGE_LIMIT_BYTES: "1000" });
+    await setUsage(limited, 98, 700);
+    expect((await limited.fetch(challengeRequest())).status).toBe(201);
+  });
+
+  it("answers 503 over_capacity, writing nothing, once a key no longer fits into today's rows", async () => {
+    const { db, meter } = meteredDatabase();
+    const limited = await createContext({ DB: db, DAILY_WRITE_LIMIT: "100" });
+    await setUsage(limited, 99, 0);
+    await expectOverCapacity(await limited.fetch(challengeRequest()));
+    expect(meter.rowsWritten).toBe(0);
+    expect(await usage(utcDay(limited.clock.ms))).toEqual({ rows_written: 99, stored_bytes: 0 });
+    expect(limited.authLimiter.keys).toEqual([]);
+  });
+
+  it("answers 503 over_capacity once a key no longer fits into today's bytes", async () => {
+    const limited = await createContext({ DAILY_STORAGE_LIMIT_BYTES: "1000" });
+    await setUsage(limited, 0, 701);
+    await expectOverCapacity(await limited.fetch(challengeRequest()));
+  });
+
+  it("answers 503 over_capacity while the database is larger than MAX_DATABASE_BYTES", async () => {
+    const limited = await createContext({ MAX_DATABASE_BYTES: "1" });
+    await expectOverCapacity(await limited.fetch(challengeRequest()));
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM daily_usage").first("n")).toBe(0);
+  });
+
+  it("issues challenges again on the next UTC day", async () => {
+    const limited = await createContext({ DAILY_WRITE_LIMIT: "100" });
+    await setUsage(limited, 100, 0);
+    await expectOverCapacity(await limited.fetch(challengeRequest()));
+    limited.clock.advance(86_400);
+    expect((await limited.fetch(challengeRequest())).status).toBe(201);
   });
 
   it("accepts an empty JSON body", async () => {

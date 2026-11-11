@@ -3,9 +3,24 @@
 import { createExecutionContext, createScheduledController } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
+import { DEFAULT_CRON_LIMITS, maxCronQueries, runDailyJobs } from "../src/cron";
+import { encodeBase64 } from "../src/encoding";
+import { KEY_RETENTION_DAYS } from "../src/keys";
 import type { Report } from "../src/report";
 import { DEFAULT_FOLD_LIMITS, foldExpiredReports, storeReport, utcDay } from "../src/storage";
-import { createContext, resetDatabase, usage, type TestContext } from "./helpers/context";
+import { buildAssertion } from "./helpers/appattest";
+import {
+  APP_ID,
+  createContext,
+  getChallenge,
+  meteredDatabase,
+  postJson,
+  registerKey,
+  resetDatabase,
+  usage,
+  type RegisteredKey,
+  type TestContext,
+} from "./helpers/context";
 
 const DAY_MS = 86_400_000;
 // 2026-11-10 18:00 UTC, when the daily cron runs (03:00 JST).
@@ -171,14 +186,25 @@ describe("scheduled retention job", () => {
     expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 2 }]);
   });
 
-  it("uses at most 41 D1 queries, within the Free plan's 50 per invocation", () => {
-    expect(1 + 2 * DEFAULT_FOLD_LIMITS.maxChunks).toBeLessThanOrEqual(41);
+  it("uses at most 43 D1 queries per run, within the Free plan's 50 per invocation", async () => {
+    expect(maxCronQueries()).toBe(43);
+    // A backlog bigger than one run: with one row per chunk the run stops at maxChunks.
+    const at = Date.UTC(2026, 6, 1, 0, 0);
+    const ids = Array.from({ length: DEFAULT_FOLD_LIMITS.maxChunks + 5 }, (_, i) => (0x50000000 + i).toString(16).toUpperCase());
+    await storeReport(env.DB, report(at, ids), at);
+    const { db, meter } = meteredDatabase();
+    const limits = { ...DEFAULT_CRON_LIMITS, fold: { ...DEFAULT_FOLD_LIMITS, chunkRows: 1 } };
+    const result = await runDailyJobs(db, NOW, 90, limits);
+    expect(result.fold).toMatchObject({ folded: DEFAULT_FOLD_LIMITS.maxChunks, stoppedAtLimit: true });
+    expect(meter.queries).toBe(maxCronQueries(limits));
+    expect(meter.queries).toBeLessThanOrEqual(50);
+    expect(result.rowsWritten).toBe(meter.rowsWritten);
   });
 
   it("deletes usage counters older than a week", async () => {
     for (const daysAgo of [8, 7, 0]) {
       const day = utcDay(NOW - daysAgo * DAY_MS);
-      await env.DB.prepare("INSERT INTO daily_usage (day, rows_written, payload_bytes) VALUES (?1, 1, 1)").bind(day).run();
+      await env.DB.prepare("INSERT INTO daily_usage (day, rows_written, stored_bytes) VALUES (?1, 1, 1)").bind(day).run();
     }
     await runCron();
     expect(await usage(utcDay(NOW - 8 * DAY_MS))).toBeNull();
@@ -193,5 +219,156 @@ describe("scheduled retention job", () => {
     await storeReport(env.DB, report(NOW - DAY_MS), NOW - DAY_MS);
     await shortRetention.app.scheduled(createScheduledController(), shortRetention.env, createExecutionContext());
     expect(await rows("SELECT received_day FROM reports")).toEqual([{ received_day: "2026-11-09" }]);
+  });
+});
+
+async function insertKey(id: string, lastUsedDay: string): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO attest_keys (key_id, public_key, sign_count, environment, created_day, last_used_day)
+     VALUES (?1, '04', 0, 'production', '2026-01-01', ?2)`,
+  )
+    .bind(id, lastUsedDay)
+    .run();
+}
+
+async function keyIds(): Promise<string[]> {
+  return (await rows("SELECT key_id FROM attest_keys ORDER BY key_id")).map((row) => row.key_id as string);
+}
+
+/** Runs challenge + assertion against /v1/token for a registered key. */
+async function refresh(ctx: TestContext, key: RegisteredKey, counter: number): Promise<Response> {
+  const challenge = await getChallenge(ctx);
+  const assertion = await buildAssertion({ privateKey: key.credentialKey.privateKey, challenge, appId: APP_ID, counter });
+  return ctx.fetch(postJson("/v1/token", { keyId: encodeBase64(key.keyId), assertion: encodeBase64(assertion), challenge }));
+}
+
+describe("App Attest key retention", () => {
+  it("deletes keys not used for 30 days and keeps the others", async () => {
+    expect(KEY_RETENTION_DAYS).toBe(30);
+    await insertKey("a-31-days", utcDay(NOW - 31 * DAY_MS));
+    await insertKey("b-30-days", utcDay(NOW - 30 * DAY_MS));
+    await insertKey("c-today", utcDay(NOW));
+    // Inserted during a deploy by the previous version, which did not set the column.
+    await insertKey("d-never", "");
+
+    const { db, meter } = meteredDatabase();
+    const result = await runDailyJobs(db, NOW, 90);
+
+    expect(await keyIds()).toEqual(["b-30-days", "c-today"]);
+    expect(result.deletedKeys).toBe(2);
+    // One row written per deleted key (the table has no secondary index).
+    expect(result.rowsWritten).toBe(meter.rowsWritten);
+  });
+
+  it("keeps a key that is still used, and answers 404 unknown_key once it was deleted", async () => {
+    const key = await registerKey(context);
+    const registeredDay = utcDay(context.clock.ms);
+    expect(await rows("SELECT created_day, last_used_day FROM attest_keys")).toEqual([
+      { created_day: registeredDay, last_used_day: registeredDay },
+    ]);
+
+    // 20 days later the app refreshes its token, which records the day of use.
+    context.clock.advance(20 * 86_400);
+    expect((await refresh(context, key, 1)).status).toBe(200);
+    expect(await rows("SELECT created_day, last_used_day FROM attest_keys")).toEqual([
+      { created_day: registeredDay, last_used_day: utcDay(context.clock.ms) },
+    ]);
+
+    // 40 days after registration: last used 20 days ago, so it stays.
+    context.clock.advance(20 * 86_400);
+    await runCronAt(context.clock.ms);
+    expect(await rows("SELECT count(*) AS n FROM attest_keys")).toEqual([{ n: 1 }]);
+
+    // 52 days after registration: unused for 32 days, so the cron deletes it.
+    context.clock.advance(12 * 86_400);
+    await runCronAt(context.clock.ms);
+    expect(await rows("SELECT count(*) AS n FROM attest_keys")).toEqual([{ n: 0 }]);
+
+    // The app gets the usual answer for an unknown key and attests a new one.
+    const response = await refresh(context, key, 2);
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "unknown_key" });
+    await registerKey(context);
+    expect(await rows("SELECT count(*) AS n FROM attest_keys")).toEqual([{ n: 1 }]);
+  });
+
+  it("deletes at most keyDeleteLimit keys per run and leaves the rest for the next one", async () => {
+    for (const id of ["k1", "k2", "k3"]) await insertKey(id, utcDay(NOW - 60 * DAY_MS));
+    const limits = { ...DEFAULT_CRON_LIMITS, keyDeleteLimit: 2 };
+    expect((await runDailyJobs(env.DB, NOW, 90, limits)).deletedKeys).toBe(2);
+    expect(await keyIds()).toHaveLength(1);
+    expect((await runDailyJobs(env.DB, NOW, 90, limits)).deletedKeys).toBe(1);
+    expect(await keyIds()).toEqual([]);
+  });
+});
+
+async function runCronAt(ms: number): Promise<void> {
+  const at = await createContext();
+  at.clock.ms = ms;
+  await at.app.scheduled(createScheduledController({ cron: "0 18 * * *" }), at.env, createExecutionContext());
+}
+
+describe("service_state", () => {
+  it("records what the last successful run did, without personal data", async () => {
+    const expiredAt = Date.UTC(2026, 7, 1, 0, 30);
+    await storeReport(env.DB, report(expiredAt, ["10000001", "10000002"]), expiredAt);
+    await insertKey("old-key", utcDay(NOW - 40 * DAY_MS));
+    const { db, meter } = meteredDatabase();
+    const result = await runDailyJobs(db, NOW, 90);
+
+    const state = await rows("SELECT * FROM service_state");
+    expect(state).toEqual([
+      {
+        id: 1,
+        cron_last_success: "2026-11-10T18:00:00Z",
+        folded_reports: 2,
+        backlog: 0,
+        deleted_keys: 1,
+        rows_written: meter.rowsWritten,
+        database_bytes: result.databaseBytes,
+      },
+    ]);
+    expect(result.databaseBytes).toBeGreaterThan(0);
+    expect(Object.keys(state[0]!)).toEqual([
+      "id",
+      "cron_last_success",
+      "folded_reports",
+      "backlog",
+      "deleted_keys",
+      "rows_written",
+      "database_bytes",
+    ]);
+  });
+
+  it("keeps a single row and flags a backlog", async () => {
+    const at = Date.UTC(2026, 6, 1, 0, 0);
+    await storeReport(env.DB, report(at, ["10000001", "10000002", "10000003"]), at);
+    const limits = { ...DEFAULT_CRON_LIMITS, fold: { ...DEFAULT_FOLD_LIMITS, chunkRows: 1, maxChunks: 2 } };
+    await runDailyJobs(env.DB, NOW, 90, limits);
+    expect(await rows("SELECT folded_reports, backlog FROM service_state")).toEqual([{ folded_reports: 2, backlog: 1 }]);
+    await runDailyJobs(env.DB, NOW + DAY_MS, 90, limits);
+    expect(await rows("SELECT cron_last_success, folded_reports, backlog FROM service_state")).toEqual([
+      { cron_last_success: "2026-11-11T18:00:00Z", folded_reports: 1, backlog: 0 },
+    ]);
+  });
+
+  it("is not updated when a step fails", async () => {
+    await runDailyJobs(env.DB, NOW, 90);
+    const failing = new Proxy(env.DB, {
+      get(target, property) {
+        if (property === "prepare") {
+          return (query: string) => {
+            if (query.includes("DELETE FROM attest_keys")) throw new Error("D1 is down");
+            return target.prepare(query);
+          };
+        }
+        const value: unknown = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await expect(runDailyJobs(failing, NOW + DAY_MS, 90)).rejects.toThrow("D1 is down");
+    expect(await rows("SELECT cron_last_success FROM service_state")).toEqual([
+      { cron_last_success: "2026-11-10T18:00:00Z" },
+    ]);
   });
 });

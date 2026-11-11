@@ -63,7 +63,7 @@ export async function createContext(overrides: Partial<Env> = {}): Promise<TestC
     RETENTION_DAYS: "90",
     TOKEN_TTL_SECONDS: "21600",
     DAILY_WRITE_LIMIT: "30000",
-    DAILY_PAYLOAD_LIMIT_BYTES: "3000000",
+    DAILY_STORAGE_LIMIT_BYTES: "3000000",
     MAX_DATABASE_BYTES: "450000000",
     ...overrides,
   };
@@ -81,7 +81,7 @@ export async function createContext(overrides: Partial<Env> = {}): Promise<TestC
 
 export async function resetDatabase(): Promise<void> {
   await bindings.DB.batch(
-    ["attest_keys", "reports", "transition_counts", "observation_counts", "daily_usage"].map((table) =>
+    ["attest_keys", "reports", "transition_counts", "observation_counts", "daily_usage", "service_state"].map((table) =>
       bindings.DB.prepare(`DELETE FROM ${table}`),
     ),
   );
@@ -174,8 +174,71 @@ export function exampleReport(nowSeconds: number) {
 }
 
 /** The daily_usage row for `day`, or null. */
-export async function usage(day: string): Promise<{ rows_written: number; payload_bytes: number } | null> {
-  return bindings.DB.prepare("SELECT rows_written, payload_bytes FROM daily_usage WHERE day = ?1")
+export async function usage(day: string): Promise<{ rows_written: number; stored_bytes: number } | null> {
+  return bindings.DB.prepare("SELECT rows_written, stored_bytes FROM daily_usage WHERE day = ?1")
     .bind(day)
-    .first<{ rows_written: number; payload_bytes: number }>();
+    .first<{ rows_written: number; stored_bytes: number }>();
+}
+
+/** What a MeteredDatabase saw. */
+export interface Meter {
+  /** D1 queries; a batch counts as one, as on the Free plan's per-invocation limit. */
+  queries: number;
+  /** Sum of D1's own meta.rows_written. */
+  rowsWritten: number;
+}
+
+const ORIGINAL = Symbol("original statement");
+
+/**
+ * Wraps a D1 binding and adds up the queries made and the rows D1 reports as written, so tests can
+ * compare the budget's accounting with D1's. `first()` returns no meta, so it is counted as a
+ * query only; the Worker uses it for reads alone.
+ */
+export function meteredDatabase(db: D1Database = bindings.DB): { db: D1Database; meter: Meter } {
+  const meter: Meter = { queries: 0, rowsWritten: 0 };
+  const add = (result: D1Result): D1Result => {
+    meter.rowsWritten += result.meta.rows_written ?? 0;
+    return result;
+  };
+  const wrap = (statement: D1PreparedStatement): D1PreparedStatement =>
+    new Proxy(statement, {
+      get(target, property) {
+        if (property === ORIGINAL) return target;
+        if (property === "bind") return (...values: unknown[]) => wrap(target.bind(...values));
+        if (property === "run" || property === "all") {
+          return async () => {
+            meter.queries += 1;
+            return add(await target[property]());
+          };
+        }
+        if (property === "first" || property === "raw") {
+          return (...args: unknown[]) => {
+            meter.queries += 1;
+            return (target[property] as (...rest: unknown[]) => unknown).apply(target, args);
+          };
+        }
+        const value: unknown = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  const metered = new Proxy(db, {
+    get(target, property) {
+      if (property === "prepare") return (query: string) => wrap(target.prepare(query));
+      if (property === "batch") {
+        return async (statements: D1PreparedStatement[]) => {
+          meter.queries += 1;
+          const originals = statements.map(
+            (statement) => (statement as unknown as Record<symbol, D1PreparedStatement | undefined>)[ORIGINAL] ?? statement,
+          );
+          const results = await target.batch(originals);
+          for (const result of results) add(result);
+          return results;
+        };
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  return { db: metered, meter };
 }

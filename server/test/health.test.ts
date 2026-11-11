@@ -43,7 +43,7 @@ describe("routing (deployed entry point)", () => {
   it("has the budget variables declared in wrangler.jsonc", () => {
     expect(budgetLimits(env)).toEqual({
       rowsPerDay: 30_000,
-      payloadBytesPerDay: 3_000_000,
+      storedBytesPerDay: 3_000_000,
       maxDatabaseBytes: 450_000_000,
     });
   });

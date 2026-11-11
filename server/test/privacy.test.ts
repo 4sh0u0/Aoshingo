@@ -58,9 +58,21 @@ describe("privacy", () => {
     ]);
     const dump = JSON.stringify(results);
     for (const secret of secrets) expect(dump).not.toContain(secret);
-    // The row ID is random, not derived from the token.
-    expect(results[0]!.id).toMatch(/^[0-9a-f]{32}$/);
-    expect(results[0]!.id).not.toBe(toHex(tokenIdBytes));
+    // The row ID is a random 53-bit integer, not derived from the token.
+    const id = results[0]!.id;
+    expect(Number.isSafeInteger(id) && (id as number) >= 0).toBe(true);
+  });
+
+  it("gives report rows random keys, so rows carry no arrival order", async () => {
+    const { token } = await makeToken(context);
+    for (let i = 0; i < 20; i++) {
+      expect((await context.fetch(reportRequest(token, exampleReport(context.clock.seconds)))).status).toBe(202);
+    }
+    const ids = (await env.DB.prepare("SELECT id FROM reports").all<{ id: number }>()).results.map((row) => row.id);
+    expect(new Set(ids).size).toBe(20);
+    for (const id of ids) expect(Number.isSafeInteger(id) && id >= 0).toBe(true);
+    // Not a counter: a random 53-bit value is below 2^30 with probability 2^-23.
+    expect(ids.filter((id) => id < 2 ** 30)).toHaveLength(0);
   });
 
   it("keeps App Attest keys in their own table without report data", async () => {
@@ -72,6 +84,7 @@ describe("privacy", () => {
       "sign_count",
       "environment",
       "created_day",
+      "last_used_day",
     ]);
   });
 

@@ -265,6 +265,7 @@ describe("POST /v1/attest", () => {
       sign_count: 0,
       environment: "production",
       created_day: new Date(context.clock.ms).toISOString().slice(0, 10),
+      last_used_day: new Date(context.clock.ms).toISOString().slice(0, 10),
     });
     expect(context.authLimiter.keys).toEqual(["attest"]);
   });

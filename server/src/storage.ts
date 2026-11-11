@@ -3,7 +3,8 @@
 // D1 access for report rows and the retention job. Report rows never contain the upload token,
 // its ID or the App Attest keyId.
 
-import { randomBytes, toHex } from "./encoding";
+import type { WriteCost } from "./budget";
+import { randomBytes } from "./encoding";
 import type { Report } from "./report";
 
 /** YYYY-MM-DD in UTC. */
@@ -26,6 +27,57 @@ export function reportPayloads(report: Report): string[] {
 /** Rows written per stored intersection: the table and the received_day index. */
 export const ROWS_WRITTEN_PER_INTERSECTION = 2;
 
+// SQLite's table B-tree layout (https://www.sqlite.org/fileformat2.html#b_tree_pages) with D1's
+// 4,096-byte pages: a record larger than MAX_LOCAL keeps a part of MIN_LOCAL..MAX_LOCAL bytes in
+// the leaf page and the rest in overflow pages of OVERFLOW_BYTES each.
+const PAGE_BYTES = 4096;
+const MAX_LOCAL = PAGE_BYTES - 35;
+const MIN_LOCAL = Math.floor(((PAGE_BYTES - 12) * 32) / 255) - 23;
+const OVERFLOW_BYTES = PAGE_BYTES - 4;
+
+/**
+ * Bytes counted for storing one report row whose payload is `length` bytes: the other columns
+ * (about 100 bytes), the index entry and the free space that pages keep. Whole overflow pages,
+ * plus the leaf part with at least 400 bytes of overhead, at most a page, and twice its size up to
+ * that, because a part larger than half a page has a leaf page to itself. For payloads from
+ * 150 B to 60 KB it was at least what the local D1 used (test/storage.test.ts), so a day's budget
+ * stores at most DAILY_STORAGE_LIMIT_BYTES. Small rows are overcounted (a 150 B row takes about
+ * 280 bytes).
+ */
+export function rowStorageBytes(length: number): number {
+  const record = length + 100;
+  let local = record;
+  let overflowPages = 0;
+  if (record > MAX_LOCAL) {
+    const k = MIN_LOCAL + ((record - MIN_LOCAL) % OVERFLOW_BYTES);
+    local = k <= MAX_LOCAL ? k : MIN_LOCAL;
+    overflowPages = Math.ceil((record - local) / OVERFLOW_BYTES);
+  }
+  return overflowPages * PAGE_BYTES + Math.max(local + 400, Math.min(2 * local + 100, PAGE_BYTES + 104));
+}
+
+/**
+ * What storing `payloads` costs. Payloads are ASCII (validated hex, numbers and fixed names), so
+ * their length is their size in bytes.
+ */
+export function reportWriteCost(payloads: string[]): WriteCost {
+  return {
+    rows: payloads.length * ROWS_WRITTEN_PER_INTERSECTION,
+    storedBytes: payloads.reduce((sum, payload) => sum + rowStorageBytes(payload.length), 0),
+  };
+}
+
+/**
+ * A random row key in 0 ..< 2^53: exact as a JavaScript number, so the cron can page through rows
+ * by key. Random, so row keys say nothing about which rows arrived together or in which order.
+ */
+export function randomRowId(): number {
+  const bytes = randomBytes(7);
+  let id = bytes[0]! & 0x1f;
+  for (let i = 1; i < 7; i++) id = id * 256 + bytes[i]!;
+  return id;
+}
+
 /** Stores one row per intersection in a single D1 batch (one transaction). */
 export async function storeReport(
   db: D1Database,
@@ -41,8 +93,7 @@ export async function storeReport(
   );
   const statements = report.intersections.map((intersection, index) =>
     statement.bind(
-      // A random key, so row order says nothing about which rows arrived together.
-      toHex(randomBytes(16)),
+      randomRowId(),
       intersection.id,
       receivedDay,
       report.schema,
@@ -118,9 +169,9 @@ SELECT r.intersection_id,
 
 const DELETE_FOLDED_SQL = "DELETE FROM reports WHERE received_day < ?1 AND (received_day, id) <= (?2, ?3)";
 
-// The next chunk, in (received_day, id) order so the received_day index (which carries id, as
-// the table has no rowid) is read in order and only the chunk's rows are read. Returns no row when
-// nothing has expired.
+// The next chunk, in (received_day, id) order so the received_day index (which carries the rowid
+// id) is read in order and only the chunk's rows are read. Returns no row when nothing has
+// expired.
 const NEXT_CHUNK_SQL = `
 WITH candidates AS (
   SELECT received_day, id, observation_count + transition_count AS items
@@ -172,7 +223,7 @@ export async function foldExpiredReports(
     const chunk = await db
       .prepare(NEXT_CHUNK_SQL)
       .bind(cutoffDay, limits.chunkRows, limits.chunkItems)
-      .first<{ available: number; rows: number; last_day: string; last_id: string }>();
+      .first<{ available: number; rows: number; last_day: string; last_id: number }>();
     if (chunk === null) break;
     const written = await db.batch([
       db.prepare(FOLD_TRANSITIONS_SQL).bind(cutoffDay, chunk.last_day, chunk.last_id),

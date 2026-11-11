@@ -21,9 +21,9 @@ export interface Env {
   TOKEN_TTL_SECONDS: string;
   /** Rows written per UTC day by API requests (src/budget.ts). */
   DAILY_WRITE_LIMIT: string;
-  /** Report payload bytes stored per UTC day. */
-  DAILY_PAYLOAD_LIMIT_BYTES: string;
-  /** New writes are refused once the D1 database is larger than this. */
+  /** Estimated bytes of new rows stored per UTC day (src/budget.ts). */
+  DAILY_STORAGE_LIMIT_BYTES: string;
+  /** New writes (and new challenges) are refused while the D1 database is larger than this. */
   MAX_DATABASE_BYTES: string;
 }
 
@@ -76,7 +76,7 @@ export function tokenTtlSeconds(env: Env): number {
 export function budgetLimits(env: Env): BudgetLimits {
   return {
     rowsPerDay: parseInteger("DAILY_WRITE_LIMIT", env.DAILY_WRITE_LIMIT, 1, 10_000_000),
-    payloadBytesPerDay: parseInteger("DAILY_PAYLOAD_LIMIT_BYTES", env.DAILY_PAYLOAD_LIMIT_BYTES, 1, 10_000_000_000),
+    storedBytesPerDay: parseInteger("DAILY_STORAGE_LIMIT_BYTES", env.DAILY_STORAGE_LIMIT_BYTES, 1, 10_000_000_000),
     maxDatabaseBytes: parseInteger("MAX_DATABASE_BYTES", env.MAX_DATABASE_BYTES, 1, 10_000_000_000),
   };
 }
