@@ -168,8 +168,17 @@ private struct Banner: View {
                 .font(.callout.weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
             if let dismiss {
-                Button("閉じる", systemImage: "xmark", action: dismiss)
-                    .labelStyle(.iconOnly)
+                Button(action: dismiss) {
+                    Label("閉じる", systemImage: "xmark")
+                        .labelStyle(.iconOnly)
+                        // A tap target of at least 44 × 44 pt around the small icon.
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                // The extra area reaches into the banner's own 12 pt padding, so the banner keeps
+                // its height and the icon stays where it was.
+                .padding(.vertical, -12)
+                .padding(.trailing, -12)
             }
         }
         .padding(12)
