@@ -12,7 +12,7 @@ import { signToken } from "../../src/token";
 import { buildAttestation, createFakePki, type BuiltAttestation, type FakePki } from "./appattest";
 
 export const TEAM_ID = "TEAMID1234";
-export const BUNDLE_ID = "io.github.4sh0u0.aoshingo";
+export const BUNDLE_ID = "es.4sh.aoshingo";
 export const APP_ID = `${TEAM_ID}.${BUNDLE_ID}`;
 export const TOKEN_SECRET = "unit-test-token-secret-0123456789abcdef";
 export const BASE = "https://reports.example";

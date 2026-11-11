@@ -51,7 +51,7 @@ enum ScannerEvent: Sendable {
 /// advertisements while the app is in the foreground, so the UI must say so.
 final class PICSScanner: NSObject, CBCentralManagerDelegate, @unchecked Sendable {
     // All mutable state below is only touched on `queue`.
-    private let queue = DispatchQueue(label: "io.github.4sh0u0.aoshingo.scanner", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "es.4sh.aoshingo.scanner", qos: .userInitiated)
     private var central: CBCentralManager?
     private var wantsScanning = false
     private var continuation: AsyncStream<ScannerEvent>.Continuation?

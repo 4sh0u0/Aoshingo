@@ -34,7 +34,7 @@ export default defineConfig({
     env: {
       // Apple Developer team ID of the app (not secret).
       APPLE_TEAM_ID: bindings.text("XTCC8DPHBX"),
-      APP_BUNDLE_ID: bindings.text("io.github.4sh0u0.aoshingo"),
+      APP_BUNDLE_ID: bindings.text("es.4sh.aoshingo"),
       // "true" accepts keys from the App Attest development environment (debug builds).
       ALLOW_DEVELOPMENT_ATTESTATION: bindings.text("false"),
       RETENTION_DAYS: bindings.text("90"),

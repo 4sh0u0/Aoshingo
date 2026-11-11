@@ -36,7 +36,7 @@ struct AppAttestProvider: AttestationProvider {
 /// Stores the App Attest key ID and whether the server has accepted it in the Keychain, on this
 /// device only (App Attest keys cannot move).
 struct KeychainKeyIDStorage: KeyIDStorage {
-    private let service = "io.github.4sh0u0.aoshingo.appattest"
+    private let service = "es.4sh.aoshingo.appattest"
     private let account = "keyId"
 
     private var baseQuery: [String: Any] {

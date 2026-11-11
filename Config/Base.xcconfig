@@ -5,7 +5,7 @@
 
 MARKETING_VERSION = 0.1.0
 CURRENT_PROJECT_VERSION = 1
-PRODUCT_BUNDLE_IDENTIFIER = io.github.4sh0u0.aoshingo
+PRODUCT_BUNDLE_IDENTIFIER = es.4sh.aoshingo
 DEVELOPMENT_TEAM =
 
 // Host name of the field-data Worker, without "https:" (xcconfig treats two slashes as a comment),
