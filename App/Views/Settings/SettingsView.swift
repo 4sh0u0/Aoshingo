@@ -39,7 +39,7 @@ struct SettingsView: View {
                     NavigationLink {
                         FieldDataSettingsView()
                     } label: {
-                        LabeledContent("実測データの提供", value: consent == .granted ? String(localized: "協力する") : String(localized: "協力しない"))
+                        LabeledContent("実測データの提供", value: consent == .granted && model.field.canContribute ? String(localized: "協力する") : String(localized: "協力しない"))
                     }
                 }
 
@@ -86,25 +86,24 @@ struct FieldDataSettingsView: View {
         Form {
             Section {
                 Toggle("実測データを提供する", isOn: Binding(
-                    get: { consent == .granted },
+                    get: { consent == .granted && field.canContribute },
                     set: { newValue in
                         let decision: CollectionConsent = newValue ? .granted : .declined
                         consent = decision
                         model.applyConsent(decision)
                     }
                 ))
+                .disabled(!field.canContribute)
             } footer: {
-                Text("オフにすると、まだ送信していないデータはすぐに削除されます。")
+                if let reason = field.unavailability {
+                    FieldDataUnavailableNotice(reason: reason)
+                } else {
+                    Text("オフにすると、まだ送信していないデータはすぐに削除されます。")
+                }
             }
 
             if field.isEnabled {
                 Section("状態") {
-                    if field.serverURL == nil {
-                        Label("このビルドには送信先が設定されていないため、データは端末内にだけ保存されます。", systemImage: "exclamationmark.triangle")
-                    }
-                    if !field.isAttestationSupported {
-                        Label("この端末では App Attest を使えないため送信できません（シミュレーターなど）。", systemImage: "exclamationmark.triangle")
-                    }
                     LabeledContent("収集中の観測", value: "\(field.status.bufferedObservations)")
                     LabeledContent("収集中の信号変化", value: "\(field.status.bufferedTransitions)")
                     LabeledContent("送信待ちの報告", value: "\(field.status.pendingReports)")
@@ -117,7 +116,6 @@ struct FieldDataSettingsView: View {
                     Button("今すぐ送信") {
                         Task { await field.flushAndUpload(force: true) }
                     }
-                    .disabled(field.serverURL == nil || !field.isAttestationSupported)
                 }
             }
 
@@ -128,5 +126,19 @@ struct FieldDataSettingsView: View {
         }
         .navigationTitle("実測データの提供")
         .task { await field.refreshStatus() }
+    }
+}
+
+/// Why field data cannot be contributed from this build or device. Shown where the choice is made.
+struct FieldDataUnavailableNotice: View {
+    let reason: FieldDataModel.Unavailability
+
+    var body: some View {
+        switch reason {
+        case .noServer:
+            Text("このビルドには送信先が設定されていないため、実測データを提供できません。")
+        case .attestationUnsupported:
+            Text("この端末では App Attest を使えないため送信できません（シミュレーターなど）。")
+        }
     }
 }

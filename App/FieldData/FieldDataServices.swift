@@ -31,7 +31,8 @@ struct AppAttestProvider: AttestationProvider {
     }
 }
 
-/// Stores the App Attest key ID in the Keychain, on this device only (App Attest keys cannot move).
+/// Stores the App Attest key ID and whether the server has accepted it in the Keychain, on this
+/// device only (App Attest keys cannot move).
 struct KeychainKeyIDStorage: KeyIDStorage {
     private let service = "io.github.4sh0u0.aoshingo.appattest"
     private let account = "keyId"
@@ -44,7 +45,7 @@ struct KeychainKeyIDStorage: KeyIDStorage {
         ]
     }
 
-    func load() -> String? {
+    func load() -> AttestKey? {
         var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -52,14 +53,17 @@ struct KeychainKeyIDStorage: KeyIDStorage {
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
               let data = result as? Data
         else { return nil }
-        return String(data: data, encoding: .utf8)
+        if let key = try? JSONDecoder().decode(AttestKey.self, from: data) { return key }
+        // Earlier versions stored the bare key ID, and only once the server had accepted it.
+        guard let keyID = String(data: data, encoding: .utf8), !keyID.isEmpty else { return nil }
+        return AttestKey(id: keyID, isAttested: true)
     }
 
-    func save(_ keyID: String?) {
+    func save(_ key: AttestKey?) {
         SecItemDelete(baseQuery as CFDictionary)
-        guard let keyID else { return }
+        guard let key, let data = try? JSONEncoder().encode(key) else { return }
         var item = baseQuery
-        item[kSecValueData as String] = Data(keyID.utf8)
+        item[kSecValueData as String] = data
         item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         SecItemAdd(item as CFDictionary, nil)
     }

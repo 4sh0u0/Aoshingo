@@ -29,6 +29,7 @@ public struct HTTPResponse: Sendable, Hashable {
 }
 
 public protocol HTTPTransport: Sendable {
+    /// Should stop and throw when the calling task is cancelled (as `URLSession` does).
     func send(_ request: HTTPRequest) async throws -> HTTPResponse
 }
 
@@ -41,14 +42,28 @@ public protocol AttestationProvider: Sendable {
 }
 
 public enum AttestationError: Error, Sendable, Equatable {
-    /// The key can no longer be used (for example after a restore to another device).
+    /// The key can no longer be used (for example after a restore to another device, or when it
+    /// was already attested once).
     case invalidKey
 }
 
-/// Persists the App Attest key ID (Keychain on iOS). The key ID never travels with report data.
+/// The App Attest key this installation uses. The key ID never travels with report data.
+public struct AttestKey: Sendable, Hashable, Codable {
+    public var id: String
+    /// `false` from key generation until the server has accepted the key's attestation, so a key
+    /// whose attestation could not be delivered is reused instead of generating another one.
+    public var isAttested: Bool
+
+    public init(id: String, isAttested: Bool) {
+        self.id = id
+        self.isAttested = isAttested
+    }
+}
+
+/// Persists the App Attest key (Keychain on iOS).
 public protocol KeyIDStorage: Sendable {
-    func load() -> String?
-    func save(_ keyID: String?)
+    func load() -> AttestKey?
+    func save(_ key: AttestKey?)
 }
 
 public enum UploadError: Error, Sendable, Equatable {
@@ -56,6 +71,10 @@ public enum UploadError: Error, Sendable, Equatable {
     case rateLimited
     case invalidResponse
     case server(status: Int, code: String?)
+    /// An earlier attempt failed; no request was made before this time (see `RetryPolicy`).
+    case backingOff(until: Date)
+    /// The user opted out (or the task was cancelled) while uploading. Nothing was kept.
+    case cancelled
 }
 
 public enum UploadOutcome: Sendable, Equatable {
@@ -65,38 +84,99 @@ public enum UploadOutcome: Sendable, Equatable {
 }
 
 /// Uploads reports, obtaining short-lived upload tokens through App Attest.
+///
+/// `forget()` (opt-out) wins over any upload in progress: every step checks, after each suspension
+/// point and before anything is stored or sent, that `forget()` has not been called since the
+/// upload started. Calls to `upload(_:)` are expected not to overlap; `FieldDataPipeline`
+/// serialises them.
 public actor ReportUploader {
     /// Tokens are refreshed when they have less than this many seconds left.
     public static let tokenRefreshMargin: TimeInterval = 60
+    static let retryStateKey = "uploadRetry"
 
     private let transport: any HTTPTransport
     private let attestation: any AttestationProvider
     private let keyStorage: any KeyIDStorage
+    private let stateStore: any StateStore
     private let sha256: @Sendable (Data) -> Data
     private let now: @Sendable () -> Date
+    private let random: @Sendable (ClosedRange<Double>) -> Double
     private var token: (value: String, expiresAt: Date)?
+    /// Incremented by `forget()`; work started under an older value stops without side effects.
+    private var generation: UInt64 = 0
+    private var retry: RetryState?
 
+    /// - Parameters:
+    ///   - stateStore: keeps the back-off across launches.
+    ///   - random: returns a value in the range; used for retry jitter.
     public init(
         transport: any HTTPTransport,
         attestation: any AttestationProvider,
         keyStorage: any KeyIDStorage,
+        stateStore: any StateStore = InMemoryStateStore(),
         sha256: @escaping @Sendable (Data) -> Data,
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        random: @escaping @Sendable (ClosedRange<Double>) -> Double = { Double.random(in: $0) }
     ) {
         self.transport = transport
         self.attestation = attestation
         self.keyStorage = keyStorage
+        self.stateStore = stateStore
         self.sha256 = sha256
         self.now = now
+        self.random = random
+        self.retry = stateStore.value(RetryState.self, forKey: Self.retryStateKey)
     }
 
-    /// Uploads one encoded report. Throws for retryable failures.
+    /// `false` on devices without App Attest; such an uploader never contacts the server.
+    public nonisolated var isAttestationSupported: Bool { attestation.isSupported }
+
+    /// The earliest time of the next request after a failure, or `nil` when not backing off.
+    public var retryNotBefore: Date? { retry?.notBefore }
+
+    /// Uploads one encoded report. Throws for retryable failures, after which no request is made
+    /// until the back-off has passed (`UploadError.backingOff`).
     public func upload(_ body: Data) async throws -> UploadOutcome {
         guard attestation.isSupported else { throw UploadError.attestationUnsupported }
-        var response = try await postReport(body, token: try await validToken())
+        if let retry, now() < retry.notBefore { throw UploadError.backingOff(until: retry.notBefore) }
+        let epoch = generation
+        do {
+            let outcome = try await send(body, epoch: epoch)
+            setRetry(nil)
+            return outcome
+        } catch {
+            // Opted out or cancelled meanwhile: record nothing, not even a back-off.
+            if epoch != generation || Task.isCancelled || error is CancellationError || error as? UploadError == .cancelled {
+                throw UploadError.cancelled
+            }
+            let failures = (retry?.failures ?? 0) + 1
+            setRetry(RetryState(
+                failures: failures,
+                notBefore: RetryPolicy.nextAttempt(after: error, failures: failures, now: now(), random: random)
+            ))
+            throw error
+        }
+    }
+
+    /// Forgets the token, the App Attest key ID and the back-off (when the user turns collection off),
+    /// and stops any upload in progress from storing or sending anything more.
+    public func forget() {
+        generation &+= 1
+        token = nil
+        keyStorage.save(nil)
+        setRetry(nil)
+    }
+
+    private func setRetry(_ state: RetryState?) {
+        retry = state
+        stateStore.setValue(state, forKey: Self.retryStateKey)
+    }
+
+    private func send(_ body: Data, epoch: UInt64) async throws -> UploadOutcome {
+        var response = try await postReport(body, token: try await validToken(epoch), epoch: epoch)
         if response.status == 401 {
             token = nil
-            response = try await postReport(body, token: try await validToken())
+            response = try await postReport(body, token: try await validToken(epoch), epoch: epoch)
         }
         switch response.status {
         case 200..<300:
@@ -110,46 +190,57 @@ public actor ReportUploader {
         }
     }
 
-    /// Forgets the token and the App Attest key ID (when the user turns collection off).
-    public func forget() {
-        token = nil
-        keyStorage.save(nil)
+    // MARK: - Opt-out checks
+
+    /// Before starting a request or an App Attest operation.
+    private func checkBeforeStarting(_ epoch: UInt64) throws {
+        guard epoch == generation, !Task.isCancelled else { throw UploadError.cancelled }
+    }
+
+    /// After every suspension point, before anything is stored.
+    private func checkStillCurrent(_ epoch: UInt64) throws {
+        guard epoch == generation else { throw UploadError.cancelled }
     }
 
     // MARK: - Tokens
 
-    private func validToken() async throws -> String {
+    private func validToken(_ epoch: UInt64) async throws -> String {
         if let token, token.expiresAt.timeIntervalSince(now()) > Self.tokenRefreshMargin {
             return token.value
         }
-        if let keyID = keyStorage.load() {
-            if let refreshed = try await refreshToken(keyID: keyID) {
-                return store(refreshed)
+        if let key = keyStorage.load(), key.isAttested {
+            if let refreshed = try await refreshToken(keyID: key.id, epoch: epoch) {
+                return try keep(refreshed, epoch: epoch)
             }
+            // The device or the server no longer accepts this key: attest a new one.
             keyStorage.save(nil)
         }
-        return store(try await attestNewKey())
+        return try keep(try await attest(epoch: epoch), epoch: epoch)
     }
 
-    private func store(_ response: TokenResponse) -> String {
+    private func keep(_ response: TokenResponse, epoch: UInt64) throws -> String {
+        try checkStillCurrent(epoch)
         token = (response.token, Date(timeIntervalSince1970: TimeInterval(response.expiresAt)))
         return response.token
     }
 
     /// Returns `nil` when the key is unknown to the server or no longer valid, so a new key is attested.
-    private func refreshToken(keyID: String) async throws -> TokenResponse? {
-        let challenge = try await fetchChallenge()
+    private func refreshToken(keyID: String, epoch: UInt64) async throws -> TokenResponse? {
+        let challenge = try await fetchChallenge(epoch: epoch)
         let assertion: Data
         do {
+            try checkBeforeStarting(epoch)
             assertion = try await attestation.generateAssertion(keyID, clientDataHash: sha256(Data(challenge.utf8)))
         } catch AttestationError.invalidKey {
+            try checkStillCurrent(epoch)
             return nil
         }
+        try checkStillCurrent(epoch)
         let response = try await postJSON("/v1/token", [
             "keyId": keyID,
             "assertion": assertion.base64EncodedString(),
             "challenge": challenge,
-        ])
+        ], epoch: epoch)
         switch response.status {
         case 200:
             return try Self.decode(TokenResponse.self, response.body)
@@ -162,20 +253,69 @@ public actor ReportUploader {
         }
     }
 
-    private func attestNewKey() async throws -> TokenResponse {
-        let keyID = try await attestation.generateKey()
-        let challenge = try await fetchChallenge()
-        let attestationObject = try await attestation.attestKey(keyID, clientDataHash: sha256(Data(challenge.utf8)))
+    /// Attests the pending key, or a new one, and registers it with the server.
+    ///
+    /// The challenge comes first, so a server that is down or out of capacity costs no new key.
+    /// A new key is saved (as not attested) as soon as it exists and reused by later attempts; it is
+    /// replaced only when App Attest reports it invalid or the server rejects its attestation.
+    private func attest(epoch: UInt64) async throws -> TokenResponse {
+        let challenge = try await fetchChallenge(epoch: epoch)
+        let clientDataHash = sha256(Data(challenge.utf8))
+
+        var key: AttestKey
+        let reused: Bool
+        if let stored = keyStorage.load(), !stored.isAttested {
+            key = stored
+            reused = true
+        } else {
+            key = try await generateKey(epoch: epoch)
+            reused = false
+        }
+
+        let attestationObject: Data
+        do {
+            try checkBeforeStarting(epoch)
+            attestationObject = try await attestation.attestKey(key.id, clientDataHash: clientDataHash)
+        } catch AttestationError.invalidKey {
+            try checkStillCurrent(epoch)
+            keyStorage.save(nil)
+            // A reused key may have been attested before its upload failed; App Attest allows that
+            // only once. A key generated just now is not retried in this attempt.
+            guard reused else { throw AttestationError.invalidKey }
+            key = try await generateKey(epoch: epoch)
+            try checkBeforeStarting(epoch)
+            do {
+                attestationObject = try await attestation.attestKey(key.id, clientDataHash: clientDataHash)
+            } catch AttestationError.invalidKey {
+                try checkStillCurrent(epoch)
+                keyStorage.save(nil)
+                throw AttestationError.invalidKey
+            }
+        }
+        try checkStillCurrent(epoch)
+
         let response = try await postJSON("/v1/attest", [
-            "keyId": keyID,
+            "keyId": key.id,
             "attestation": attestationObject.base64EncodedString(),
             "challenge": challenge,
-        ])
+        ], epoch: epoch)
         switch response.status {
         case 200:
-            let token = try Self.decode(TokenResponse.self, response.body)
-            keyStorage.save(keyID)
-            return token
+            keyStorage.save(AttestKey(id: key.id, isAttested: true))
+            return try Self.decode(TokenResponse.self, response.body)
+        case 409:
+            // `key_exists`: an earlier attestation of this key reached the server but its answer
+            // did not reach us. The key is registered, so use it.
+            keyStorage.save(AttestKey(id: key.id, isAttested: true))
+            if let refreshed = try await refreshToken(keyID: key.id, epoch: epoch) {
+                return refreshed
+            }
+            keyStorage.save(nil)
+            throw UploadError.server(status: response.status, code: Self.errorCode(response.body))
+        case 401:
+            // `attestation_invalid`: the server will never accept this key (RetryPolicy waits a day).
+            keyStorage.save(nil)
+            throw UploadError.server(status: response.status, code: Self.errorCode(response.body))
         case 429:
             throw UploadError.rateLimited
         default:
@@ -183,13 +323,22 @@ public actor ReportUploader {
         }
     }
 
-    private func fetchChallenge() async throws -> String {
-        let response = try await transport.send(HTTPRequest(
+    private func generateKey(epoch: UInt64) async throws -> AttestKey {
+        try checkBeforeStarting(epoch)
+        let id = try await attestation.generateKey()
+        try checkStillCurrent(epoch)
+        let key = AttestKey(id: id, isAttested: false)
+        keyStorage.save(key)
+        return key
+    }
+
+    private func fetchChallenge(epoch: UInt64) async throws -> String {
+        let response = try await perform(HTTPRequest(
             method: "POST",
             path: "/v1/challenge",
             headers: ["Content-Type": "application/json"],
             body: Data("{}".utf8)
-        ))
+        ), epoch: epoch)
         switch response.status {
         case 201, 200:
             return try Self.decode(ChallengeResponse.self, response.body).challenge
@@ -202,24 +351,31 @@ public actor ReportUploader {
 
     // MARK: - HTTP helpers
 
-    private func postReport(_ body: Data, token: String) async throws -> HTTPResponse {
-        try await transport.send(HTTPRequest(
+    private func perform(_ request: HTTPRequest, epoch: UInt64) async throws -> HTTPResponse {
+        try checkBeforeStarting(epoch)
+        let response = try await transport.send(request)
+        try checkStillCurrent(epoch)
+        return response
+    }
+
+    private func postReport(_ body: Data, token: String, epoch: UInt64) async throws -> HTTPResponse {
+        try await perform(HTTPRequest(
             method: "POST",
             path: "/v1/reports",
             headers: ["Content-Type": "application/json", "Authorization": "Bearer \(token)"],
             body: body
-        ))
+        ), epoch: epoch)
     }
 
-    private func postJSON(_ path: String, _ object: [String: String]) async throws -> HTTPResponse {
+    private func postJSON(_ path: String, _ object: [String: String], epoch: UInt64) async throws -> HTTPResponse {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        return try await transport.send(HTTPRequest(
+        return try await perform(HTTPRequest(
             method: "POST",
             path: path,
             headers: ["Content-Type": "application/json"],
             body: try encoder.encode(object)
-        ))
+        ), epoch: epoch)
     }
 
     private struct ChallengeResponse: Decodable {

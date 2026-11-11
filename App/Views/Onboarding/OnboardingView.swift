@@ -19,7 +19,7 @@ struct OnboardingView: View {
             case .safety:
                 SafetyNoticeView { page = .collection }
             case .collection:
-                CollectionConsentView { consent in
+                CollectionConsentView(unavailability: model.field.unavailability) { consent in
                     model.applyConsent(consent)
                     onboardingCompleted = true
                 }
@@ -69,7 +69,9 @@ struct SafetyNoticeView: View {
 }
 
 /// The opt-in choice for field data. Both answers are equal in size and style, and neither is preselected.
+/// When this build or device cannot send field data, "協力する" is unavailable and the reason is shown.
 struct CollectionConsentView: View {
+    let unavailability: FieldDataModel.Unavailability?
     let decide: (CollectionConsent) -> Void
 
     var body: some View {
@@ -89,9 +91,16 @@ struct CollectionConsentView: View {
             .padding()
         }
         .safeAreaInset(edge: .bottom) {
-            ViewThatFits {
-                HStack(spacing: 12) { buttons }
-                VStack(spacing: 12) { buttons }
+            VStack(spacing: 12) {
+                if let unavailability {
+                    FieldDataUnavailableNotice(reason: unavailability)
+                        .font(.footnote)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                ViewThatFits {
+                    HStack(spacing: 12) { buttons }
+                    VStack(spacing: 12) { buttons }
+                }
             }
             .padding()
             .background(.bar)
@@ -116,6 +125,7 @@ struct CollectionConsentView: View {
         }
         .buttonStyle(.bordered)
         .controlSize(.large)
+        .disabled(unavailability != nil)
     }
 }
 

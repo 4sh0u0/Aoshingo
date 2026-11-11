@@ -5,96 +5,13 @@ import Testing
 @testable import FieldDataKit
 import PICSKit
 
-/// Scripted server: each path has a queue of responses; requests are recorded.
-private final class FakeTransport: HTTPTransport, @unchecked Sendable {
-    private let lock = NSLock()
-    private var scripted: [String: [HTTPResponse]] = [:]
-    private(set) var requests: [HTTPRequest] = []
-    var fallback: [String: HTTPResponse] = [:]
-
-    func script(_ path: String, _ responses: HTTPResponse...) {
-        lock.withLock { scripted[path, default: []].append(contentsOf: responses) }
-    }
-
-    func send(_ request: HTTPRequest) async throws -> HTTPResponse {
-        lock.withLock {
-            requests.append(request)
-            if var queue = scripted[request.path], !queue.isEmpty {
-                let response = queue.removeFirst()
-                scripted[request.path] = queue
-                return response
-            }
-            return fallback[request.path] ?? HTTPResponse(status: 500)
-        }
-    }
-
-    var paths: [String] { lock.withLock { requests.map(\.path) } }
-
-    func bodies(_ path: String) -> [[String: Any]] {
-        lock.withLock {
-            requests.filter { $0.path == path }.compactMap { request in
-                request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-            }
-        }
-    }
-}
-
-private final class FakeAttestation: AttestationProvider, @unchecked Sendable {
-    private let lock = NSLock()
-    let isSupported: Bool
-    var assertionError: Error?
-    private(set) var generatedKeys = 0
-    private(set) var hashes: [Data] = []
-
-    init(isSupported: Bool = true) { self.isSupported = isSupported }
-
-    func generateKey() async throws -> String {
-        lock.withLock {
-            generatedKeys += 1
-            return "key-\(generatedKeys)"
-        }
-    }
-
-    func attestKey(_ keyID: String, clientDataHash: Data) async throws -> Data {
-        lock.withLock { hashes.append(clientDataHash) }
-        return Data("attestation-\(keyID)".utf8)
-    }
-
-    func generateAssertion(_ keyID: String, clientDataHash: Data) async throws -> Data {
-        try lock.withLock {
-            hashes.append(clientDataHash)
-            if let assertionError { throw assertionError }
-        }
-        return Data("assertion-\(keyID)".utf8)
-    }
-}
-
-private final class MemoryKeyStorage: KeyIDStorage, @unchecked Sendable {
-    private let lock = NSLock()
-    private var value: String?
-    init(_ value: String? = nil) { self.value = value }
-    func load() -> String? { lock.withLock { value } }
-    func save(_ keyID: String?) { lock.withLock { value = keyID } }
-}
-
-private final class Clock: @unchecked Sendable {
-    private let lock = NSLock()
-    private var current = Date(timeIntervalSince1970: 1_794_290_000)
-    var now: Date { lock.withLock { current } }
-    func advance(_ seconds: TimeInterval) { lock.withLock { current += seconds } }
-}
-
-private func json(_ status: Int, _ object: [String: Any]) -> HTTPResponse {
-    HTTPResponse(status: status, body: try! JSONSerialization.data(withJSONObject: object))
-}
-
-private let challenge = json(201, ["challenge": "abc", "expiresAt": 1_794_290_300])
+private let challenge = challengeResponse
 private func token(_ value: String, expires: Int = 1_794_290_000 + 21_600) -> HTTPResponse {
-    json(200, ["token": value, "expiresAt": expires])
+    tokenResponse(value, expires: expires)
 }
 
-// A stand-in hash: the tests only check that the hash of the challenge string is passed through.
-private let fakeHash: @Sendable (Data) -> Data = { Data($0.reversed()) }
+/// Picks the longest wait of every random range, so back-off times are predictable.
+let longestWait: @Sendable (ClosedRange<Double>) -> Double = { $0.upperBound }
 
 @Suite("Report uploader")
 struct UploaderTests {
@@ -104,7 +21,7 @@ struct UploaderTests {
         keys: MemoryKeyStorage = MemoryKeyStorage(),
         clock: Clock = Clock()
     ) -> ReportUploader {
-        ReportUploader(transport: transport, attestation: attestation, keyStorage: keys, sha256: fakeHash, now: { clock.now })
+        ReportUploader(transport: transport, attestation: attestation, keyStorage: keys, sha256: fakeHash, now: { clock.now }, random: longestWait)
     }
 
     @Test("first upload attests a new key, stores it, and sends the token as a bearer")
@@ -119,7 +36,7 @@ struct UploaderTests {
 
         #expect(try await uploader.upload(Data("{}".utf8)) == .accepted)
         #expect(transport.paths == ["/v1/challenge", "/v1/attest", "/v1/reports"])
-        #expect(keys.load() == "key-1")
+        #expect(keys.load() == attested("key-1"))
         #expect(attestation.hashes == [fakeHash(Data("abc".utf8))])
         let attest = try #require(transport.bodies("/v1/attest").first)
         #expect(attest["keyId"] as? String == "key-1")
@@ -159,11 +76,11 @@ struct UploaderTests {
             transport.script("/v1/token", failure)
             transport.script("/v1/attest", token("T9"))
             transport.script("/v1/reports", HTTPResponse(status: 202))
-            let keys = MemoryKeyStorage("old-key")
+            let keys = MemoryKeyStorage(attested("old-key"))
             let uploader = makeUploader(transport: transport, keys: keys)
             #expect(try await uploader.upload(Data()) == .accepted)
             #expect(transport.paths == ["/v1/challenge", "/v1/token", "/v1/challenge", "/v1/attest", "/v1/reports"])
-            #expect(keys.load() == "key-1")
+            #expect(keys.load() == attested("key-1"))
         }
     }
 
@@ -175,9 +92,11 @@ struct UploaderTests {
         transport.script("/v1/reports", HTTPResponse(status: 202))
         let attestation = FakeAttestation()
         attestation.assertionError = AttestationError.invalidKey
-        let uploader = makeUploader(transport: transport, attestation: attestation, keys: MemoryKeyStorage("stale"))
+        let keys = MemoryKeyStorage(attested("stale"))
+        let uploader = makeUploader(transport: transport, attestation: attestation, keys: keys)
         #expect(try await uploader.upload(Data()) == .accepted)
         #expect(!transport.paths.contains("/v1/token"))
+        #expect(keys.load() == attested("key-1"))
     }
 
     @Test("a 401 on upload refreshes the token once and retries")
@@ -204,10 +123,12 @@ struct UploaderTests {
             json(429, ["error": "rate_limited"]),
             HTTPResponse(status: 503)
         )
-        let uploader = makeUploader(transport: transport)
+        let clock = Clock()
+        let uploader = makeUploader(transport: transport, clock: clock)
         #expect(try await uploader.upload(Data()) == .rejected(code: "invalid_report"))
         #expect(try await uploader.upload(Data()) == .rejected(code: "too_large"))
         await #expect(throws: UploadError.rateLimited) { try await uploader.upload(Data()) }
+        clock.advance(RetryPolicy.maximumDelay)
         await #expect(throws: UploadError.server(status: 503, code: nil)) { try await uploader.upload(Data()) }
     }
 
@@ -215,16 +136,17 @@ struct UploaderTests {
     func unsupportedAndForget() async throws {
         let transport = FakeTransport()
         let unsupported = makeUploader(transport: transport, attestation: FakeAttestation(isSupported: false))
+        #expect(!unsupported.isAttestationSupported)
         await #expect(throws: UploadError.attestationUnsupported) { try await unsupported.upload(Data()) }
         #expect(transport.requests.isEmpty)
 
-        let keys = MemoryKeyStorage("key")
+        let keys = MemoryKeyStorage(attested("key"))
         let uploader = makeUploader(transport: transport, keys: keys)
         await uploader.forget()
         #expect(keys.load() == nil)
     }
 
-    @Test("malformed token responses are invalidResponse")
+    @Test("a malformed token response is invalidResponse; the key the server accepted is kept")
     func malformed() async throws {
         let transport = FakeTransport()
         transport.fallback["/v1/challenge"] = challenge
@@ -232,45 +154,14 @@ struct UploaderTests {
         let keys = MemoryKeyStorage()
         let uploader = makeUploader(transport: transport, keys: keys)
         await #expect(throws: UploadError.invalidResponse) { try await uploader.upload(Data()) }
-        #expect(keys.load() == nil)
-    }
-}
-
-/// An in-memory queue whose writes and bulk deletions can be made to fail, like a full or locked disk.
-private actor FlakyStore: ReportStore {
-    struct DiskError: Error {}
-    private let inner = InMemoryReportStore()
-    var failEnqueue = false
-    var failPurge = false
-
-    func setFailures(enqueue: Bool, purge: Bool) {
-        failEnqueue = enqueue
-        failPurge = purge
-    }
-
-    func enqueue(_ body: Data, at date: Date) async throws {
-        if failEnqueue { throw DiskError() }
-        await inner.enqueue(body, at: date)
-    }
-
-    func pending() async throws -> [PendingReport] { await inner.pending() }
-
-    func remove(id: String) async throws { await inner.remove(id: id) }
-
-    func removeAll() async throws {
-        if failPurge { throw DiskError() }
-        await inner.removeAll()
-    }
-
-    func removeOlder(than date: Date) async throws {
-        if failPurge { throw DiskError() }
-        await inner.removeOlder(than: date)
+        // The server answered 200, so the key is registered there; later attempts use /v1/token.
+        #expect(keys.load() == attested("key-1"))
     }
 }
 
 @Suite("Field data pipeline")
 struct PipelineTests {
-    private func signalPacket(_ state: UInt8) throws -> (PICSPacket, [UInt8]) {
+    static func signalPacket(_ state: UInt8) throws -> (PICSPacket, [UInt8]) {
         var payload = [UInt8](repeating: 0, count: 11)
         payload[2] = 2
         payload[9] = 1
@@ -279,16 +170,30 @@ struct PipelineTests {
         return (try PICSParser.parse(manufacturerData: data), data)
     }
 
+    static func makeUploader(
+        _ transport: FakeTransport = FakeTransport(),
+        attestation: FakeAttestation = FakeAttestation(),
+        keys: MemoryKeyStorage = MemoryKeyStorage(),
+        stateStore: any StateStore = InMemoryStateStore(),
+        clock: Clock
+    ) -> ReportUploader {
+        ReportUploader(
+            transport: transport, attestation: attestation, keyStorage: keys, stateStore: stateStore,
+            sha256: fakeHash, now: { clock.now }, random: longestWait
+        )
+    }
+
     @Test("nothing is recorded while disabled; disabling deletes the queue and the key")
     func consent() async throws {
         let transport = FakeTransport()
-        let keys = MemoryKeyStorage("key")
+        let keys = MemoryKeyStorage(attested("key"))
         let store = InMemoryReportStore()
         let clock = Clock()
-        let uploader = ReportUploader(transport: transport, attestation: FakeAttestation(), keyStorage: keys, sha256: fakeHash, now: { clock.now })
+        let uploader = Self.makeUploader(transport, keys: keys, clock: clock)
         let pipeline = FieldDataPipeline(store: store, uploader: uploader, client: "aoshingo-ios/0.1.0", now: { clock.now })
+        #expect(pipeline.canUpload)
 
-        let (packet, data) = try signalPacket(0x31)
+        let (packet, data) = try Self.signalPacket(0x31)
         await pipeline.record(packet, manufacturerData: data, at: clock.now, rssi: -60, serviceUUIDs: [], emitter: nil, context: .init())
         #expect(await pipeline.flush(force: true) == false)
         #expect(await store.count() == 0)
@@ -316,8 +221,7 @@ struct PipelineTests {
         transport.script("/v1/reports", HTTPResponse(status: 202), json(400, ["error": "invalid_report"]), HTTPResponse(status: 503))
         let clock = Clock()
         let store = InMemoryReportStore()
-        let uploader = ReportUploader(transport: transport, attestation: FakeAttestation(), keyStorage: MemoryKeyStorage(), sha256: fakeHash, now: { clock.now })
-        let pipeline = FieldDataPipeline(store: store, uploader: uploader, client: "aoshingo-ios/0.1.0", now: { clock.now })
+        let pipeline = FieldDataPipeline(store: store, uploader: Self.makeUploader(transport, clock: clock), client: "aoshingo-ios/0.1.0", now: { clock.now })
         await pipeline.setEnabled(true)
         for index in 0..<4 {
             await store.enqueue(Data("{\"n\":\(index)}".utf8), at: clock.now)
@@ -327,8 +231,7 @@ struct PipelineTests {
         #expect(summary.rejected == 1)
         #expect(summary.remaining == 2)
         #expect(summary.error == .server(status: 503, code: nil))
-        let sent = transport.requests.filter { $0.path == "/v1/reports" }.compactMap { $0.body.map { String(decoding: $0, as: UTF8.self) } }
-        #expect(sent == ["{\"n\":0}", "{\"n\":1}", "{\"n\":2}"])
+        #expect(transport.reportBodies() == ["{\"n\":0}", "{\"n\":1}", "{\"n\":2}"])
     }
 
     @Test("reports older than six days are dropped before upload")
@@ -336,8 +239,7 @@ struct PipelineTests {
         let transport = FakeTransport()
         let clock = Clock()
         let store = InMemoryReportStore()
-        let uploader = ReportUploader(transport: transport, attestation: FakeAttestation(), keyStorage: MemoryKeyStorage(), sha256: fakeHash, now: { clock.now })
-        let pipeline = FieldDataPipeline(store: store, uploader: uploader, client: "aoshingo-ios/0.1.0", now: { clock.now })
+        let pipeline = FieldDataPipeline(store: store, uploader: Self.makeUploader(transport, clock: clock), client: "aoshingo-ios/0.1.0", now: { clock.now })
         await pipeline.setEnabled(true)
         await store.enqueue(Data("{}".utf8), at: clock.now)
         clock.advance(FieldDataPipeline.maximumReportAge + 1)
@@ -346,21 +248,13 @@ struct PipelineTests {
         #expect(transport.requests.isEmpty)
     }
 
-    @Test("without a configured server, reports stay queued")
-    func noServer() async throws {
-        let store = InMemoryReportStore()
-        let pipeline = FieldDataPipeline(store: store, uploader: nil, client: "aoshingo-ios/0.1.0")
-        await pipeline.setEnabled(true)
-        await store.enqueue(Data("{}".utf8), at: Date())
-        #expect(await pipeline.uploadPending().remaining == 1)
-    }
     @Test("a report the queue cannot take is kept and queued on the next flush")
     func enqueueFailure() async throws {
         let clock = Clock()
         let store = FlakyStore()
-        let pipeline = FieldDataPipeline(store: store, uploader: nil, client: "aoshingo-ios/0.1.0", now: { clock.now })
+        let pipeline = FieldDataPipeline(store: store, uploader: Self.makeUploader(clock: clock), client: "aoshingo-ios/0.1.0", now: { clock.now })
         await pipeline.setEnabled(true)
-        let (packet, data) = try signalPacket(0x31)
+        let (packet, data) = try Self.signalPacket(0x31)
         await pipeline.record(packet, manufacturerData: data, at: clock.now, rssi: -60, serviceUUIDs: [], emitter: nil, context: .init())
 
         await store.setFailures(enqueue: true, purge: false)
@@ -382,8 +276,7 @@ struct PipelineTests {
         transport.fallback["/v1/reports"] = HTTPResponse(status: 202)
         let clock = Clock()
         let store = FlakyStore()
-        let uploader = ReportUploader(transport: transport, attestation: FakeAttestation(), keyStorage: MemoryKeyStorage(), sha256: fakeHash, now: { clock.now })
-        let pipeline = FieldDataPipeline(store: store, uploader: uploader, client: "aoshingo-ios/0.1.0", now: { clock.now })
+        let pipeline = FieldDataPipeline(store: store, uploader: Self.makeUploader(transport, clock: clock), client: "aoshingo-ios/0.1.0", now: { clock.now })
         await pipeline.setEnabled(true)
         try await store.enqueue(Data("{\"before\":true}".utf8), at: clock.now)
 
@@ -398,8 +291,7 @@ struct PipelineTests {
         await pipeline.setEnabled(true)
         try await store.enqueue(Data("{\"after\":true}".utf8), at: clock.now)
         _ = await pipeline.uploadPending()
-        let sent = transport.requests.filter { $0.path == "/v1/reports" }.compactMap { $0.body.map { String(decoding: $0, as: UTF8.self) } }
-        #expect(sent == ["{\"after\":true}"])
+        #expect(transport.reportBodies() == ["{\"after\":true}"])
         #expect(try await store.pending().map { String(decoding: $0.body, as: UTF8.self) } == ["{\"before\":true}"])
 
         // Once deletion works again, the next chance removes it.

@@ -13,55 +13,82 @@ final class FieldDataModel {
     /// How often the window is checked and the queue uploaded while the app is open.
     static let uploadInterval: Duration = .seconds(60)
 
+    /// Why field data cannot be contributed from this build or device.
+    enum Unavailability: Sendable {
+        /// The build has no report server (`AOSHINGO_REPORT_HOST` is empty).
+        case noServer
+        /// No App Attest (the simulator, some devices).
+        case attestationUnsupported
+    }
+
     private(set) var status = FieldDataPipeline.Status(
         isEnabled: false, bufferedObservations: 0, bufferedTransitions: 0,
         pendingReports: 0, lastUpload: nil, lastError: nil
     )
-    /// `false` on the simulator and on devices without App Attest; such devices never upload.
-    let isAttestationSupported: Bool
-    /// `nil` when this build has no report server configured.
-    let serverURL: URL?
+    /// `nil` when field data can be contributed. Otherwise collection cannot be turned on, because
+    /// reports that can never be sent would only pile up on the device.
+    let unavailability: Unavailability?
     private(set) var isEnabled = false
 
+    var canContribute: Bool { unavailability == nil }
+
     @ObservationIgnored private let pipeline: FieldDataPipeline
+    @ObservationIgnored private let hasUploader: Bool
     @ObservationIgnored private let location = LocationProvider()
     @ObservationIgnored private var uploadLoop: Task<Void, Never>?
     @ObservationIgnored private var emitterAliases = EmitterAliases()
 
     init() {
         let attestation = AppAttestProvider()
-        isAttestationSupported = attestation.isSupported
-        serverURL = ReportServer.baseURL
+        let serverURL = ReportServer.baseURL
+        if serverURL == nil {
+            unavailability = .noServer
+        } else if !attestation.isSupported {
+            unavailability = .attestationUnsupported
+        } else {
+            unavailability = nil
+        }
 
+        let stateStore = UserDefaultsStateStore()
         let directory = URL.applicationSupportDirectory.appendingPathComponent("FieldReports", isDirectory: true)
         let uploader = serverURL.map {
             ReportUploader(
                 transport: URLSessionTransport(baseURL: $0),
                 attestation: attestation,
                 keyStorage: KeychainKeyIDStorage(),
+                stateStore: stateStore,
                 sha256: Digest.sha256
             )
         }
+        hasUploader = uploader != nil
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         pipeline = FieldDataPipeline(
             store: FileReportStore(directory: directory),
             uploader: uploader,
-            client: FieldReport.clientString(version: version)
+            client: FieldReport.clientString(version: version),
+            stateStore: stateStore
         )
     }
 
-    /// Applies the user's consent. Turning collection off deletes everything not yet uploaded.
+    /// Applies the user's consent (at launch and on every change). Turning collection off deletes
+    /// everything not yet uploaded; once this returns, nothing more is sent.
     func apply(_ consent: CollectionConsent) async {
-        let enabled = consent == .granted
+        let enabled = consent == .granted && canContribute
         isEnabled = enabled
-        await pipeline.setEnabled(enabled)
-        if enabled {
-            location.requestAuthorizationIfNeeded()
-        } else {
-            location.stop()
-            emitterAliases.reset()
+        if !enabled {
+            // Stop the periodic upload first; the pipeline then waits for one in progress.
             uploadLoop?.cancel()
             uploadLoop = nil
+            location.stop()
+            emitterAliases.reset()
+        }
+        await pipeline.setEnabled(enabled)
+        if enabled {
+            // Not if the user opted out again meanwhile.
+            if isEnabled { location.requestAuthorizationIfNeeded() }
+        } else if !hasUploader {
+            // Without an uploader there is nothing to forget a key left by an earlier build that had a server.
+            KeychainKeyIDStorage().save(nil)
         }
         await refreshStatus()
     }
@@ -105,9 +132,7 @@ final class FieldDataModel {
     func flushAndUpload(force: Bool) async {
         guard isEnabled else { return }
         await pipeline.flush(force: force)
-        if isAttestationSupported {
-            _ = await pipeline.uploadPending()
-        }
+        _ = await pipeline.uploadPending()
         await refreshStatus()
     }
 
