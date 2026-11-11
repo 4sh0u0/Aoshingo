@@ -22,7 +22,7 @@ import { chromium } from "playwright";
 import { BASE_PATH, PUBLIC_DIR, startServer } from "./serve.mjs";
 
 const PUBLISHED_ORIGIN = "https://4sh0u0.github.io";
-const PAGES = ["", "support/", "privacy/", "this-page-does-not-exist/"];
+const PAGES = ["", "guide/", "support/", "about/", "privacy/", "this-page-does-not-exist/"];
 const MODES = [
   { name: "light", options: { colorScheme: "light" } },
   { name: "dark", options: { colorScheme: "dark" } },

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>使い方｜Aoshingo（青信号）</title>
+  <meta name="description" content="Aoshingo のはじめかた、信号の表示の見かた、色の表示の切り替え、VoiceOver での使い方。">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0a1a3a">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="canonical" href="https://4sh0u0.github.io/Aoshingo/guide/">
+  <link rel="icon" href="../assets/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="../assets/style.css">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Aoshingo">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="og:title" content="使い方｜Aoshingo（青信号）">
+  <meta property="og:description" content="Aoshingo のはじめかた、表示の見かた、色の表示、VoiceOver での使い方。">
+  <meta property="og:url" content="https://4sh0u0.github.io/Aoshingo/guide/">
+  <meta property="og:image" content="https://4sh0u0.github.io/Aoshingo/assets/og.png">
+  <meta property="og:image:alt" content="歩行者用信号の絵と「歩行者用信号を、手のひらに。」の文字。Aoshingo のアイコン付き">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="sprite">
+    <symbol id="i-walk" viewBox="0 0 48 48">
+      <circle cx="27" cy="8" r="4.5" fill="currentColor"/>
+      <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M25 16 21 29"/>
+        <path d="M24 17l6 6 5 1"/>
+        <path d="M24 17l-6 5-2 6"/>
+        <path d="M21 29l7 6 1 9"/>
+        <path d="M21 29l-4 7-6 6"/>
+      </g>
+    </symbol>
+    <symbol id="i-stand" viewBox="0 0 48 48">
+      <circle cx="24" cy="8" r="4.5" fill="currentColor"/>
+      <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M24 16v14"/>
+        <path d="M24 17l-6 4-1 9"/>
+        <path d="M24 17l6 4 1 9"/>
+        <path d="M24 30l-4 13"/>
+        <path d="M24 30l4 13"/>
+      </g>
+    </symbol>
+    <symbol id="i-speaker" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9h4l5-4v14l-5-4H4z"/>
+        <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>
+      </g>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24">
+      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M12 7v5l3 2"/>
+      </g>
+    </symbol>
+  </svg>
+
+  <a class="skip-link" href="#main">本文へ移動</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="../"><img src="../assets/icon-128.png" alt="" width="32" height="32">Aoshingo</a>
+      <nav class="site-nav" aria-label="サイト">
+        <ul>
+          <li><a href="./" aria-current="page">使い方</a></li>
+          <li><a href="../support/">サポート</a></li>
+          <li><a href="../privacy/">プライバシー</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="page-hero night">
+      <div class="wrap page-hero-inner">
+        <p class="eyebrow">使い方</p>
+        <h1>交差点で「受信開始」を<br>押すだけ。</h1>
+        <p class="lead">はじめかた、表示の見かた、色の切り替え、VoiceOver での使い方をまとめています。</p>
+      </div>
+      <div class="zebra" aria-hidden="true"></div>
+    </div>
+
+    <nav class="page-toc" aria-label="このページの内容">
+      <div class="wrap">
+        <ol>
+          <li><a href="#start">はじめかた</a></li>
+          <li><a href="#display">表示の見かた</a></li>
+          <li><a href="#colors">色の表示</a></li>
+          <li><a href="#voiceover">VoiceOver</a></li>
+        </ol>
+      </div>
+    </nav>
+
+    <section class="block" aria-labelledby="start">
+      <div class="wrap">
+        <div class="block-head">
+          <h2 id="start">はじめかた</h2>
+          <p>Bluetooth を使います。アカウント登録は要りません。</p>
+        </div>
+        <ol class="steps">
+          <li>
+            <h3>協力するかを選ぶ</h3>
+            <p>初回起動時に注意事項を確かめ、実測データの提供に協力するかを選びます。どちらでも使える機能は同じです。</p>
+          </li>
+          <li>
+            <h3>「受信開始」を押す</h3>
+            <p>対応交差点の近くで押します。Bluetooth の使用を求められたら許可してください。</p>
+          </li>
+          <li>
+            <h3>画面を表示したまま</h3>
+            <p>数秒で交差点名と信号が出ます。受信中は画面を表示したままにします（設定の「受信中は画面を消さない」は初期状態でオンです）。</p>
+          </li>
+          <li>
+            <h3>「停止」を押す</h3>
+            <p>終わったら受信を止めます。</p>
+          </li>
+        </ol>
+        <p class="tip">信号の近くにいなくても、右上の「その他」メニューから「デモを表示」を選ぶと、画面を確かめられます。デモ中は「デモ表示中：実際の信号ではありません」と表示されます。</p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="display">
+      <div class="wrap">
+        <div class="block-head">
+          <h2 id="display">表示の見かた</h2>
+          <p>信号は、信号データの中の並び順で「1 番」〜「6 番」と表示します。どの番号がどの横断歩道かは、まだ確認できていません。</p>
+        </div>
+        <dl class="legend tile">
+          <div>
+            <dt><span class="chip is-green" aria-hidden="true"><svg><use href="#i-walk"/></svg>青</span>青・進める</dt>
+            <dd>歩行者用信号が青です。歩く人の図形で示します。</dd>
+          </div>
+          <div>
+            <dt><span class="chip is-green is-blink" aria-hidden="true"><svg><use href="#i-walk"/></svg>青点滅</span>青点滅・渡り始めないで</dt>
+            <dd>これから渡り始めないでください。太い破線の枠でも示します。</dd>
+          </div>
+          <div>
+            <dt><span class="chip is-red" aria-hidden="true"><svg><use href="#i-stand"/></svg>赤</span>赤・止まれ</dt>
+            <dd>歩行者用信号が赤です。立ち止まった人の図形で示します。</dd>
+          </div>
+          <div>
+            <dt><span class="text-sample" aria-hidden="true">更新なし</span>更新なし</dt>
+            <dd>5 秒以上、信号データが届いていません。実際の信号を確認してください。</dd>
+          </div>
+          <div>
+            <dt><span class="text-sample" aria-hidden="true">信号なし</span>信号なし</dt>
+            <dd>信号機から「信号なし」が送られています。実際の信号を確認してください。</dd>
+          </div>
+          <div>
+            <dt><span class="text-sample" aria-hidden="true">不明</span>不明</dt>
+            <dd>解釈できない値を受信しました。実際の信号を確認してください。</dd>
+          </div>
+          <div>
+            <dt><span class="text-sample" aria-hidden="true">5/8</span>残り目安 5/8</dt>
+            <dd>信号機が送る 8 段階の目安です。秒数ではありません。一部の交差点にしかありません。</dd>
+          </div>
+        </dl>
+        <p class="after-legend">危険側への変化（青 → 青点滅 → 赤）はすぐに反映し、安全側への変化（赤 → 青）は 2 回続けて同じ値を受信したときだけ反映します。</p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="colors">
+      <div class="wrap">
+        <div class="block-head">
+          <h2 id="colors">色の表示</h2>
+          <p>「設定」→「表示」→「色の表示」で選べます。どのモードでも、色だけでなく図形と文字で信号を示します。</p>
+        </div>
+        <ul class="modes">
+          <li>
+            <h3>標準</h3>
+            <ul aria-hidden="true">
+              <li class="chip is-green"><svg><use href="#i-walk"/></svg>青</li>
+              <li class="chip is-green is-blink"><svg><use href="#i-walk"/></svg>青点滅</li>
+              <li class="chip is-red"><svg><use href="#i-stand"/></svg>赤</li>
+            </ul>
+            <p>日本の信号に近い青緑と赤です。</p>
+          </li>
+          <li class="mode-cud">
+            <h3>色覚サポート</h3>
+            <ul aria-hidden="true">
+              <li class="chip is-green"><svg><use href="#i-walk"/></svg>青</li>
+              <li class="chip is-green is-blink"><svg><use href="#i-walk"/></svg>青点滅</li>
+              <li class="chip is-red"><svg><use href="#i-stand"/></svg>赤</li>
+            </ul>
+            <p>カラーユニバーサルデザイン推奨配色の青と朱色です。色の見え方に違いがあっても区別しやすい組み合わせです。</p>
+          </li>
+          <li class="mode-mono">
+            <h3>モノクロ</h3>
+            <ul aria-hidden="true">
+              <li class="chip is-green"><svg><use href="#i-walk"/></svg>青</li>
+              <li class="chip is-green is-blink"><svg><use href="#i-walk"/></svg>青点滅</li>
+              <li class="chip is-red"><svg><use href="#i-stand"/></svg>赤</li>
+            </ul>
+            <p>白黒と形だけで表示します。青は白地、赤は黒地です。</p>
+          </li>
+        </ul>
+        <p class="tip">初期設定の「自動」は、通常は「標準」です。iOS の「カラー以外で区別」がオンのときは「色覚サポート」になります。</p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="voiceover">
+      <div class="wrap">
+        <div class="block-head">
+          <h2 id="voiceover">VoiceOver で使う</h2>
+          <p>画面を見なくても使えるようにしています。</p>
+        </div>
+        <ul class="features">
+          <li>
+            <h3><svg aria-hidden="true"><use href="#i-speaker"/></svg>信号ごとに読み上げ</h3>
+            <p>各信号を 1 つの要素として、「1 番、青。進めます、残り目安 5 / 8」のように読み上げます。</p>
+          </li>
+          <li>
+            <h3><svg aria-hidden="true"><use href="#i-moon"/></svg>画面を暗くしたまま</h3>
+            <p>画面カーテン（VoiceOver がオンのときに 3 本指でトリプルタップ）を使うと、画面を暗くしたまま受信を続けられます。</p>
+          </li>
+          <li>
+            <h3><svg aria-hidden="true"><use href="#i-clock"/></svg>古い色は伝えない</h3>
+            <p>受信が 5 秒以上途切れると、「更新なし。実際の信号を確認してください」と読み上げます。</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="help-title">
+      <div class="wrap">
+        <div class="tile tile-night oss">
+          <div>
+            <h2 id="help-title">うまくいかないときは</h2>
+            <p>よくある質問と、お問い合わせの方法をまとめています。</p>
+          </div>
+          <ul class="actions">
+            <li><a class="button button-light" href="../support/">サポートを見る</a></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav class="footer-nav" aria-label="フッター">
+        <ul>
+          <li><a href="../">トップ</a></li>
+          <li><a href="./">使い方</a></li>
+          <li><a href="../support/">サポート</a></li>
+          <li><a href="../about/">このアプリについて</a></li>
+          <li><a href="../privacy/">プライバシーポリシー</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo">ソースコード（GitHub）</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo/blob/main/LICENSE">ライセンス</a></li>
+        </ul>
+      </nav>
+      <p>Aoshingo は非公式アプリです。警察庁、信号機メーカー、「信GO!」とは関係ありません。</p>
+      <p class="fine">Apple、iPhone、iOS、App Store、TestFlight、VoiceOver は Apple Inc. の商標です。iPhone の商標は、アイホン株式会社のライセンスにもとづき使用されています。Bluetooth は Bluetooth SIG, Inc. の登録商標です。</p>
+      <p class="fine">© 2026 4sh0u0 and the Aoshingo contributors</p>
+    </div>
+  </footer>
+</body>
+</html>

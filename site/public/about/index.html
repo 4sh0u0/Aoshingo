@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>このアプリについて｜Aoshingo（青信号）</title>
+  <meta name="description" content="Aoshingo のしくみ、特長、対応交差点と動作環境、実測データの提供、オープンソースと謝辞。">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0a1a3a">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="canonical" href="https://4sh0u0.github.io/Aoshingo/about/">
+  <link rel="icon" href="../assets/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="../assets/style.css">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Aoshingo">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="og:title" content="このアプリについて｜Aoshingo（青信号）">
+  <meta property="og:description" content="Aoshingo のしくみ、特長、対応交差点と動作環境、実測データの提供、オープンソース。">
+  <meta property="og:url" content="https://4sh0u0.github.io/Aoshingo/about/">
+  <meta property="og:image" content="https://4sh0u0.github.io/Aoshingo/assets/og.png">
+  <meta property="og:image:alt" content="歩行者用信号の絵と「歩行者用信号を、手のひらに。」の文字。Aoshingo のアイコン付き">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="sprite">
+    <symbol id="i-signal" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="7" y="2.5" width="10" height="16" rx="2.5"/>
+        <circle cx="12" cy="7" r="2"/>
+        <circle cx="12" cy="14" r="2"/>
+        <path d="M12 18.5v3"/>
+      </g>
+    </symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="6" y="2.5" width="12" height="19" rx="2.5"/>
+        <path d="M10.5 18.5h3"/>
+      </g>
+    </symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </g>
+    </symbol>
+    <symbol id="i-waves" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="2"/>
+        <path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/>
+      </g>
+    </symbol>
+    <symbol id="i-shapes" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="7" cy="7" r="4"/>
+        <rect x="13" y="3" width="8" height="8" rx="1"/>
+        <path d="M12 13l5 8H7z"/>
+      </g>
+    </symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/>
+        <path d="M8.5 12l2.5 2.5 4.5-5"/>
+      </g>
+    </symbol>
+    <symbol id="i-speaker" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9h4l5-4v14l-5-4H4z"/>
+        <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>
+      </g>
+    </symbol>
+    <symbol id="i-play" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="2"/>
+        <path d="M10 9l5 3-5 3z"/>
+      </g>
+    </symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+      </g>
+    </symbol>
+  </svg>
+
+  <a class="skip-link" href="#main">本文へ移動</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="../"><img src="../assets/icon-128.png" alt="" width="32" height="32">Aoshingo</a>
+      <nav class="site-nav" aria-label="サイト">
+        <ul>
+          <li><a href="../guide/">使い方</a></li>
+          <li><a href="../support/">サポート</a></li>
+          <li><a href="../privacy/">プライバシー</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="page-hero night">
+      <div class="wrap page-hero-inner">
+        <p class="eyebrow">このアプリについて</p>
+        <h1>信号機の電波を、<br>受け取るだけ。</h1>
+        <p class="lead">視覚に障害のある方、色の見え方に違いのある方、横断に時間がかかる方の「いま渡れるか」の判断を補助することを目指した、非公式のオープンソースアプリです。</p>
+      </div>
+      <div class="zebra" aria-hidden="true"></div>
+    </div>
+
+    <nav class="page-toc" aria-label="このページの内容">
+      <div class="wrap">
+        <ol>
+          <li><a href="#how">しくみ</a></li>
+          <li><a href="#features">特長</a></li>
+          <li><a href="#requirements">対応交差点と動作環境</a></li>
+          <li><a href="#field-data">実測データの提供</a></li>
+          <li><a href="#open-source">オープンソース</a></li>
+        </ol>
+      </div>
+    </nav>
+
+    <section class="block" aria-labelledby="how">
+      <div class="wrap">
+        <div class="block-head">
+          <h2 id="how">しくみ</h2>
+        </div>
+        <ol class="steps flow">
+          <li>
+            <svg aria-hidden="true"><use href="#i-signal"/></svg>
+            <h3>信号機が発信する</h3>
+            <p>高度化PICS（歩行者等支援情報通信システム）の交差点では、信号機が交差点名や歩行者用信号の状態を Bluetooth Low Energy で発信しています。</p>
+          </li>
+          <li>
+            <svg aria-hidden="true"><use href="#i-phone"/></svg>
+            <h3>iPhone で受信する</h3>
+            <p>Aoshingo は、この公開の電波を<strong>受信するだけ</strong>です。信号機に何かを送ったり、操作したりすることはありません。</p>
+          </li>
+          <li>
+            <svg aria-hidden="true"><use href="#i-eye"/></svg>
+            <h3>画面と読み上げで示す</h3>
+            <p>受信したデータを解析して、信号ごとの状態と残り目安を、色・図形・文字と VoiceOver の読み上げで示します。</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="features">
+      <div class="wrap">
+        <div class="block-head">
+          <h2 id="features">特長</h2>
+        </div>
+        <ul class="features">
+          <li>
+            <h3><svg aria-hidden="true"><use href="#i-waves"/></svg>画面表示中のリアルタイム受信</h3>
+            <p>最大 6 つの歩行者用信号の状態と「残り目安」（8 段階）を表示します。iOS の制約により、アプリが画面に表示されている間だけ受信できます。</p>
+          </li>
+          <li>
+            <h3><svg aria-hidden="true"><use href="#i-shapes"/></svg>色だけに頼らない表示</h3>
+            <p>青・青点滅・赤を、色に加えて図形・文字・破線の枠で示します。配色は「標準」「色覚サポート」「モノクロ」から選べます。</p>
+          </li>
+          <li>
+            <h3><svg aria-hidden="true"><use href="#i-shield"/></svg>安全側に倒した判定</h3>
+            <p>赤に近づく変化はすぐに、青に変わる変化は 2 回続けて一致したときだけ反映します。5 秒間更新がなければ「更新なし」と表示し、古い色は出しません。</p>
+          </li>
+          <li>
+            <h3><svg aria-hidden="true"><use href="#i-speaker"/></svg>VoiceOver に対応</h3>
+            <p>各信号をまとめて読み上げます。画面カーテンを使えば、画面を暗くしたまま受信を続けられます。</p>
+          </li>
+          <li>
+            <h3><svg aria-hidden="true"><use href="#i-play"/></svg>デモと記録の再生</h3>
+            <p>信号の近くにいなくても、デモで画面を確かめられます。受信データの記録と再生もでき、どちらも実際の受信と同じ処理を通ります。</p>
+          </li>
+          <li>
+            <h3><svg aria-hidden="true"><use href="#i-globe"/></svg>日本語と英語</h3>
+            <p>アプリの表示と読み上げは、日本語と英語に対応しています。</p>
+          </li>
+        </ul>
+        <p class="tip">使い方と表示の見かたは「<a href="../guide/">使い方</a>」にまとめています。</p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="requirements">
+      <div class="wrap">
+        <div class="block-head">
+          <h2 id="requirements">対応交差点と動作環境</h2>
+        </div>
+        <dl class="spec tile">
+          <div>
+            <dt>対応交差点</dt>
+            <dd>高度化PICS が整備された交差点（全国で約 600 か所）。設置場所は e-Gov データポータルの「<a href="https://data.e-gov.go.jp/data/dataset/npa_20221124_0054/resource/6f7e83e1-be28-4030-961f-3b489c9f6ad8">高度化PICS整備交差点_csv</a>」で公開されています。それ以外の交差点では何も受信しません。</dd>
+          </div>
+          <div>
+            <dt>対応機種</dt>
+            <dd>iOS 18 以降の iPhone（iPhone XS / XR 以降）</dd>
+          </div>
+          <div>
+            <dt>必要なもの</dt>
+            <dd>Bluetooth。アカウント登録は不要です。</dd>
+          </div>
+          <div>
+            <dt>入手方法</dt>
+            <dd>開発中のため、まだ配布していません。TestFlight での試験配布や App Store での公開を始めたら、このサイトでお知らせします。開発者の方は <a href="https://github.com/4sh0u0/Aoshingo">GitHub</a> のソースコードから Xcode でビルドできます。</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="field-data">
+      <div class="wrap">
+        <div class="block-head">
+          <h2 id="field-data">実測データの提供（任意）</h2>
+          <p>信号の周期や、どの番号がどの横断歩道かを調べるため、受信したデータの提供をお願いしています。</p>
+        </div>
+        <dl class="spec tile">
+          <div>
+            <dt>選べます</dt>
+            <dd>初回起動時に、協力するかどうかを選べます。どちらを選んでも使える機能は同じで、設定画面でいつでも変更できます。協力しない場合、受信したデータを端末の外に送信しません。</dd>
+          </div>
+          <div>
+            <dt>送るもの</dt>
+            <dd>交差点 ID、受信した信号データ、信号が変わった時刻、5 dB 単位の電波強度、8 方位に丸めた方向など</dd>
+          </div>
+          <div>
+            <dt>送らないもの</dt>
+            <dd>利用者の現在地（緯度・経度）、機種、OS のバージョン、言語・地域、広告 ID、氏名・メールアドレスなどの個人情報。サーバーのプログラムは IP アドレスを記録しません。</dd>
+          </div>
+        </dl>
+        <p class="tip">送信のタイミングや保存期間など、くわしくは<a href="../privacy/">プライバシーポリシー</a>をご覧ください。</p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="open-source">
+      <div class="wrap">
+        <div class="block-head">
+          <h2 id="open-source">オープンソース</h2>
+        </div>
+        <div class="tile prose">
+          <div class="narrow">
+            <p>Aoshingo は <a href="https://github.com/4sh0u0/Aoshingo/blob/main/LICENSE">Apache License 2.0</a> で公開しているオープンソースのアプリです。アプリ、実測データを受け取るサーバー、このサイトのソースコードは、すべて <a href="https://github.com/4sh0u0/Aoshingo">GitHub</a> で見られます。Issue と Pull Request を歓迎します。</p>
+            <p>対応交差点で受信した記録は、アプリの改善にとても役立ちます。協力いただける方は「<a href="https://github.com/4sh0u0/Aoshingo/blob/main/docs/field-test.md">現地確認の手順</a>」をご覧ください。</p>
+
+            <h3 id="thanks">謝辞</h3>
+            <p>高度化PICS の解析は、<a href="https://github.com/yumu19/ble-pics-viewer">yumu19/ble-pics-viewer</a>（MIT License, Copyright (c) 2025 Tsubasa Yumura）の解析仕様と実装を参考に、Swift で再実装したものです。受信方法と解析結果を公開してくださった作者に心より感謝します。</p>
+
+            <h3 id="legal">法令に関する注記</h3>
+            <p>高度化PICS の Bluetooth 信号は、交差点の信号制御機から不特定多数に向けて発信される公開の電波で、個人を識別できる情報や秘匿性のある通信内容は含まれていません。本アプリはこれを受信するだけで、信号機に対して送信・改変・再送信・妨害を行う機能は一切ありません。「信GO!」の青時間延長のような、信号機への要求を送る機能も実装しません。（法的な助言ではありません。）</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav class="footer-nav" aria-label="フッター">
+        <ul>
+          <li><a href="../">トップ</a></li>
+          <li><a href="../guide/">使い方</a></li>
+          <li><a href="../support/">サポート</a></li>
+          <li><a href="./">このアプリについて</a></li>
+          <li><a href="../privacy/">プライバシーポリシー</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo">ソースコード（GitHub）</a></li>
+          <li><a href="https://github.com/4sh0u0/Aoshingo/blob/main/LICENSE">ライセンス</a></li>
+        </ul>
+      </nav>
+      <p>Aoshingo は非公式アプリです。警察庁、信号機メーカー、「信GO!」とは関係ありません。</p>
+      <p class="fine">Apple、iPhone、iOS、App Store、TestFlight、VoiceOver は Apple Inc. の商標です。iPhone の商標は、アイホン株式会社のライセンスにもとづき使用されています。Bluetooth は Bluetooth SIG, Inc. の登録商標です。</p>
+      <p class="fine">© 2026 4sh0u0 and the Aoshingo contributors</p>
+    </div>
+  </footer>
+</body>
+</html>

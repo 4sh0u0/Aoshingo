@@ -1,54 +1,74 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
- * Aoshingo website styles.
+ * Aoshingo website styles: "night crossing".
+ *
+ * Every page opens with a night-blue band (the app icon's colours) that holds the header and one
+ * large heading, and ends in a zebra crossing. Below it, content sits on rounded tiles: one idea per
+ * tile, at most a line or two of text, details on the sub-pages. Type sizes step down clearly
+ * (display > h1 > h2 > h3 > body > small).
+ *
  * No web fonts and nothing loaded from outside the site except the GitHub and Cloudflare
  * infrastructure allowed in scripts/check-pages.mjs (see docs/website.md). Colours meet WCAG 2.2 AA
  * in light, dark and increased-contrast modes; the signal colours are the ones the iOS app uses
- * (App/Views/Signal).
+ * (App/Views/Signal/SignalAppearance.swift).
  */
 
 :root {
   color-scheme: light dark;
 
-  --bg: #ffffff;
-  --surface: #f1f5f9;
-  --surface-strong: #e2e9f1;
-  --text: #111827;
-  --muted: #424d5c;
-  --border: #c3cdd8;
-  --border-strong: #6b7788;
-  --link: #005e50;
-  --link-hover: #00403a;
+  /* Page */
+  --bg: #f2f4f8;
+  --tile: #ffffff;
+  --tile-soft: #e9edf4;
+  --text: #0c1424;
+  --muted: #4b566a;
+  --line: #d9dfe9;
+  --line-strong: #6a7588;
+  --accent: #00705e;
+  --accent-hover: #00574a;
+  --accent-ink: #ffffff;
+  --accent-soft: #dff1ec;
   --focus: #1d4ed8;
-  --accent: #00705f;
-  --accent-text: #ffffff;
-  --notice-bg: #fff7e0;
-  --notice-border: #9a6700;
-  --code-bg: #eef2f6;
+  --code-bg: #e9edf4;
+  --step-bg: #0a1a3a;
+  --step-fg: #ffffff;
+  --night-tile-edge: transparent;
 
-  --hero-bg-1: #0b1f45;
-  --hero-bg-2: #13406b;
-  --hero-text: #ffffff;
-  --hero-muted: #d3ddeb;
-  --hero-focus: #ffd34d;
+  /* The night band. The same in light and dark mode. */
+  --night: #0a1a3a;
+  --night-glow: #1b4b8c;
+  --night-tile: #0e2147;
+  --on-night: #ffffff;
+  --on-night-muted: #c5d0e2;
+  --on-night-accent: #4be3c1;
+  --on-night-focus: #ffd34d;
+  --zebra: #e9eef6;
 
-  --phone-frame: #12161d;
-  --phone-screen: #f4f6f8;
-  --phone-text: #111827;
-  --phone-muted: #4b5563;
+  /* Road sign yellow, for the safety notes. The same in light and dark mode. */
+  --sign: #ffd23f;
+  --sign-ink: #1c1600;
 
   /* Signal colours, as in SignalAppearance.swift. */
-  --sig-green: #009980;
+  --sig-green: #00806b;
   --sig-red: #d7261e;
   --sig-cud-blue: #005aff;
   --sig-cud-red: #ff4b00;
-  --sig-neutral: #d1d5db;
-  --sig-neutral-text: #111827;
+  --sig-neutral: #d5dbe4;
+  --sig-neutral-text: #0c1424;
 
-  --radius: 0.75rem;
-  --radius-lg: 1.25rem;
-  --wrap: 72rem;
-  --measure: 44rem;
+  --radius: 1rem;
+  --radius-lg: 1.75rem;
+  --wrap: 70rem;
+  --measure: 40rem;
+
+  --fs-display: clamp(2.375rem, 1.3rem + 4.6vw, 4.5rem);
+  --fs-h1: clamp(2.125rem, 1.5rem + 2.8vw, 3.5rem);
+  --fs-h2: clamp(1.625rem, 1.25rem + 1.7vw, 2.625rem);
+  --fs-h3: 1.25rem;
+  --fs-lead: clamp(1.0625rem, 1rem + 0.35vw, 1.25rem);
+  --fs-small: 0.875rem;
+
+  --space-section: clamp(4rem, 2.75rem + 5vw, 7rem);
 
   --font: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN",
     "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", Meiryo, "Segoe UI", Roboto, sans-serif;
@@ -57,40 +77,33 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b1220;
-    --surface: #131c2e;
-    --surface-strong: #1b2740;
-    --text: #e8edf4;
-    --muted: #b2bccb;
-    --border: #33415a;
-    --border-strong: #8a97ab;
-    --link: #6fe0cb;
-    --link-hover: #a5f0e2;
+    --bg: #070e1c;
+    --tile: #111b2e;
+    --tile-soft: #18243b;
+    --text: #e9eef6;
+    --muted: #aab5c7;
+    --line: #26334b;
+    --line-strong: #8693a8;
+    --accent: #5fd8bf;
+    --accent-hover: #98e8d7;
+    --accent-ink: #03201a;
+    --accent-soft: #123129;
     --focus: #ffd34d;
-    --accent: #5fd4bd;
-    --accent-text: #04201b;
-    --notice-bg: #2a2212;
-    --notice-border: #e0a526;
-    --code-bg: #1b2740;
+    --code-bg: #18243b;
+    --step-bg: var(--accent);
+    --step-fg: var(--accent-ink);
+    --night-tile-edge: #22345a;
 
-    --hero-bg-1: #081733;
-    --hero-bg-2: #0f2f55;
-
-    --phone-frame: #000000;
-    --phone-screen: #000000;
-    --phone-text: #f3f4f6;
-    --phone-muted: #b6bdc8;
-
-    --sig-neutral: #3a3f4a;
-    --sig-neutral-text: #f3f4f6;
+    --sig-neutral: #364156;
+    --sig-neutral-text: #f3f5f8;
   }
 }
 
 @media (prefers-contrast: more) {
   :root {
     --muted: var(--text);
-    --border: var(--border-strong);
-    --hero-muted: #ffffff;
+    --line: var(--line-strong);
+    --on-night-muted: #ffffff;
   }
 }
 
@@ -108,7 +121,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  scroll-padding-top: 1rem;
+  scroll-padding-top: 1.5rem;
 }
 
 /* Follow the iOS text size setting (Dynamic Type) in Safari on iPhone and iPad only. */
@@ -129,11 +142,12 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 1.125rem;
+  font-size: 1.0625rem;
   line-height: 1.8;
   line-break: strict;
   overflow-wrap: anywhere;
   word-break: normal;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Break Japanese lines between phrases, not inside words (Chromium 119+; others ignore it). */
@@ -150,25 +164,28 @@ dd {
 h1,
 h2,
 h3 {
-  line-height: 1.35;
+  line-height: 1.3;
   text-wrap: balance;
   font-feature-settings: "palt";
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 h1 {
-  font-size: clamp(1.75rem, 1.2rem + 3vw, 3.25rem);
+  font-size: var(--fs-h1);
+  font-weight: 800;
   margin: 0 0 1rem;
 }
 
 h2 {
-  font-size: clamp(1.5rem, 1.25rem + 1.2vw, 2.125rem);
-  margin: 0 0 1rem;
+  font-size: var(--fs-h2);
+  font-weight: 800;
+  margin: 0 0 1.5rem;
 }
 
 h3 {
-  font-size: 1.25rem;
-  margin: 2rem 0 0.5rem;
+  font-size: var(--fs-h3);
+  font-weight: 700;
+  margin: 2.5rem 0 0.5rem;
 }
 
 p,
@@ -195,13 +212,13 @@ svg {
 }
 
 a {
-  color: var(--link);
+  color: var(--accent);
   text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.2em;
+  text-underline-offset: 0.22em;
 }
 
 a:hover {
-  color: var(--link-hover);
+  color: var(--accent-hover);
   text-decoration-thickness: 0.14em;
 }
 
@@ -224,67 +241,98 @@ strong {
   font-weight: 700;
 }
 
-/* ---------- Layout ---------- */
-
-.wrap {
-  width: min(100% - 2rem, var(--wrap));
-  margin-inline: auto;
-}
-
-.prose {
-  max-width: var(--measure);
-}
-
-.section {
-  padding-block: clamp(3rem, 2rem + 4vw, 5rem);
-}
-
-.section + .section {
-  border-top: 1px solid var(--border);
-}
-
-.section-lead {
-  color: var(--muted);
-  max-width: var(--measure);
-  margin-bottom: 2rem;
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .visually-hidden {
   position: absolute !important;
   width: 1px;
   height: 1px;
-  padding: 0;
   margin: -1px;
+  padding: 0;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }
-
-/* ---------- Skip link ---------- */
 
 .skip-link {
   position: absolute;
   left: 1rem;
   top: -10rem;
   z-index: 10;
-  padding: 0.75rem 1.25rem;
-  background: var(--bg);
-  color: var(--link);
+  padding: 0.75rem 1rem;
+  background: var(--on-night);
+  color: var(--night);
+  border: 2px solid var(--night);
+  border-radius: 0.5rem;
   font-weight: 700;
-  border: 2px solid var(--focus);
-  border-radius: var(--radius);
 }
 
 .skip-link:focus {
   top: 1rem;
 }
 
-/* ---------- Header ---------- */
+/* ---------- Layout ---------- */
+
+.wrap {
+  width: min(100% - 2.5rem, var(--wrap));
+  margin-inline: auto;
+}
+
+.narrow {
+  max-width: var(--measure);
+}
+
+.center {
+  text-align: center;
+}
+
+.center .narrow {
+  margin-inline: auto;
+}
+
+.section {
+  padding-block: var(--space-section);
+}
+
+.section + .section {
+  padding-top: 0;
+}
+
+/* Small label above a heading. */
+.eyebrow {
+  margin: 0 0 0.75rem;
+  color: var(--accent);
+  font-size: var(--fs-small);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.lead {
+  font-size: var(--fs-lead);
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+/* ---------- The night band: header and page heading ---------- */
+
+.night {
+  --text: var(--on-night);
+  --muted: var(--on-night-muted);
+  --accent: var(--on-night-accent);
+  --accent-hover: #9af2dd;
+  --focus: var(--on-night-focus);
+  background: var(--night);
+  color: var(--on-night);
+}
 
 .site-header {
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
+  background: var(--night);
 }
 
 .header-inner {
@@ -292,36 +340,37 @@ strong {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1.5rem;
-  padding-block: 0.75rem;
+  gap: 0.25rem 1.5rem;
+  min-height: 4.5rem;
+  padding-block: 0.5rem;
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
-  color: var(--text);
+  gap: 0.65rem;
+  color: var(--on-night);
   font-weight: 800;
-  font-size: 1.25rem;
-  letter-spacing: 0.01em;
+  font-size: 1.125rem;
   text-decoration: none;
-  min-height: 44px;
+  letter-spacing: 0.01em;
 }
 
 .brand:hover {
-  color: var(--text);
+  color: var(--on-night);
 }
 
 .brand img {
-  width: 40px;
-  height: 40px;
-  border-radius: 22%;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.55rem;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.18);
 }
 
 .site-nav ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 0 0.25rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -332,33 +381,41 @@ strong {
 }
 
 .site-nav a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0.25rem 0.75rem;
+  display: block;
+  padding: 0.5rem 0.8rem;
   border-radius: 999px;
-  color: var(--text);
-  font-weight: 600;
+  color: var(--on-night-muted);
+  font-size: 0.9375rem;
+  font-weight: 700;
   text-decoration: none;
+  line-height: 1.5;
 }
 
-.site-nav a:hover {
-  background: var(--surface);
-  text-decoration: underline;
-}
-
-@media (max-width: 30rem) {
-  .site-nav a {
-    padding-inline: 0.5rem;
-    font-size: 1rem;
-  }
-}
-
+.site-nav a:hover,
 .site-nav a[aria-current="page"] {
-  background: var(--surface-strong);
-  text-decoration: underline;
-  text-decoration-thickness: 0.12em;
-  text-underline-offset: 0.3em;
+  color: var(--on-night);
+  background: rgb(255 255 255 / 0.12);
+}
+
+/* The glow sits low and to the right, so the band joins the header without a seam. */
+.hero,
+.page-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(42rem 30rem at 82% 62%, var(--night-glow) 0%, rgb(27 75 140 / 0) 70%),
+    var(--night);
+}
+
+/* Zebra crossing along the bottom edge of the band. */
+.zebra {
+  height: 2.5rem;
+  background: repeating-linear-gradient(90deg, var(--zebra) 0 3.5rem, transparent 3.5rem 7rem);
+  background-position: center;
+}
+
+.page-hero .zebra {
+  height: 1.75rem;
 }
 
 /* ---------- Buttons ---------- */
@@ -366,10 +423,15 @@ strong {
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.75rem 1rem;
   list-style: none;
   padding: 0;
-  margin: 2rem 0 0;
+  margin: 0;
+}
+
+.center .actions {
+  justify-content: center;
 }
 
 .actions li + li {
@@ -380,646 +442,1121 @@ strong {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  min-height: 48px;
-  padding: 0.6rem 1.4rem;
-  border-radius: 999px;
+  min-height: 3.25rem;
+  padding: 0.5rem 1.75rem;
+  border-radius: 0.9rem;
   border: 2px solid transparent;
-  font-weight: 700;
-  text-decoration: none;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
   line-height: 1.4;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .button-primary {
   background: var(--accent);
-  color: var(--accent-text);
+  color: var(--accent-ink);
 }
 
 .button-primary:hover {
-  color: var(--accent-text);
-  text-decoration: underline;
+  background: var(--accent-hover);
+  color: var(--accent-ink);
 }
 
 .button-secondary {
-  border-color: currentColor;
   background: transparent;
-  color: var(--link);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .button-secondary:hover {
-  text-decoration: underline;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
 }
 
-button.button {
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
+/* On the night band and night tiles. */
+.button-light {
+  background: var(--on-night);
+  color: var(--night);
 }
 
-/* While Turnstile checks the visitor. The colours stay, so the label keeps its contrast. */
+.button-light:hover {
+  background: #dfe7f3;
+  color: var(--night);
+}
+
+.button-outline-light {
+  color: var(--on-night);
+  border-color: rgb(255 255 255 / 0.7);
+}
+
+.button-outline-light:hover {
+  color: var(--on-night);
+  background: rgb(255 255 255 / 0.1);
+  border-color: var(--on-night);
+}
+
 .button[aria-disabled="true"] {
+  opacity: 0.6;
   cursor: progress;
 }
 
-/* ---------- Contact (「メールアドレスを表示」, assets/contact.js) ---------- */
-
-.contact-email {
-  margin-block: 1.5rem;
+/* A quiet link with an arrow, for "read more". */
+.more {
+  font-weight: 800;
+  text-decoration: none;
 }
 
-.contact-widget {
-  margin-block: 0.75rem;
+.more::after {
+  content: "→";
+  display: inline-block;
+  margin-inline-start: 0.35em;
 }
 
-.contact-status:empty {
+.more:hover {
+  text-decoration: underline;
+}
+
+.more-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  list-style: none;
+  padding: 0;
+  margin: 2rem 0 0;
+}
+
+.more-links li + li {
   margin: 0;
 }
 
-.contact-result {
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
+/* ---------- Top page: hero ---------- */
 
-/* ---------- Hero ---------- */
-
-.hero {
-  background: linear-gradient(170deg, var(--hero-bg-1), var(--hero-bg-2));
-  color: var(--hero-text);
-  padding-block: clamp(2.5rem, 1.5rem + 5vw, 5rem);
-  --focus: var(--hero-focus);
-}
-
-.hero a {
-  color: var(--hero-text);
-}
-
-.hero-inner {
+.hero-grid {
   display: grid;
-  gap: 3rem;
   align-items: center;
+  gap: 3rem 2.5rem;
+  padding-block: clamp(2.5rem, 1.5rem + 4vw, 5rem) clamp(4rem, 3rem + 4vw, 7rem);
 }
 
-@media (min-width: 56rem) {
-  .hero-inner {
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+@media (min-width: 52rem) {
+  .hero-grid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
   }
 }
 
-.hero h1 {
-  font-size: clamp(2.5rem, 1.6rem + 4vw, 4rem);
-  margin-bottom: 1.25rem;
+.status-pill {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.5em;
+  margin: 0 0 1.75rem;
+  padding: 0.3rem 1rem 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  color: var(--on-night-muted);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  line-height: 1.6;
 }
 
-.hero h1 .reading {
-  display: block;
-  font-size: 0.45em;
-  font-weight: 700;
-  color: var(--hero-muted);
-  margin-top: 0.25rem;
+.status-pill::before {
+  content: "";
+  flex: none;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--sign);
+}
+
+.status-pill strong {
+  color: var(--on-night);
+}
+
+.hero h1 {
+  font-size: var(--fs-display);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin-bottom: 1.5rem;
+}
+
+.hero h1 em {
+  font-style: normal;
+  color: var(--on-night-accent);
 }
 
 .hero .lead {
-  font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
-  font-weight: 600;
-  line-height: 1.7;
+  max-width: 30em;
+  margin: 0 0 2.25rem;
 }
 
-.hero p {
-  max-width: 38rem;
-}
-
-.hero-muted {
-  color: var(--hero-muted);
-}
-
-.status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin-bottom: 1.5rem;
-  color: var(--hero-muted);
-  font-weight: 600;
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.15rem 0.8rem;
-  border-radius: 999px;
-  border: 2px solid #ffd34d;
-  color: #ffffff;
-  font-weight: 700;
-}
-
-.hero .button-primary {
-  background: #ffffff;
-  color: #0b1f45;
-}
-
-.hero .button-primary:hover {
-  color: #0b1f45;
-}
-
-.hero .button-secondary {
-  color: #ffffff;
-}
-
-/* ---------- Phone mock-up ---------- */
-
-.hero-figure {
-  margin: 0;
+/* A pedestrian signal head: red (off) above, green (on) below, as in Japan. */
+.lamp {
+  position: relative;
   justify-self: center;
-  width: min(100%, 22rem);
-}
-
-.phone {
-  background: var(--phone-frame);
-  border-radius: 2.75rem;
-  padding: 0.75rem;
-  box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 0.35);
-  border: 1px solid rgb(255 255 255 / 0.18);
-}
-
-.phone-screen {
-  background: var(--phone-screen);
-  color: var(--phone-text);
-  border-radius: 2.1rem;
-  padding: 2.25rem 1rem 1.25rem;
-}
-
-.phone-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0 0 0.75rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  background: var(--surface-strong);
-  color: var(--phone-text);
-  font-size: 0.875rem;
-  font-weight: 700;
-  line-height: 1.5;
-}
-
-.phone-banner svg {
-  flex: none;
-  width: 1.1em;
-  height: 1.1em;
-}
-
-.phone-title {
-  font-size: 1.375rem;
-  font-weight: 800;
-  line-height: 1.3;
+  width: min(15rem, 62vw);
   margin: 0;
+  padding: 1.4rem;
+  border-radius: 2.5rem;
+  background: #081226;
+  box-shadow:
+    inset 0 0 0 2px #22345a,
+    0 2.5rem 5rem -2rem #000000;
 }
 
-.phone-meta {
-  font-size: 0.875rem;
-  color: var(--phone-muted);
-  margin: 0.15rem 0 0.9rem;
-  line-height: 1.5;
+.lamp-light {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 1.6rem;
 }
 
-.phone-meta .mono {
-  font-family: var(--font-mono);
+.lamp-light + .lamp-light {
+  margin-top: 1.1rem;
 }
 
-.slot-list {
+.lamp-light svg {
+  width: 64%;
+  height: 64%;
+}
+
+.lamp-off {
+  background: #3a1517;
+  color: #5c2326;
+}
+
+.lamp-on {
+  background: var(--sig-green);
+  color: #ffffff;
+  box-shadow: 0 0 3.5rem 0.4rem rgb(75 227 193 / 0.45);
+}
+
+.lamp-waves {
+  position: absolute;
+  top: 1.5rem;
+  right: -3.25rem;
+  width: 4.5rem;
+  height: 4.5rem;
+  color: var(--on-night-accent);
+}
+
+/* ---------- Tiles ---------- */
+
+.tile {
+  padding: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  border-radius: var(--radius-lg);
+  background: var(--tile);
+}
+
+.tile > :last-child {
+  margin-bottom: 0;
+}
+
+.tile-green {
+  --text: #ffffff;
+  --muted: #ffffff;
+  background: var(--sig-green);
+  color: #ffffff;
+}
+
+.tile-night {
+  --text: var(--on-night);
+  --muted: var(--on-night-muted);
+  --accent: var(--on-night-accent);
+  --accent-hover: #9af2dd;
+  --focus: var(--on-night-focus);
+  background: var(--night);
+  color: var(--on-night);
+  box-shadow: inset 0 0 0 1px var(--night-tile-edge);
+}
+
+/* Top page: tiles of different sizes, one fact each. */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1rem;
   list-style: none;
   padding: 0;
   margin: 0;
-  display: grid;
-  gap: 0.75rem;
 }
 
-.slot-list li + li {
+.bento > li {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-height: 14rem;
   margin: 0;
+  grid-column: span 2;
 }
 
-/* One pedestrian signal tile: number, pictogram, words, remaining-time gauge. */
-.slot {
-  --slot-bg: var(--sig-neutral);
-  --slot-fg: var(--sig-neutral-text);
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 0.15rem;
-  padding: 0.75rem 1rem 0.9rem;
-  border-radius: 1.1rem;
-  background: var(--slot-bg);
-  color: var(--slot-fg);
-  border: 1.5px solid color-mix(in srgb, var(--slot-fg) 35%, transparent);
-  text-align: center;
-  font-weight: 700;
-  line-height: 1.35;
+.bento > .wide {
+  grid-column: span 3;
 }
 
-.slot-no {
-  justify-self: start;
-  font-size: 1.2rem;
+.bento h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1.3125rem;
 }
 
-.slot-icon {
+.bento p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+.bento .big {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(4rem, 3rem + 3vw, 5.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-feature-settings: "palt";
+}
+
+.big small {
+  font-size: 0.3em;
+  letter-spacing: 0;
+  margin-inline: 0.15em;
+}
+
+.bento .tile-icon {
   width: 3.5rem;
   height: 3.5rem;
+  color: var(--accent);
 }
 
-.slot-state {
-  font-size: 2rem;
-  line-height: 1.2;
+.speech {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0.8rem 1.1rem;
+  border-radius: 1.1rem 1.1rem 1.1rem 0.3rem;
+  background: var(--tile-soft);
+  color: var(--text);
+  font-weight: 800;
 }
 
-.slot-action {
-  font-size: 1.2rem;
+.bento .speech {
+  color: var(--text);
+  font-size: 1.0625rem;
 }
 
-.gauge {
-  width: 100%;
-  margin-top: 0.4rem;
-  font-size: 1.2rem;
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
 }
 
-.gauge-bars {
+.swatches .swatch {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 0.25rem;
-  margin-bottom: 0.2rem;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0.9rem;
 }
 
-.gauge-bars span {
-  height: 0.6rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--slot-fg) 25%, transparent);
-}
-
-.gauge-bars span.on {
-  background: var(--slot-fg);
-}
-
-.slot.is-green {
-  --slot-bg: var(--sig-green);
-  --slot-fg: #ffffff;
-}
-
-.slot.is-red {
-  --slot-bg: var(--sig-red);
-  --slot-fg: #ffffff;
-}
-
-.slot.is-blink {
-  border: 0.3rem dashed var(--slot-fg);
-}
-
-.mode-cud .slot.is-green {
+.swatches .swatch-cud {
   --slot-bg: var(--sig-cud-blue);
   --slot-fg: #ffffff;
 }
 
-.mode-cud .slot.is-red {
+.swatches .swatch-mono {
+  --slot-bg: #ffffff;
+  --slot-fg: #000000;
+  border: 2px solid #000000;
+}
+
+.swatches .swatch svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+@media (max-width: 48rem) {
+  .bento {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bento > li,
+  .bento > .wide {
+    grid-column: auto;
+    min-height: 0;
+  }
+}
+
+/* ---------- Signal samples (the app's look) ---------- */
+
+.chip {
+  --slot-bg: var(--sig-neutral);
+  --slot-fg: var(--sig-neutral-text);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-width: 4.5rem;
+  padding: 0.6rem 0.5rem 0.5rem;
+  border-radius: 0.9rem;
+  background: var(--slot-bg);
+  color: var(--slot-fg);
+  border: 1.5px solid color-mix(in srgb, var(--slot-fg) 30%, transparent);
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.chip svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.is-green {
+  --slot-bg: var(--sig-green);
+  --slot-fg: #ffffff;
+}
+
+.is-red {
+  --slot-bg: var(--sig-red);
+  --slot-fg: #ffffff;
+}
+
+.is-blink {
+  outline: 0.25rem dashed var(--slot-fg);
+  outline-offset: -0.5rem;
+}
+
+.mode-cud .is-green {
+  --slot-bg: var(--sig-cud-blue);
+  --slot-fg: #ffffff;
+}
+
+.mode-cud .is-red {
   --slot-bg: var(--sig-cud-red);
   --slot-fg: #000000;
 }
 
-.mode-mono .slot.is-green {
+.mode-mono .is-green {
   --slot-bg: #ffffff;
   --slot-fg: #000000;
 }
 
-.mode-mono .slot.is-red {
+.mode-mono .is-red {
   --slot-bg: #000000;
   --slot-fg: #ffffff;
 }
 
-.hero-figure figcaption {
-  margin-top: 1rem;
-  font-size: 1rem;
-  color: var(--hero-muted);
-  text-align: center;
-}
+/* ---------- Safety: road sign band ---------- */
 
-/* ---------- Notice ---------- */
-
-.notice {
-  background: var(--notice-bg);
-  border: 2px solid var(--notice-border);
-  border-left-width: 0.5rem;
-  border-radius: var(--radius);
-  padding: 1.5rem 1.5rem 0.5rem;
-}
-
-.notice h2,
-.notice h3 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.375rem;
-  margin: 0 0 0.75rem;
-}
-
-.notice h2 svg,
-.notice h3 svg {
-  flex: none;
-  width: 1.4em;
-  height: 1.4em;
-  color: var(--notice-border);
-}
-
-.notice-section {
-  padding-block: 2.5rem 0;
-}
-
-/* ---------- Cards ---------- */
-
-.card-grid {
+.sign {
   display: grid;
-  gap: 1.25rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.card-grid > li + li {
-  margin: 0;
-}
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem 1.5rem;
+  padding: 1.75rem 2rem;
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  background: var(--sign);
+  color: var(--sign-ink);
+  --focus: #0b3bb5;
 }
 
-.card h3 {
+@media (min-width: 48rem) {
+  .sign {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}
+
+.sign > svg {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.sign p {
+  margin: 0;
+}
+
+.sign strong {
+  display: block;
+  font-size: 1.375rem;
+  line-height: 1.35;
+}
+
+.sign-link {
+  grid-column: 1 / -1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 3rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.8rem;
+  background: var(--sign-ink);
+  color: var(--sign);
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sign-link:hover {
+  color: #ffffff;
+  background: #000000;
+}
+
+@media (min-width: 48rem) {
+  .sign-link {
+    grid-column: auto;
+  }
+}
+
+/* The safety notes on the support page. */
+.sign-panel {
+  padding: 1.75rem 2rem 0.75rem;
+  border-radius: var(--radius-lg);
+  background: var(--sign);
+  color: var(--sign-ink);
+  --focus: #0b3bb5;
+}
+
+.sign-panel h2 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 0 0 0.75rem;
+  margin: 0 0 1rem;
+  font-size: clamp(1.375rem, 1.2rem + 0.8vw, 1.75rem);
 }
 
-.card-icon {
+.sign-panel h2 svg {
   flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 0.8rem;
-  background: var(--surface-strong);
-  color: var(--link);
+  width: 2rem;
+  height: 2rem;
 }
 
-.card-icon svg {
-  width: 1.6rem;
-  height: 1.6rem;
+.sign-panel ul {
+  padding-inline-start: 1.25em;
 }
 
-.card p:last-child {
-  margin-bottom: 0;
+.sign-panel a {
+  color: var(--sign-ink);
 }
 
-/* ---------- Colour modes ---------- */
+/* ---------- Top page: open source ---------- */
 
-.mode-grid {
+.oss {
   display: grid;
-  gap: 1.25rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  list-style: none;
-  padding: 0;
-  margin: 0 0 1.5rem;
+  align-items: center;
+  gap: 1.5rem 2rem;
+  padding: clamp(2rem, 1.25rem + 3vw, 4rem);
 }
 
-.mode-grid > li + li {
+@media (min-width: 52rem) {
+  .oss {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.oss h2 {
+  margin-bottom: 0.5rem;
+}
+
+.oss p {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* ---------- Sub-page heading ---------- */
+
+.page-hero-inner {
+  padding-block: clamp(2.5rem, 1.75rem + 3vw, 4.5rem) clamp(3rem, 2.25rem + 3vw, 5rem);
+}
+
+.page-hero h1 {
+  margin-bottom: 1rem;
+}
+
+.page-hero .lead {
+  max-width: 34em;
   margin: 0;
 }
 
-.mode-card h3 {
-  margin-top: 0;
+.page-meta {
+  margin: 1.5rem 0 0;
+  color: var(--on-night-muted);
+  font-size: var(--fs-small);
+  line-height: 1.8;
 }
 
-.mode-card .mode-slots {
+/* "On this page": a row of links under the band. */
+.page-toc ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 2rem 0 0;
+}
+
+.page-toc li + li {
+  margin: 0;
+}
+
+.page-toc a {
+  display: block;
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  background: var(--tile);
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  text-decoration: none;
+  line-height: 1.5;
+}
+
+.page-toc a:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* A section of a sub-page: a heading with a short line under it, then tiles. */
+.block {
+  padding-top: clamp(3.5rem, 2.5rem + 3.5vw, 5.5rem);
+}
+
+.block:last-child {
+  padding-bottom: clamp(4rem, 3rem + 4vw, 7rem);
+}
+
+.block-head {
+  margin-bottom: 2rem;
+}
+
+.block-head h2 {
+  margin-bottom: 0.5rem;
+}
+
+.block-head p {
+  max-width: var(--measure);
+  margin: 0;
+  color: var(--muted);
+}
+
+/* ---------- Steps ---------- */
+
+.steps {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: step;
+}
+
+.steps > li {
+  margin: 0;
+  padding: 1.75rem;
+  border-radius: var(--radius-lg);
+  background: var(--tile);
+  counter-increment: step;
+}
+
+.steps > li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 1.25rem;
+  border-radius: 50%;
+  background: var(--step-bg);
+  color: var(--step-fg);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.steps h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.125rem;
+}
+
+.steps p {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Steps with an icon instead of a number (how it works). */
+.flow > li::before {
+  content: none;
+}
+
+.flow svg {
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-bottom: 1.25rem;
+  color: var(--accent);
+}
+
+.tip {
+  margin: 1rem 0 0;
+  padding: 1.1rem 1.5rem;
+  border-radius: var(--radius);
+  background: var(--tile-soft);
+}
+
+/* ---------- Feature list ---------- */
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.features > li {
+  margin: 0;
+  padding: 1.75rem;
+  border-radius: var(--radius-lg);
+  background: var(--tile);
+}
+
+.features svg {
+  display: block;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-bottom: 1rem;
+  color: var(--accent);
+}
+
+.features h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.125rem;
+}
+
+.features p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+/* ---------- Legend of the signal states (guide page) ---------- */
+
+/* Each row: a sample of the tile on the left (hidden from screen readers), then the term and meaning. */
+.legend {
+  --sample: 5.5rem;
+  margin: 0;
+  padding: 0.5rem clamp(1.25rem, 1rem + 1vw, 2rem);
+}
+
+.legend > div {
+  position: relative;
+  min-height: calc(4.25rem + 2.2rem);
+  padding: 1.1rem 0 1.1rem calc(var(--sample) + 1.25rem);
+}
+
+.legend > div + div {
+  border-top: 1px solid var(--line);
+}
+
+.legend dt {
+  font-weight: 800;
+}
+
+.legend dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+.legend .chip,
+.legend .text-sample {
+  position: absolute;
+  left: 0;
+  top: 1.1rem;
+  width: var(--sample);
+  min-width: 0;
+  min-height: 4.25rem;
+}
+
+.legend .text-sample {
+  display: grid;
+  place-items: center;
+  border-radius: 0.9rem;
+  background: var(--tile-soft);
+  border: 1.5px solid var(--line);
+  font-weight: 800;
+  font-size: 0.875rem;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.after-legend {
+  max-width: var(--measure);
+  margin: 1.5rem 0 0;
+}
+
+/* ---------- Colour modes (guide page) ---------- */
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.modes > li {
+  margin: 0;
+  padding: 1.75rem;
+  border-radius: var(--radius-lg);
+  background: var(--tile);
+}
+
+.modes h3 {
+  margin: 0 0 1rem;
+  font-size: 1.125rem;
+}
+
+.modes ul {
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   list-style: none;
   padding: 0;
   margin: 0 0 1rem;
 }
 
-.mode-card .mode-slots li + li {
+.modes ul li + li {
   margin: 0;
 }
 
-.mode-card .slot {
-  padding: 0.6rem 0.25rem 0.7rem;
-  height: 100%;
-}
-
-.mode-card .slot-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-}
-
-.mode-card .slot-state {
-  font-size: 1.25rem;
-}
-
-/* ---------- Steps ---------- */
-
-.steps {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 2rem;
-  display: grid;
-  gap: 1.25rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
-  counter-reset: step;
-}
-
-.steps > li {
-  counter-increment: step;
+.modes p {
   margin: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  color: var(--muted);
+  font-size: 0.9375rem;
 }
 
-.steps h3 {
+/* ---------- FAQ ---------- */
+
+.faq {
+  margin: 0;
+  padding: 0.25rem clamp(1.25rem, 1rem + 1vw, 2rem);
+}
+
+.faq details + details {
+  border-top: 1px solid var(--line);
+}
+
+.faq summary {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 0.75rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 0;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  line-height: 1.6;
+  cursor: pointer;
+  list-style: none;
 }
 
-.steps h3::before {
-  content: counter(step);
+/* The question is a heading, so it appears in the screen reader's list of headings. */
+.faq summary h3 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Plus sign that turns into a minus when open. */
+.faq summary::after {
+  content: "";
   flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-text);
-  font-size: 1.125rem;
+  background:
+    linear-gradient(var(--accent), var(--accent)) center / 0.8rem 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) center / 2px 0.8rem no-repeat,
+    var(--accent-soft);
 }
 
-.steps p:last-child {
+.faq details[open] summary::after {
+  background:
+    linear-gradient(var(--accent), var(--accent)) center / 0.8rem 2px no-repeat,
+    var(--accent-soft);
+}
+
+.faq summary:hover {
+  color: var(--accent);
+}
+
+.faq .answer {
+  max-width: var(--measure);
+  padding: 0 0 1.5rem;
+}
+
+.faq .answer > :last-child {
   margin-bottom: 0;
 }
 
-/* ---------- Definition lists and tables ---------- */
+/* ---------- Definition list ---------- */
 
 .spec {
-  display: grid;
-  gap: 0;
-  border-top: 1px solid var(--border);
-  max-width: var(--measure);
+  margin: 0;
+  padding: 0.25rem clamp(1.25rem, 1rem + 1vw, 2rem);
 }
 
 .spec > div {
   display: grid;
-  gap: 0.25rem 1.5rem;
-  padding-block: 1rem;
-  border-bottom: 1px solid var(--border);
+  gap: 0.25rem 2rem;
+  padding: 1.25rem 0;
+}
+
+.spec > div + div {
+  border-top: 1px solid var(--line);
 }
 
 @media (min-width: 40rem) {
   .spec > div {
-    grid-template-columns: 10rem 1fr;
+    grid-template-columns: 10rem minmax(0, 1fr);
   }
 }
 
 .spec dt {
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .spec dd {
   margin: 0;
-}
-
-.table-wrap {
-  overflow-x: auto;
-  margin-bottom: 1.5rem;
-}
-
-table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-caption {
-  text-align: start;
-  font-weight: 700;
-  padding-bottom: 0.5rem;
-}
-
-th,
-td {
-  text-align: start;
-  vertical-align: top;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border);
-}
-
-thead th {
-  background: var(--surface-strong);
-}
-
-tbody th {
-  background: var(--surface);
-  width: 38%;
-}
-
-@media (max-width: 30rem) {
-  th,
-  td {
-    padding: 0.5rem 0.6rem;
-    font-size: 1rem;
-  }
-
-  tbody th {
-    width: 36%;
-  }
-}
-
-/* ---------- Page header (subpages) ---------- */
-
-.page-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding-block: clamp(2rem, 1.5rem + 3vw, 3.5rem);
-}
-
-.page-header p {
   color: var(--muted);
-  max-width: var(--measure);
+}
+
+/* ---------- Contact ---------- */
+
+.contact-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.contact-options h3 {
+  margin: 0 0 0.5rem;
+}
+
+.contact-options p {
+  color: var(--muted);
+}
+
+.contact-widget {
+  margin: 0 0 1rem;
+  min-height: 4.0625rem;
+}
+
+.contact-status:empty {
+  display: none;
+}
+
+.contact-result {
+  color: var(--text);
+  font-size: 1.125rem;
+  font-weight: 800;
+}
+
+/* ---------- Long text (privacy policy, credits) ---------- */
+
+.prose > :last-child,
+.prose > .narrow > :last-child {
   margin-bottom: 0;
 }
 
-.page-meta {
-  font-size: 1rem;
-}
-
-.toc {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem 1.5rem 0.25rem;
-  margin-bottom: 2.5rem;
-  max-width: var(--measure);
-}
-
-.toc h2 {
-  font-size: 1.125rem;
-  margin-bottom: 0.5rem;
+.prose h3 {
+  margin-top: 2.25rem;
 }
 
 .doc {
+  min-width: 0;
+  padding: clamp(1.5rem, 1rem + 2.5vw, 3.5rem);
+  border-radius: var(--radius-lg);
+  background: var(--tile);
+}
+
+.doc > * {
   max-width: var(--measure);
 }
 
 .doc h2 {
-  margin-top: 3rem;
-  padding-top: 0.5rem;
+  margin: 3.5rem 0 1rem;
+  padding-top: 2.5rem;
+  border-top: 1px solid var(--line);
+  font-size: clamp(1.375rem, 1.2rem + 0.8vw, 1.75rem);
 }
 
-.doc > h2:first-child,
-.doc > .notice:first-child + h2 {
-  margin-top: 0;
-}
-
-.doc .notice {
-  margin-bottom: 2rem;
-}
-
-.doc .notice h2 {
+.doc > h2:first-child {
   margin-top: 0;
   padding-top: 0;
+  border-top: 0;
 }
 
-.faq h3 {
-  margin-top: 2.25rem;
+.doc h3 {
+  font-size: 1.125rem;
+  margin-top: 2rem;
+}
+
+.doc-layout {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 64rem) {
+  .doc-layout {
+    grid-template-columns: 15rem minmax(0, 1fr);
+    gap: 2.5rem;
+  }
+
+  .side-toc {
+    position: sticky;
+    top: 1.5rem;
+  }
+}
+
+.side-toc {
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  background: var(--tile);
+}
+
+.side-toc h2 {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  letter-spacing: 0.08em;
+}
+
+.side-toc ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.side-toc li + li {
+  margin-top: 0.1rem;
+}
+
+.side-toc a {
+  display: block;
+  padding: 0.35rem 0;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.side-toc a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.table-wrap {
+  max-width: 100%;
+  margin: 0 0 1.5rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+caption {
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 800;
+  text-align: start;
+}
+
+th,
+td {
+  padding: 0.75rem 0.75rem 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+  vertical-align: top;
+}
+
+thead th {
+  border-bottom: 2px solid var(--line-strong);
+  font-size: var(--fs-small);
+}
+
+tbody th {
+  width: 34%;
+  font-weight: 700;
+}
+
+/* Tables become stacked rows on narrow screens, so they never scroll sideways. */
+@media (max-width: 40rem) {
+  table,
+  tbody,
+  tr,
+  th,
+  td {
+    display: block;
+    width: auto;
+  }
+
+  caption {
+    display: block;
+  }
+
+  thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  tr {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  th,
+  td {
+    padding: 0;
+    border: 0;
+  }
+
+  tbody th {
+    width: auto;
+    margin-bottom: 0.25rem;
+  }
 }
 
 .back-to-top {
   margin-top: 3rem;
-  font-size: 1rem;
+  font-size: var(--fs-small);
 }
 
 /* ---------- Footer ---------- */
 
 .site-footer {
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  padding-block: 2.5rem 3rem;
-  font-size: 1rem;
+  padding-block: 3rem 4rem;
+  border-top: 1px solid var(--line);
   color: var(--muted);
-}
-
-.site-footer a {
-  color: var(--link);
+  font-size: var(--fs-small);
+  line-height: 1.8;
 }
 
 .footer-nav ul {
@@ -1027,8 +1564,8 @@ tbody th {
   flex-wrap: wrap;
   gap: 0.25rem 1.5rem;
   list-style: none;
-  padding: 0;
   margin: 0 0 1.5rem;
+  padding: 0;
 }
 
 .footer-nav li + li {
@@ -1036,77 +1573,141 @@ tbody th {
 }
 
 .footer-nav a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  font-weight: 600;
+  display: inline-block;
+  padding-block: 0.25rem;
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.footer-nav a:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 .site-footer p {
-  max-width: var(--measure);
-  margin-bottom: 0.75rem;
+  margin: 0 0 0.5rem;
 }
 
-.small {
-  font-size: 0.9375rem;
+.site-footer .fine {
+  font-size: 0.8125rem;
 }
 
-/* ---------- Forced colours (Windows High Contrast etc.) ---------- */
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 40rem) {
+  .header-inner {
+    padding-block: 0.75rem;
+  }
+
+  .site-nav {
+    width: 100%;
+    margin-inline: -0.6rem;
+  }
+
+  .site-nav a {
+    padding-inline: 0.6rem;
+  }
+
+  .lamp {
+    width: min(10.5rem, 50vw);
+    padding: 1rem;
+    border-radius: 1.9rem;
+  }
+
+  .lamp-light {
+    border-radius: 1.2rem;
+  }
+
+  .zebra {
+    height: 1.75rem;
+    background-size: 5rem 100%;
+    background-image: linear-gradient(90deg, var(--zebra) 0 2.5rem, transparent 2.5rem 5rem);
+    background-repeat: repeat-x;
+  }
+
+  .legend {
+    --sample: 4.5rem;
+  }
+
+  .lamp-waves {
+    right: -2.5rem;
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+}
+
+/* ---------- Forced colours (Windows High Contrast) ---------- */
 
 @media (forced-colors: active) {
-  .slot,
-  .card,
-  .steps > li,
-  .notice,
-  .phone,
-  .toc {
-    border: 2px solid CanvasText;
-  }
-
-  .slot.is-blink {
-    border-style: dashed;
-    border-width: 0.3rem;
-  }
-
-  .gauge-bars span {
-    background: Canvas;
-    border: 1px solid CanvasText;
-  }
-
-  .gauge-bars span.on {
-    background: CanvasText;
-  }
-
-  .button {
-    border-color: ButtonText;
-  }
-}
-
-/* ---------- Print ---------- */
-
-@media print {
-  .site-header nav,
-  .skip-link,
-  .actions,
-  .contact-email,
-  .hero-figure {
+  .zebra,
+  .lamp-waves {
     display: none;
   }
 
-  .hero {
-    background: none;
-    color: #000000;
+  .tile,
+  .chip,
+  .swatch,
+  .sign,
+  .sign-panel,
+  .steps > li,
+  .features > li,
+  .modes > li,
+  .tip,
+  .doc,
+  .side-toc,
+  .lamp,
+  .lamp-light,
+  .speech,
+  .legend .text-sample {
+    border: 1px solid CanvasText;
   }
 
-  a {
-    color: #000000;
+  .button,
+  .site-nav a[aria-current="page"],
+  .page-toc a,
+  .sign-link {
+    border: 1px solid ButtonText;
+  }
+
+  .steps > li::before {
+    background: CanvasText;
+    color: Canvas;
+    forced-color-adjust: none;
+  }
+
+  .faq summary::after {
+    forced-color-adjust: none;
+    background:
+      linear-gradient(CanvasText, CanvasText) center / 0.8rem 2px no-repeat,
+      linear-gradient(CanvasText, CanvasText) center / 2px 0.8rem no-repeat,
+      Canvas;
+    border: 1px solid CanvasText;
+  }
+
+  .faq details[open] summary::after {
+    background:
+      linear-gradient(CanvasText, CanvasText) center / 0.8rem 2px no-repeat,
+      Canvas;
   }
 }
 
-/* Hidden container for the inline SVG symbols each page references with <use>. */
-.sprite {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
+@media print {
+  .site-nav,
+  .page-toc,
+  .zebra,
+  .lamp,
+  .contact-email {
+    display: none;
+  }
+
+  .night,
+  .hero,
+  .page-hero,
+  .site-header,
+  .tile-night,
+  .tile-green {
+    background: none;
+    color: #000000;
+  }
 }
