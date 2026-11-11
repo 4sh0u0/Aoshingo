@@ -51,7 +51,7 @@
   "vars": {
     // Apple Developer team ID of the app (not secret).
     "APPLE_TEAM_ID": "XTCC8DPHBX",
-    "APP_BUNDLE_ID": "io.github.4sh0u0.aoshingo",
+    "APP_BUNDLE_ID": "es.4sh.aoshingo",
     // "true" accepts keys from the App Attest development environment (debug builds).
     "ALLOW_DEVELOPMENT_ATTESTATION": "false",
     "RETENTION_DAYS": "90",

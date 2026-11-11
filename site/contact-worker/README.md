@@ -58,7 +58,7 @@ Cloudflare ダッシュボードの **Turnstile → Add widget** で作ります
 | 項目 | 値 |
 | --- | --- |
 | Widget name | `Aoshingo contact`（任意） |
-| Hostname | `4sh0u0.github.io`（独自ドメインに移したら、そのホスト名も追加） |
+| Hostname | `aoshingo.4sh.es`（サイトのドメインを変えたら、そのホスト名も追加） |
 | Widget Mode | Managed（推奨） |
 | Pre-clearance | 使わない（No） |
 
@@ -107,7 +107,7 @@ Cloudflare の GitHub App には `4sh0u0/Aoshingo` だけへのアクセスを�
 
 ```sh
 curl -i -X POST https://aoshingo-contact.<あなたのサブドメイン>.workers.dev/v1/email \
-  -H 'Origin: https://4sh0u0.github.io' -d 'token=test'
+  -H 'Origin: https://aoshingo.4sh.es' -d 'token=test'
 # => 403 {"error":"verification_failed"}（secret が設定済みで、でたらめなトークンを拒否している）
 # 500 server_misconfigured なら手順 3 の secret が届いていません
 ```
@@ -124,8 +124,10 @@ const CONFIG = {
 };
 ```
 
-## 独自ドメインに移すとき
+## サイトのドメインを変えるとき
 
-- `cloudflare.config.ts` の `ALLOWED_ORIGINS` と `ALLOWED_HOSTNAMES` に新しいドメインを加える
-- Turnstile のウィジェットの Hostname に新しいドメインを加える
+サイトは `https://aoshingo.4sh.es/` で公開しています（[docs/website.md](../../docs/website.md)）。ドメインを変えるときは、次をそろえて変えます。
+
+- Turnstile のウィジェットの Hostname に新しいドメインを加える（Worker より先に。古いドメインはサイトの移行後に外す）
+- `cloudflare.config.ts` の `ALLOWED_ORIGINS` と `ALLOWED_HOSTNAMES` を新しいドメインにする（`main` にマージすると Workers Builds がデプロイする）
 - Worker の URL を変える場合（独自ドメインなど）は、`site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS` のホスト名も書き換える

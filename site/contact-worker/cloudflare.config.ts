@@ -21,10 +21,10 @@ export default defineConfig({
     },
 
     env: {
-      // The website. Comma-separated; add the custom domain here when the site moves to one.
-      ALLOWED_ORIGINS: bindings.text("https://4sh0u0.github.io"),
+      // The website. Comma-separated.
+      ALLOWED_ORIGINS: bindings.text("https://aoshingo.4sh.es"),
       // Hostnames Siteverify may report. Must match the hostnames of the Turnstile widget.
-      ALLOWED_HOSTNAMES: bindings.text("4sh0u0.github.io"),
+      ALLOWED_HOSTNAMES: bindings.text("aoshingo.4sh.es"),
 
       // Neither value is stored in the repository: the first deploy uploads them with
       // `cf deploy --secrets-file`, and later deploys keep them. See README.md.

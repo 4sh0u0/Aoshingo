@@ -2,16 +2,16 @@
 
 Aoshingo の紹介ページ、サポート、プライバシーポリシーを GitHub Pages で公開しています。
 
-- 公開先：<https://4sh0u0.github.io/Aoshingo/>
+- 公開先：<https://aoshingo.4sh.es/>（GitHub Pages の独自ドメイン。以前の <https://4sh0u0.github.io/Aoshingo/> は GitHub が新しいドメインへ転送します）
 - ソース：[`site/`](../site/)
 
 App Store Connect には次の URL を登録します。アプリ内の「プライバシーポリシー」のリンクも、公開版の URL を指すようにします。
 
 | 項目 | URL |
 | --- | --- |
-| プライバシーポリシー URL | <https://4sh0u0.github.io/Aoshingo/privacy/> |
-| サポート URL | <https://4sh0u0.github.io/Aoshingo/support/> |
-| マーケティング URL | <https://4sh0u0.github.io/Aoshingo/> |
+| プライバシーポリシー URL | <https://aoshingo.4sh.es/privacy/> |
+| サポート URL | <https://aoshingo.4sh.es/support/> |
+| マーケティング URL | <https://aoshingo.4sh.es/> |
 
 ## 構成
 
@@ -23,7 +23,7 @@ App Store Connect には次の URL を登録します。アプリ内の「プラ
 | `site/public/support/` | サポート：ご利用上の注意、よくある質問、お問い合わせ、このサイトのアクセシビリティ |
 | `site/public/about/` | このアプリについて：しくみ、特長、対応交差点と動作環境、実測データの提供、オープンソース、謝辞 |
 | `site/public/privacy/` | プライバシーポリシー（公開版） |
-| `site/public/404.html` | 見つからないページ。どの URL でも表示されるため、リンクはすべて絶対 URL です。 |
+| `site/public/404.html` | 見つからないページ。どの URL でも表示されるため、リンクはすべてサイトのルートからのパス（`/assets/…`）です。 |
 | `site/public/assets/` | スタイルシート、アイコン、OGP 画像、「メールアドレスを表示」ボタンのスクリプト（`contact.js`） |
 | `site/contact-worker/` | 「メールアドレスを表示」ボタンの裏側の Cloudflare Worker（`aoshingo-contact`）。GitHub Pages には含めません。 |
 | `site/scripts/` | プレビュー用サーバー、チェック、画像の生成 |
@@ -45,10 +45,10 @@ Node.js 22 以降が必要です。
 ```bash
 cd site
 npm ci
-npm run serve        # http://localhost:8000/Aoshingo/
+npm run serve        # http://localhost:8000/
 ```
 
-GitHub Pages と同じく `/Aoshingo/` の下で配信します。ページ間のリンクは相対パスなので、独自ドメインに移しても書き換えは要りません（`404.html` と `canonical`・OGP の URL を除く）。
+公開先と同じく、サイトのルート（`/`）から配信します。ページ間のリンクは相対パスです。公開先の URL を書いているのは、`canonical`・OGP の URL と `site/scripts/check-pages.mjs` の `PUBLISHED_ORIGIN` だけです（`404.html` はルートからのパス）。ドメインを変えるときは、これらとアプリのプライバシーポリシーのリンク（`App/Settings/AppSettings.swift`）、お問い合わせの Worker（[`site/contact-worker/README.md`](../site/contact-worker/README.md) の「サイトのドメインを変えるとき」）も書き換えます。
 
 ## チェック
 
@@ -79,6 +79,8 @@ Pull Request で `site/` を変更すると、GitHub Actions でも同じチェ�
 `site/contact-worker/` の Worker は GitHub Actions ではデプロイしません。Cloudflare の Workers Builds が、`main` に変更が入るたびに `cf deploy` します。
 
 最初の 1 回だけ、リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** にしておく必要があります。
+
+独自ドメイン `aoshingo.4sh.es` は、**Settings → Pages → Custom domain** で設定し、**Enforce HTTPS** をオンにしています。DNS（Cloudflare）には `aoshingo.4sh.es` から `4sh0u0.github.io` への CNAME レコードを、プロキシを使わない **DNS only** で置きます。プロキシを有効にすると、Cloudflare がページにボット検知のスクリプトなどを差し込み、閲覧者の通信も Cloudflare を通るため、プライバシーポリシーの「11. このウェブサイト」と合わなくなります。また GitHub が HTTPS の証明書を発行できず、Enforce HTTPS も使えません。GitHub Actions で公開するサイトでは `CNAME` ファイルは使われないため、リポジトリには置きません。
 
 ## 書くときの決まり
 

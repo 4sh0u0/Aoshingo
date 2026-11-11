@@ -11,13 +11,13 @@
 </p>
 
 <p align="center">
-  <a href="https://4sh0u0.github.io/Aoshingo/"><b>ウェブサイト</b></a>
+  <a href="https://aoshingo.4sh.es/"><b>ウェブサイト</b></a>
   &nbsp;·&nbsp;
   <a href="docs/guide.md">使い方</a>
   &nbsp;·&nbsp;
-  <a href="https://4sh0u0.github.io/Aoshingo/support/">サポート</a>
+  <a href="https://aoshingo.4sh.es/support/">サポート</a>
   &nbsp;·&nbsp;
-  <a href="https://4sh0u0.github.io/Aoshingo/privacy/">プライバシー</a>
+  <a href="https://aoshingo.4sh.es/privacy/">プライバシー</a>
   &nbsp;·&nbsp;
   <a href="docs/development.md">開発ガイド</a>
 </p>

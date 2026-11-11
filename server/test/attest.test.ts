@@ -102,7 +102,7 @@ describe("verifyAttestation", () => {
 
   it("rejects a wrong rpIdHash", async () => {
     await expectReason(attest({ appId: "TEAMID1234.com.example.other" }), "rp_id_mismatch");
-    await expectReason(attest({}, { appId: "OTHERTEAM1.io.github.4sh0u0.aoshingo" }), "rp_id_mismatch");
+    await expectReason(attest({}, { appId: "OTHERTEAM1.es.4sh.aoshingo" }), "rp_id_mismatch");
   });
 
   it("rejects a non-zero counter", async () => {
