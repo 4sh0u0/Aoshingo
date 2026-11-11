@@ -52,9 +52,9 @@ Pull Request で `site/` を変更すると、GitHub Actions でも同じチェ�
 - **HTML**：[html-validate](https://html-validate.org/) の推奨ルール
 - **アクセシビリティ**：[axe-core](https://github.com/dequelabs/axe-core) で WCAG 2.2 A/AA とベストプラクティスを確認します。ライト、ダーク、コントラストを上げる（ライト・ダーク）、強制カラーの 5 つの表示で調べます。
 - **リフロー**：幅 320 px で横スクロールが出ないこと（WCAG 1.4.10）
-- **リンク**：サイト内のリンクとページ内リンク（`#…`）の行き先があること
+- **リンク**：サイト内のリンクとページ内リンク（`#…`）の行き先があること。GitHub 上のこのリポジトリのファイルへのリンク（`https://github.com/4sh0u0/Aoshingo/blob/main/…`）は、そのファイルがリポジトリにあること。ほかの Pull Request で追加されるファイルは、マージまで `PENDING_REPOSITORY_FILES` に書いておきます（ファイルが入ったら、一覧から外すよう失敗で知らせます）
 - **読み込み**：ページが読み込む画像やスタイルシートなどが存在すること（HTTP 400 以上や読み込み失敗を検出）
-- **外部への通信**：サイトの外へのリクエストは、`site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS`（GitHub と Cloudflare のホスト）宛てだけであること。それ以外のフォント、スクリプト、解析ツールなどを入れるとここで失敗します。Turnstile（`challenges.cloudflare.com`）は、ボタンを押す前に読み込むと失敗します。チェック中は外部へのリクエストをすべて止めるので、ネットワークの状態に左右されません
+- **外部への通信**：サイトの外へのリクエストは、`site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS` に書いたホスト宛てだけであること。ホスト名は完全一致で比べます（`github.io` や `workers.dev` は誰でも使えるため、サブドメインまでは許可しません）。それ以外のフォント、スクリプト、解析ツールなどを入れるとここで失敗します。Turnstile（`challenges.cloudflare.com`）は、ボタンを押す前に読み込むと失敗します。チェック中は外部へのリクエストをすべて止めるので、ネットワークの状態に左右されません
 - **メールアドレスの表示**：Turnstile と Worker をテスト用の代わりに差し替えて、サポートページとプライバシーポリシーのボタンをキーボードで押します。エラー（回数の上限、Turnstile を読み込めない）のお知らせ、成功したときにアドレスへフォーカスが移ること、表示後の状態の axe を確かめます
 
 `site/contact-worker/` の Worker は別に `npm test` と `npm run typecheck` で確かめます（[`site/contact-worker/README.md`](../site/contact-worker/README.md)）。GitHub Actions でも同じテストが走ります。
@@ -75,7 +75,7 @@ Pull Request で `site/` を変更すると、GitHub Actions でも同じチェ�
 - 外部のサービスは、開発の基盤として使っている GitHub と Cloudflare のものだけを使います（例：お問い合わせ用の Cloudflare Workers、Turnstile、Email Routing）。それ以外のフォント、画像、スクリプト、解析ツール、広告、SNS の埋め込みは読み込みません。
 - GitHub や Cloudflare のサービスを新しくページで使うときは、同じ Pull Request で次の 2 つを行います。
   - プライバシーポリシーの「11. このウェブサイト」に、サービスの名前、使う目的、そのサービスに送られる情報を書く
-  - ページが読み込むホストを `site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS` が許可しているか確かめる（独自ドメインの Worker などは追加する）
+  - ページが読み込むホスト名を、そのまま `site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS` に加える（完全一致）
 - スクリプトは必要な部分（「メールアドレスを表示」ボタンなど）にだけ使い、文章と表はスクリプトなしでも読めるようにします。スクリプトはサイトの中に置き（`site/public/assets/`）、外部のスクリプトは操作されたときにだけ読み込みます。
 - このサイト自体は Cookie とアクセス解析を使いません。使う場合は、先にプライバシーポリシーを改定します。Turnstile のように、外部のサービスが確認のために Cookie などを使う場合も、プライバシーポリシーに書きます。
 - メールアドレスは HTML やリポジトリに書きません。お問い合わせ用のアドレスは「メールアドレスを表示」ボタンで表示します。

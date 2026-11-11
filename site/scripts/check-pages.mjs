@@ -4,7 +4,9 @@
 //   - axe-core (WCAG 2.2 A/AA and best practices) in light, dark, increased-contrast and
 //     forced-colours modes
 //   - no horizontal scrolling at 320 CSS px wide (WCAG 1.4.10 Reflow)
-//   - every internal link and #fragment resolves, and every resource the page loads exists
+//   - every internal link and #fragment resolves, every resource the page loads exists, and every
+//     link to a file in this repository (github.com/4sh0u0/Aoshingo/blob/main/...) points to a file
+//     that exists in the checkout
 //   - requests that leave the site go only to the GitHub and Cloudflare infrastructure listed in
 //     ALLOWED_EXTERNAL_HOSTS (no other fonts, scripts, analytics or widgets), and Turnstile is not
 //     loaded until the 「メールアドレスを表示」 button is pressed
@@ -14,7 +16,7 @@
 // Set PLAYWRIGHT_CHROMIUM_EXECUTABLE to use an already installed Chromium.
 
 import AxeBuilder from "@axe-core/playwright";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
 import { BASE_PATH, PUBLIC_DIR, startServer } from "./serve.mjs";
@@ -32,21 +34,29 @@ const MODES = [
 ];
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
 
-// Hosts outside the site that pages may load from: only the GitHub and Cloudflare infrastructure the
-// project already runs on (a host also matches its subdomains). Before a page starts loading from one
-// of them, say in "11. このウェブサイト" of the privacy policy what it is used for and what it receives.
-// Cloudflare Web Analytics (cloudflareinsights.com) is analytics rather than infrastructure and is
-// deliberately not listed. Requests to these hosts are blocked during the check, so it stays offline.
-const ALLOWED_EXTERNAL_HOSTS = [
+// Hosts outside the site that pages may load from: only this project's own GitHub and Cloudflare
+// infrastructure. Exact host names only: github.io, workers.dev and the like are shared by everyone,
+// so a suffix match would let any third party's page or Worker through. Before a page starts loading
+// from a new host, say in "11. このウェブサイト" of the privacy policy what it is used for and what it
+// receives. Requests to these hosts are blocked during the check, so it stays offline.
+const ALLOWED_EXTERNAL_HOSTS = new Set([
   "github.com",
-  "githubusercontent.com",
-  "github.io",
-  "cloudflare.com", // for example challenges.cloudflare.com (Turnstile)
-  "workers.dev",
-];
+  "4sh0u0.github.io",
+  "challenges.cloudflare.com", // Turnstile, only after the 「メールアドレスを表示」 button is pressed
+  "aoshingo-contact.harus-account.workers.dev", // site/contact-worker
+]);
 
-const isAllowedExternal = (hostname) =>
-  ALLOWED_EXTERNAL_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+const isAllowedExternal = (hostname) => ALLOWED_EXTERNAL_HOSTS.has(hostname);
+
+// Links to files in this repository on GitHub are checked against the checkout. Files that another
+// pull request adds can be listed here until it is merged; the check fails once they exist, so the
+// entry is not forgotten.
+const REPOSITORY_BLOB_PREFIX = "https://github.com/4sh0u0/Aoshingo/blob/main/";
+const REPOSITORY_ROOT = path.resolve(PUBLIC_DIR, "../..");
+const PENDING_REPOSITORY_FILES = new Set([
+  "docs/field-data-api.md", // added by PR #1 (pre-alpha app and server)
+  "docs/field-test.md", // added by PR #1
+]);
 
 // The 「メールアドレスを表示」 button. The check replaces the real Turnstile script and the Worker with
 // stand-ins, so it needs no keys and no network.
@@ -109,6 +119,24 @@ async function routeRequests(context, external, handle = null) {
 }
 
 const pageIds = new Map();
+const repositoryLinks = new Map();
+
+async function checkRepositoryLink(label, href) {
+  const file = decodeURIComponent(new URL(href).pathname.slice(new URL(REPOSITORY_BLOB_PREFIX).pathname.length));
+  if (!repositoryLinks.has(file)) {
+    const exists = await stat(path.join(REPOSITORY_ROOT, file)).then(
+      () => true,
+      () => false,
+    );
+    repositoryLinks.set(file, exists);
+  }
+  const exists = repositoryLinks.get(file);
+  if (exists && PENDING_REPOSITORY_FILES.has(file)) {
+    fail(`${label}: ${file} now exists; remove it from PENDING_REPOSITORY_FILES`);
+  } else if (!exists && !PENDING_REPOSITORY_FILES.has(file)) {
+    fail(`${label}: link ${href} points to a file that is not in the repository`);
+  }
+}
 
 async function idsOf(pathname) {
   if (!pageIds.has(pathname)) {
@@ -184,6 +212,10 @@ try {
         for (const { href, samePage, resolves } of links) {
           if (samePage) {
             if (!resolves) fail(`${label}: link ${href} has no target on the page`);
+            continue;
+          }
+          if (href.startsWith(REPOSITORY_BLOB_PREFIX)) {
+            await checkRepositoryLink(label, href);
             continue;
           }
           const target = new URL(href);

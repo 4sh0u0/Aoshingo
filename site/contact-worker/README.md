@@ -24,7 +24,7 @@
 
 - IP アドレスや国を示すヘッダー（`CF-Connecting-IP`、`X-Forwarded-For`、`request.cf` など）を読みません。Siteverify にも `remoteip` を送りません（テストでソースを検査しています）。
 - 何も保存せず、ログも残しません。`cloudflare.config.ts` で Workers Logs・呼び出しログ・トレースを無効にしており、コードに `console.*` はありません。
-- レート制限は IP アドレスではなく固定のキーで数えます。検証に成功したリクエストだけを数えるので、でたらめなトークンを送り続けても上限は減りません。
+- レート制限は IP アドレスではなく固定のキーで数えます。検証に成功したリクエストだけを数えるので、でたらめなトークンを送り続けても上限は減りません。ただし、Turnstile を人手（いわゆる CAPTCHA 代行）で通し続けられると、同じ拠点のほかの閲覧者が「上限に達しました」になることがあります。影響はアドレスの表示だけで、GitHub の Issue は使えるため、IP を読まない設計を優先しています。
 
 閲覧者に関わる Cloudflare の処理（Turnstile）は、プライバシーポリシーの「11. このウェブサイト」に書いています。
 
@@ -128,4 +128,4 @@ const CONFIG = {
 
 - `cloudflare.config.ts` の `ALLOWED_ORIGINS` と `ALLOWED_HOSTNAMES` に新しいドメインを加える
 - Turnstile のウィジェットの Hostname に新しいドメインを加える
-- Worker を独自ドメインで配信する場合は、`site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS` にそのホストを加える
+- Worker の URL を変える場合（独自ドメインなど）は、`site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS` のホスト名も書き換える
