@@ -18,14 +18,25 @@ App Store Connect には次の URL を登録します。アプリ内の「プラ
 | パス | 内容 |
 | --- | --- |
 | `site/public/` | 公開するファイル。ビルドは不要で、このまま GitHub Pages に置きます。 |
-| `site/public/index.html` | トップページ |
-| `site/public/support/` | 使い方、表示の見かた、よくある質問、お問い合わせ |
+| `site/public/index.html` | トップページ。要点だけを短く載せ、くわしい内容は下の各ページに置きます |
+| `site/public/guide/` | 使い方：はじめかた、表示の見かた、色の表示、VoiceOver |
+| `site/public/support/` | サポート：ご利用上の注意、よくある質問、お問い合わせ、このサイトのアクセシビリティ |
+| `site/public/about/` | このアプリについて：しくみ、特長、対応交差点と動作環境、実測データの提供、オープンソース、謝辞 |
 | `site/public/privacy/` | プライバシーポリシー（公開版） |
 | `site/public/404.html` | 見つからないページ。どの URL でも表示されるため、リンクはすべて絶対 URL です。 |
 | `site/public/assets/` | スタイルシート、アイコン、OGP 画像、「メールアドレスを表示」ボタンのスクリプト（`contact.js`） |
 | `site/contact-worker/` | 「メールアドレスを表示」ボタンの裏側の Cloudflare Worker（`aoshingo-contact`）。GitHub Pages には含めません。 |
 | `site/scripts/` | プレビュー用サーバー、チェック、画像の生成 |
 | `.github/workflows/pages.yml` | チェック、Worker のテスト、GitHub Pages への公開 |
+
+## デザイン
+
+「夜の交差点」をテーマにしています。どのページも、アプリのアイコンと同じ夜の青の帯（ヘッダーと大きな見出し）で始まり、帯の下端に横断歩道の縞を入れます。その下は、角の丸いタイルに 1 つずつ内容を載せます。
+
+- 1 つの画面で伝えることは 1 つにします。見出し 1 つ、説明は 1〜2 行、ボタンは 1 つを目安にし、長い説明はトップページに書かずに各ページへ移します。
+- 文字の大きさは段階をはっきり分けます（トップの見出し → ページの見出し → 節の見出し → 本文 → 注記）。
+- 色は `site/public/assets/style.css` の先頭の変数にまとめています。夜の帯、注意の黄色、信号の色はライト・ダークどちらのモードでも同じで、信号の色はアプリ（`App/Views/Signal/SignalAppearance.swift`）と合わせています。
+- よくある質問は折りたたみ（`<details>`）にして、質問だけを並べます。
 
 ## 手元で見る
 
@@ -99,7 +110,7 @@ App Store に登録するのは `site/public/privacy/index.html` の公開版で
 
 ## 画像を作り直す
 
-アプリのアイコンを変えたら、アイコンと OGP 画像を作り直します。Pillow と、Inter Display・IPA P ゴシックのフォントが必要です。
+アプリのアイコンやサイトのデザインを変えたら、アイコンと OGP 画像を作り直します。Pillow と、Inter Display・IPA P ゴシックのフォントが必要です。
 
 ```bash
 python3 site/scripts/make-images.py \
