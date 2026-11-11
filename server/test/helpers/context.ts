@@ -81,9 +81,17 @@ export async function createContext(overrides: Partial<Env> = {}): Promise<TestC
 
 export async function resetDatabase(): Promise<void> {
   await bindings.DB.batch(
-    ["attest_keys", "reports", "transition_counts", "observation_counts", "daily_usage", "service_state"].map((table) =>
-      bindings.DB.prepare(`DELETE FROM ${table}`),
-    ),
+    [
+      "attest_keys",
+      "reports",
+      "transition_counts",
+      "observation_counts",
+      "duration_counts",
+      "range_counts",
+      "crosswalk_labels",
+      "daily_usage",
+      "service_state",
+    ].map((table) => bindings.DB.prepare(`DELETE FROM ${table}`)),
   );
 }
 
@@ -168,6 +176,44 @@ export function exampleReport(nowSeconds: number) {
           },
         ],
         transitions: [{ t: nowSeconds - 5, slot: 1, from: "Red", to: "Green" }],
+      },
+    ],
+  };
+}
+
+/** The schema 2 example report from docs/field-data-api.md, with times moved to `nowSeconds`. */
+export function exampleReport2(nowSeconds: number) {
+  return {
+    schema: 2,
+    client: "aoshingo-ios/0.2.0",
+    intersections: [
+      {
+        id: "1234ABCD",
+        serviceUUIDs: [] as string[],
+        emitters: 1,
+        emitterInfo: [{ txPower: null, connectable: false }],
+        observations: [
+          {
+            t: nowSeconds - 240,
+            raw: "CE010000022A00001234ABCD311384848484",
+            rssi: -70,
+            bearing: 3,
+            heading: null,
+            emitter: 0,
+            distance: 20,
+            accuracy: 10,
+            course: 2,
+            speed: 1,
+            nearby: 20,
+          },
+        ],
+        transitions: [
+          { t: nowSeconds - 235, slot: 1, from: "Red", to: "Green", emitter: 0, gap: 300, held: 42100, cycle: 98700 },
+        ],
+        steps: [{ t: nowSeconds - 231, slot: 1, state: "Green", from: 8, to: 7, emitter: 0, held: 3900 }],
+        packets: [{ emitter: 0, type: 2, count: 1180, minInterval: 90, medianInterval: 200 }],
+        coverage: [{ start: nowSeconds - 250, end: nowSeconds - 10 }],
+        labels: [{ t: nowSeconds - 140, kind: "crosswalk", slot: 1, heading: 2, bearing: 5, distance: 10 }],
       },
     ],
   };

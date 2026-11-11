@@ -3,7 +3,15 @@
 import { env } from "cloudflare:workers";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { validateReport } from "../src/report";
-import { createContext, exampleReport, makeToken, reportRequest, resetDatabase, type TestContext } from "./helpers/context";
+import {
+  createContext,
+  exampleReport,
+  exampleReport2,
+  makeToken,
+  reportRequest,
+  resetDatabase,
+  type TestContext,
+} from "./helpers/context";
 
 type Report = ReturnType<typeof exampleReport>;
 type Mutation = (report: Report, now: number) => void;
@@ -101,7 +109,9 @@ const ACCEPTED: [string, Mutation][] = [
 /** Each entry: [description, mutation]. All of these must be rejected with 400 invalid_report. */
 const REJECTED: [string, Mutation][] = [
   // schema
-  ["schema 2", (r) => set(r as never, "schema", 2)],
+  ["schema 0", (r) => set(r as never, "schema", 0)],
+  ["schema 3", (r) => set(r as never, "schema", 3)],
+  ["a schema 1 body declared as schema 2 (no emitterInfo for its emitter)", (r) => set(r as never, "schema", 2)],
   ["schema \"1\"", (r) => set(r as never, "schema", "1")],
   ["schema missing", (r) => set(r as never, "schema", undefined)],
   // client
@@ -201,6 +211,28 @@ const REJECTED: [string, Mutation][] = [
   ["an unexpected intersection field", (r) => set(intersection(r) as never, "location", [35.68, 139.76])],
   ["an unexpected observation field", (r) => set(observation(r), "deviceModel", "iPhone")],
   ["an unexpected transition field", (r) => set(transition(r), "note", "x")],
+  // fields that schema 2 added, even when null or empty
+  ...(
+    [
+      ["emitterInfo", [{ txPower: null, connectable: null }]],
+      ["emitterInfo", []],
+      ["steps", []],
+      ["packets", []],
+      ["coverage", []],
+      ["labels", []],
+    ] as const
+  ).map(([key, value]): [string, Mutation] => [
+    `schema 1 with intersection.${key} = ${JSON.stringify(value)}`,
+    (r) => set(intersection(r) as never, key, value),
+  ]),
+  ...(["emitter", "distance", "accuracy", "course", "speed", "nearby"] as const).flatMap((key): [string, Mutation][] => [
+    [`schema 1 with observation.${key} = 0`, (r) => set(observation(r), key, 0)],
+    [`schema 1 with observation.${key} = null`, (r) => set(observation(r), key, null)],
+  ]),
+  ...(["emitter", "gap", "held", "cycle"] as const).flatMap((key): [string, Mutation][] => [
+    [`schema 1 with transition.${key} = 0`, (r) => set(transition(r), key, 0)],
+    [`schema 1 with transition.${key} = null`, (r) => set(transition(r), key, null)],
+  ]),
 ];
 
 describe("report validation table", () => {
@@ -238,6 +270,355 @@ describe("report validation table", () => {
     });
     expect((await submit(report)).status).toBe(400);
     expect(await reportCount()).toBe(0);
+  });
+});
+
+type Report2 = ReturnType<typeof exampleReport2>;
+type Mutation2 = (report: Report2, now: number) => void;
+type Item = Record<string, unknown>;
+
+function mutated2(mutation: Mutation2): Report2 {
+  const report = exampleReport2(context.clock.seconds);
+  mutation(report, context.clock.seconds);
+  return report;
+}
+
+const at = (r: Report2) => r.intersections[0]! as unknown as Item;
+const first = (r: Report2, key: string) => (at(r)[key] as Item[])[0]!;
+/** Sets `key` on the first item of the list `list` of the first intersection. */
+const setFirst = (list: string, key: string, value: unknown): Mutation2 => (r) => set(first(r, list), key, value);
+const emitterInfoOf = (n: number) => Array.from({ length: n }, () => ({ txPower: null, connectable: null }));
+const SCHEMA2_LISTS = ["emitterInfo", "steps", "packets", "coverage", "labels"];
+const NULLABLE_FIELDS: [string, string[]][] = [
+  ["observations", ["rssi", "bearing", "heading", "emitter", "distance", "accuracy", "course", "speed", "nearby"]],
+  ["transitions", ["emitter", "gap", "held", "cycle"]],
+  ["steps", ["from", "emitter", "held"]],
+  ["packets", ["minInterval", "medianInterval"]],
+  ["labels", ["heading", "bearing", "distance"]],
+  ["emitterInfo", ["txPower", "connectable"]],
+];
+
+/** Each entry: [description, mutation]. All of these must be accepted. */
+const ACCEPTED_2: [string, Mutation2][] = [
+  ["the schema 2 contract example", () => {}],
+  ["every nullable field null", (r) => {
+    for (const [list, keys] of NULLABLE_FIELDS) for (const key of keys) set(first(r, list), key, null);
+  }],
+  ["every nullable field absent (treated as null)", (r) => {
+    for (const [list, keys] of NULLABLE_FIELDS) for (const key of keys) set(first(r, list), key, undefined);
+  }],
+  ["the added lists absent with no emitters", (r) => {
+    for (const key of SCHEMA2_LISTS) set(at(r), key, undefined);
+    at(r).emitters = 0;
+    set(first(r, "observations"), "emitter", null);
+    set(first(r, "transitions"), "emitter", null);
+  }],
+  ["only steps", (r) => Object.assign(at(r), { observations: [], transitions: [], labels: [] })],
+  ["only labels", (r) => Object.assign(at(r), { observations: [], transitions: [], steps: [] })],
+  ["only a transition", (r) => Object.assign(at(r), { observations: [], steps: [], labels: [] })],
+  ["32 emitters, the last one referenced", (r) => {
+    Object.assign(at(r), { emitters: 32, emitterInfo: emitterInfoOf(32) });
+    set(first(r, "observations"), "emitter", 31);
+    set(first(r, "packets"), "emitter", 31);
+  }],
+  ["600 steps", (r) => (at(r).steps = Array(600).fill(first(r, "steps")))],
+  ["96 packets, one per emitter and type", (r) => {
+    Object.assign(at(r), { emitters: 32, emitterInfo: emitterInfoOf(32) });
+    at(r).packets = Array.from({ length: 96 }, (_, i) => ({ emitter: i % 32, type: Math.floor(i / 32), count: 1 }));
+  }],
+  ["60 coverage spans", (r) => (at(r).coverage = Array(60).fill(first(r, "coverage")))],
+  ["20 labels", (r) => (at(r).labels = Array(20).fill(first(r, "labels")))],
+  ["txPower -127 and connectable true", (r) => Object.assign(first(r, "emitterInfo"), { txPower: -127, connectable: true })],
+  ["txPower 20", setFirst("emitterInfo", "txPower", 20)],
+  ...[0, 10, 20, 40, 80, 160].map((value): [string, Mutation2] => [`distance ${value}`, setFirst("observations", "distance", value)]),
+  ...[5, 10, 20, 30].map((value): [string, Mutation2] => [`accuracy ${value}`, setFirst("observations", "accuracy", value)]),
+  ...[0, 1, 5, 10, 20, 50, 100].map((value): [string, Mutation2] => [`nearby ${value}`, setFirst("observations", "nearby", value)]),
+  ...[0, 1, 2].map((value): [string, Mutation2] => [`speed ${value}`, setFirst("observations", "speed", value)]),
+  ["course 0", setFirst("observations", "course", 0)],
+  ["course 7", setFirst("observations", "course", 7)],
+  ["gap 0", setFirst("transitions", "gap", 0)],
+  ["gap 5000", setFirst("transitions", "gap", 5000)],
+  ["held 0", setFirst("transitions", "held", 0)],
+  ["held 3600000", setFirst("transitions", "held", 3_600_000)],
+  ["cycle 3600000", setFirst("transitions", "cycle", 3_600_000)],
+  ["a step from unknown to 1", (r) => Object.assign(first(r, "steps"), { from: null, to: 1 })],
+  ["a step from 8 to unknown", (r) => Object.assign(first(r, "steps"), { from: 8, to: null })],
+  ["a step held 3600000", setFirst("steps", "held", 3_600_000)],
+  ["a step of state NoSignal", setFirst("steps", "state", "NoSignal")],
+  ["a step at slot 6", setFirst("steps", "slot", 6)],
+  ["a packet counted once, without intervals", (r) => Object.assign(first(r, "packets"), { count: 1, minInterval: null, medianInterval: null })],
+  ["a packet with only a median interval", setFirst("packets", "minInterval", null)],
+  ["equal min and median intervals", (r) => Object.assign(first(r, "packets"), { minInterval: 600_000, medianInterval: 600_000 })],
+  ["intervals of 0", (r) => Object.assign(first(r, "packets"), { minInterval: 0, medianInterval: 0 })],
+  ["packet count 100000, type 0", (r) => Object.assign(first(r, "packets"), { count: 100_000, type: 0 })],
+  ["coverage of one instant", (r, now) => Object.assign(first(r, "coverage"), { start: now, end: now })],
+  ["coverage from now - 7 days to now + 300", (r, now) => Object.assign(first(r, "coverage"), { start: now - 7 * DAY, end: now + 300 })],
+  ["a button label without slot or position", (r) => {
+    at(r).labels = [{ t: first(r, "labels").t, kind: "button" }];
+  }],
+  ["a button label with a slot", setFirst("labels", "kind", "button")],
+  ["a crosswalk label at slot 6 without heading, bearing or distance", (r) => {
+    at(r).labels = [{ t: first(r, "labels").t, kind: "crosswalk", slot: 6 }];
+  }],
+  ["label distance 160", setFirst("labels", "distance", 160)],
+];
+
+/** Each entry: [description, mutation]. All of these must be rejected with 400 invalid_report. */
+const REJECTED_2: [string, Mutation2][] = [
+  // intersection
+  ["an empty intersection (only packets and coverage)", (r) => {
+    Object.assign(at(r), { observations: [], transitions: [], steps: [], labels: [] });
+  }],
+  ["an empty intersection (lists absent)", (r) => {
+    for (const key of ["steps", "labels"]) set(at(r), key, undefined);
+    Object.assign(at(r), { observations: [], transitions: [] });
+  }],
+  ["observations missing", (r) => set(at(r), "observations", undefined)],
+  ["transitions missing", (r) => set(at(r), "transitions", undefined)],
+  ...SCHEMA2_LISTS.map((key): [string, Mutation2] => [`${key} null`, (r) => set(at(r), key, null)]),
+  ...SCHEMA2_LISTS.map((key): [string, Mutation2] => [`${key} not an array`, (r) => set(at(r), key, {})]),
+  ...SCHEMA2_LISTS.map((key): [string, Mutation2] => [`a ${key} item that is not an object`, (r) => set(at(r), key, [1])]),
+  ["an unexpected intersection field", (r) => set(at(r), "location", [35.68, 139.76])],
+  // emitterInfo
+  ["emitterInfo longer than emitters", (r) => (at(r).emitterInfo = emitterInfoOf(2))],
+  ["emitterInfo shorter than emitters", (r) => (at(r).emitters = 2)],
+  ["emitterInfo absent with an emitter", (r) => set(at(r), "emitterInfo", undefined)],
+  ["txPower -128", setFirst("emitterInfo", "txPower", -128)],
+  ["txPower 21", setFirst("emitterInfo", "txPower", 21)],
+  ["txPower 1.5", setFirst("emitterInfo", "txPower", 1.5)],
+  ["connectable as a string", setFirst("emitterInfo", "connectable", "true")],
+  ["connectable as a number", setFirst("emitterInfo", "connectable", 1)],
+  ["an unexpected emitterInfo field", setFirst("emitterInfo", "name", "PICS")],
+  // observations
+  ["observation emitter = emitters", setFirst("observations", "emitter", 1)],
+  ["observation emitter -1", setFirst("observations", "emitter", -1)],
+  ["observation emitter with no emitters", (r) => {
+    Object.assign(at(r), { emitters: 0, emitterInfo: [], packets: [] });
+    set(first(r, "transitions"), "emitter", null);
+    set(first(r, "steps"), "emitter", null);
+  }],
+  ["distance 15", setFirst("observations", "distance", 15)],
+  ["distance 27 (not rounded)", setFirst("observations", "distance", 27)],
+  ["distance 320", setFirst("observations", "distance", 320)],
+  ["distance -10", setFirst("observations", "distance", -10)],
+  ["distance as a string", setFirst("observations", "distance", "20")],
+  ["accuracy 0", setFirst("observations", "accuracy", 0)],
+  ["accuracy 7", setFirst("observations", "accuracy", 7)],
+  ["accuracy 40", setFirst("observations", "accuracy", 40)],
+  ["course 8", setFirst("observations", "course", 8)],
+  ["course -1", setFirst("observations", "course", -1)],
+  ["speed 3", setFirst("observations", "speed", 3)],
+  ["speed 1.5", setFirst("observations", "speed", 1.5)],
+  ["nearby 2", setFirst("observations", "nearby", 2)],
+  ["nearby 200", setFirst("observations", "nearby", 200)],
+  ["an unexpected observation field", setFirst("observations", "latitude", 35.68)],
+  // transitions
+  ["transition emitter = emitters", setFirst("transitions", "emitter", 1)],
+  ["gap 50", setFirst("transitions", "gap", 50)],
+  ["gap 5100", setFirst("transitions", "gap", 5100)],
+  ["gap -100", setFirst("transitions", "gap", -100)],
+  ["held 150", setFirst("transitions", "held", 150)],
+  ["held 3600100", setFirst("transitions", "held", 3_600_100)],
+  ["cycle 3600100", setFirst("transitions", "cycle", 3_600_100)],
+  ["cycle -100", setFirst("transitions", "cycle", -100)],
+  ["cycle as a string", setFirst("transitions", "cycle", "98700")],
+  ["an unexpected transition field", setFirst("transitions", "note", "x")],
+  // steps
+  ["601 steps", (r) => (at(r).steps = Array(601).fill(first(r, "steps")))],
+  ["a step from 5 to 5", (r) => Object.assign(first(r, "steps"), { from: 5, to: 5 })],
+  ["a step from unknown to unknown", (r) => Object.assign(first(r, "steps"), { from: null, to: null })],
+  ["a step from 0", setFirst("steps", "from", 0)],
+  ["a step to 9", setFirst("steps", "to", 9)],
+  ["a step at slot 0", setFirst("steps", "slot", 0)],
+  ["a step at slot 7", setFirst("steps", "slot", 7)],
+  ["a step without slot", setFirst("steps", "slot", undefined)],
+  ["a step of an unknown state", setFirst("steps", "state", "Yellow")],
+  ["a step without state", setFirst("steps", "state", undefined)],
+  ["a step held 150", setFirst("steps", "held", 150)],
+  ["a step held 3600100", setFirst("steps", "held", 3_600_100)],
+  ["a step emitter = emitters", setFirst("steps", "emitter", 1)],
+  ["a step t = now - 7 days - 1", (r, now) => set(first(r, "steps"), "t", now - 7 * DAY - 1)],
+  ["a step t = now + 301", (r, now) => set(first(r, "steps"), "t", now + 301)],
+  ["a step without t", setFirst("steps", "t", undefined)],
+  ["an unexpected step field", setFirst("steps", "note", "x")],
+  // packets
+  ["97 packets", (r) => {
+    Object.assign(at(r), { emitters: 32, emitterInfo: emitterInfoOf(32) });
+    at(r).packets = Array.from({ length: 97 }, (_, i) => ({ emitter: i % 32, type: Math.floor(i / 32) % 3, count: 1 }));
+  }],
+  ["two packets of the same emitter and type", (r) => {
+    at(r).packets = [first(r, "packets"), { ...first(r, "packets"), count: 2, minInterval: null, medianInterval: null }];
+  }],
+  ["packet emitter = emitters", setFirst("packets", "emitter", 1)],
+  ["packet emitter null", setFirst("packets", "emitter", null)],
+  ["packet emitter missing", setFirst("packets", "emitter", undefined)],
+  ["packet type 3", setFirst("packets", "type", 3)],
+  ["packet type -1", setFirst("packets", "type", -1)],
+  ["packet type missing", setFirst("packets", "type", undefined)],
+  ["packet count 0", setFirst("packets", "count", 0)],
+  ["packet count 100001", setFirst("packets", "count", 100_001)],
+  ["packet count missing", setFirst("packets", "count", undefined)],
+  ["minInterval 95 (not a multiple of 10)", setFirst("packets", "minInterval", 95)],
+  ["medianInterval 600010", setFirst("packets", "medianInterval", 600_010)],
+  ["minInterval -10", setFirst("packets", "minInterval", -10)],
+  ["minInterval above medianInterval", (r) => Object.assign(first(r, "packets"), { minInterval: 210, medianInterval: 200 })],
+  ["intervals for a packet counted once", (r) => Object.assign(first(r, "packets"), { count: 1 })],
+  ["a median interval for a packet counted once", (r) => Object.assign(first(r, "packets"), { count: 1, minInterval: null })],
+  ["a min interval for a packet counted once", (r) => Object.assign(first(r, "packets"), { count: 1, medianInterval: null })],
+  ["an unexpected packets field", setFirst("packets", "rssi", -70)],
+  // coverage
+  ["61 coverage spans", (r) => (at(r).coverage = Array(61).fill(first(r, "coverage")))],
+  ["coverage start after end", (r, now) => Object.assign(first(r, "coverage"), { start: now - 10, end: now - 11 })],
+  ["coverage start = now - 7 days - 1", (r, now) => set(first(r, "coverage"), "start", now - 7 * DAY - 1)],
+  ["coverage end = now + 301", (r, now) => set(first(r, "coverage"), "end", now + 301)],
+  ["coverage without end", setFirst("coverage", "end", undefined)],
+  ["coverage start null", setFirst("coverage", "start", null)],
+  ["an unexpected coverage field", setFirst("coverage", "t", 1)],
+  // labels
+  ["21 labels", (r) => (at(r).labels = Array(21).fill(first(r, "labels")))],
+  ["a crosswalk label with slot null", setFirst("labels", "slot", null)],
+  ["a crosswalk label without slot", setFirst("labels", "slot", undefined)],
+  ["a label of another kind", setFirst("labels", "kind", "signal")],
+  ["a label without kind", setFirst("labels", "kind", undefined)],
+  ["a label at slot 7", setFirst("labels", "slot", 7)],
+  ["a label heading 8", setFirst("labels", "heading", 8)],
+  ["a label bearing -1", setFirst("labels", "bearing", -1)],
+  ["a label distance 15", setFirst("labels", "distance", 15)],
+  ["a label t = now + 301", (r, now) => set(first(r, "labels"), "t", now + 301)],
+  ["a label without t", setFirst("labels", "t", undefined)],
+  ["an unexpected label field", setFirst("labels", "note", "crossing 1")],
+];
+
+describe("schema 2 validation table", () => {
+  it.each(ACCEPTED_2)("accepts %s", async (_name, mutation) => {
+    const report = mutated2(mutation);
+    const response = await submit(report);
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(202);
+    const intersections = report.intersections;
+    expect(await response.json()).toEqual({
+      accepted: {
+        intersections: intersections.length,
+        observations: intersections.reduce((n, i) => n + i.observations.length, 0),
+        transitions: intersections.reduce((n, i) => n + i.transitions.length, 0),
+      },
+    });
+    expect(await reportCount()).toBe(intersections.length);
+  });
+
+  it.each(REJECTED_2)("rejects %s", async (_name, mutation) => {
+    const report = mutated2(mutation);
+    expect(validateReport(JSON.parse(JSON.stringify(report)), context.clock.seconds).ok).toBe(false);
+    const response = await submit(report);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_report" });
+    expect(await reportCount()).toBe(0);
+  });
+
+  it("normalises -0 to 0", () => {
+    const text = JSON.stringify(exampleReport2(context.clock.seconds))
+      .replace('"bearing":3', '"bearing":-0')
+      .replace('"distance":20', '"distance":-0');
+    const result = validateReport(JSON.parse(text), context.clock.seconds);
+    expect(result.ok).toBe(true);
+    const observation = result.ok && result.report.schema === 2 ? result.report.intersections[0]!.observations[0]! : null;
+    expect(Object.is(observation?.bearing, 0)).toBe(true);
+    expect(Object.is(observation?.distance, 0)).toBe(true);
+  });
+});
+
+describe("schema 2 storage", () => {
+  it("stores every field written out, null when unknown, and the lists even when absent", async () => {
+    const report = mutated2((r, now) => {
+      r.intersections.push({
+        id: "0000FFFF",
+        serviceUUIDs: ["FE9F"],
+        emitters: 0,
+        observations: [{ t: now - 1, raw: rawWithId("0000FFFF") }],
+        transitions: [{ t: now - 2, slot: 2, from: "Green", to: "BlinkGreen" }],
+      } as never);
+    });
+    expect((await submit(report)).status).toBe(202);
+
+    const { results } = await env.DB.prepare(
+      `SELECT intersection_id, schema, client, observation_count, transition_count, aggregate_items, payload
+         FROM reports ORDER BY intersection_id`,
+    ).all<Record<string, unknown>>();
+    const { id: _id, ...example } = report.intersections[0]!;
+    const now = context.clock.seconds;
+    expect(results).toEqual([
+      {
+        intersection_id: "0000FFFF",
+        schema: 2,
+        client: "aoshingo-ios/0.2.0",
+        observation_count: 1,
+        transition_count: 1,
+        // 2 x 1 observation + 3 x 1 transition.
+        aggregate_items: 5,
+        payload: JSON.stringify({
+          serviceUUIDs: ["FE9F"],
+          emitters: 0,
+          emitterInfo: [],
+          observations: [
+            {
+              t: now - 1,
+              raw: rawWithId("0000FFFF"),
+              rssi: null,
+              bearing: null,
+              heading: null,
+              emitter: null,
+              distance: null,
+              accuracy: null,
+              course: null,
+              speed: null,
+              nearby: null,
+            },
+          ],
+          transitions: [
+            { t: now - 2, slot: 2, from: "Green", to: "BlinkGreen", emitter: null, gap: null, held: null, cycle: null },
+          ],
+          steps: [],
+          packets: [],
+          coverage: [],
+          labels: [],
+        }),
+      },
+      {
+        intersection_id: "1234ABCD",
+        schema: 2,
+        client: "aoshingo-ios/0.2.0",
+        observation_count: 1,
+        transition_count: 1,
+        // 2 x 1 observation + 3 x 1 transition + 1 step + 1 label.
+        aggregate_items: 7,
+        // The example spells out every field, in the stored order.
+        payload: JSON.stringify(example),
+      },
+    ]);
+  });
+
+  it("stores absent fields of the added items as null", async () => {
+    const report = mutated2((r) => {
+      for (const [list, keys] of NULLABLE_FIELDS) for (const key of keys) set(first(r, list), key, undefined);
+      at(r).labels = [{ t: first(r, "labels").t, kind: "button" }];
+    });
+    expect((await submit(report)).status).toBe(202);
+    const payload = JSON.parse((await env.DB.prepare("SELECT payload FROM reports").first<string>("payload"))!);
+    expect(payload.emitterInfo).toEqual([{ txPower: null, connectable: null }]);
+    expect(payload.steps[0]).toMatchObject({ from: null, to: 7, emitter: null, held: null });
+    expect(payload.packets[0]).toEqual({ emitter: 0, type: 2, count: 1180, minInterval: null, medianInterval: null });
+    expect(payload.labels[0]).toEqual({
+      t: report.intersections[0]!.labels[0]!.t,
+      kind: "button",
+      slot: null,
+      heading: null,
+      bearing: null,
+      distance: null,
+    });
+  });
+
+  it("weighs a schema 1 row by its observations and transitions", async () => {
+    expect((await submit(exampleReport(context.clock.seconds))).status).toBe(202);
+    expect(await env.DB.prepare("SELECT aggregate_items FROM reports").first("aggregate_items")).toBe(2);
   });
 });
 

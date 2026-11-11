@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_CRON_LIMITS, maxCronQueries, runDailyJobs } from "../src/cron";
 import { encodeBase64 } from "../src/encoding";
 import { KEY_RETENTION_DAYS } from "../src/keys";
-import type { Report } from "../src/report";
+import type { Report, Schema2Report } from "../src/report";
 import { DEFAULT_FOLD_LIMITS, foldExpiredReports, storeReport, utcDay } from "../src/storage";
 import { buildAssertion } from "./helpers/appattest";
 import {
@@ -59,6 +59,62 @@ function report(receivedMs: number, ids: string[] = ["1234ABCD"]): Report {
       ],
     })),
   };
+}
+
+/**
+ * A schema 2 report whose own timestamps start at `receivedMs`, with known aggregates: see
+ * "folds schema 2 rows into all five aggregates".
+ */
+function report2(receivedMs: number, ids: string[] = ["1234ABCD"]): Schema2Report {
+  const t = Math.floor(receivedMs / 1000);
+  const observation = { raw: "", rssi: -70, bearing: 3, heading: null, emitter: 0, accuracy: 10, course: 2, speed: 1, nearby: 5 };
+  const transition = { emitter: 0, gap: 300 };
+  const step = { slot: 1, state: "Green", emitter: 0 };
+  const label = { kind: "crosswalk" as const, slot: 1, heading: 2, bearing: 5, distance: 10 };
+  return {
+    schema: 2,
+    client: "aoshingo-ios/0.2.0",
+    intersections: ids.map((id) => ({
+      id,
+      serviceUUIDs: [],
+      emitters: 2,
+      emitterInfo: [
+        { txPower: -8, connectable: false },
+        { txPower: null, connectable: null },
+      ],
+      observations: [
+        { ...observation, t, raw: raw(id, 2), distance: 20 },
+        { ...observation, t: t + 1, raw: raw(id, 2), distance: 20 },
+        { ...observation, t: t + 2, raw: raw(id, 0), rssi: null, bearing: null, distance: 0 },
+        { ...observation, t: t + 3, raw: raw(id, 2), rssi: -75, bearing: 4, distance: null },
+      ],
+      transitions: [
+        { ...transition, t, slot: 1, from: "Red", to: "Green", held: 42_400, cycle: 98_500 },
+        { ...transition, t: t + 40, slot: 1, from: "Green", to: "BlinkGreen", held: 39_500, cycle: null },
+        { ...transition, t: t + 50, slot: 2, from: "Red", to: "Green", held: null, cycle: null },
+      ],
+      steps: [
+        { ...step, t: t + 5, from: 8, to: 7, held: 3_900 },
+        { ...step, t: t + 9, from: 7, to: 6, held: 4_400 },
+        { ...step, t: t + 13, from: null, to: 5, held: 400 },
+        { ...step, t: t + 14, from: 5, to: 4, held: null },
+      ],
+      packets: [{ emitter: 0, type: 2, count: 100, minInterval: 90, medianInterval: 200 }],
+      coverage: [{ start: t, end: t + 60 }],
+      labels: [
+        { ...label, t: t + 20 },
+        { ...label, t: t + 21 },
+        { t: t + 22, kind: "crosswalk", slot: 2, heading: null, bearing: null, distance: null },
+        { t: t + 23, kind: "button", slot: null, heading: 2, bearing: 5, distance: 10 },
+      ],
+    })),
+  };
+}
+
+/** Weekday (0 = Sunday) and hour in JST of Unix seconds `t`, computed with Date. */
+function jst(t: number): { weekday_jst: number; hour_jst: number } {
+  const date = new Date((t + 9 * 3600) * 1000);
+  return { weekday_jst: date.getUTCDay(), hour_jst: date.getUTCHours() };
 }
 
 async function runCron(): Promise<void> {
@@ -199,6 +255,162 @@ describe("scheduled retention job", () => {
     expect(meter.queries).toBe(maxCronQueries(limits));
     expect(meter.queries).toBeLessThanOrEqual(50);
     expect(result.rowsWritten).toBe(meter.rowsWritten);
+  });
+
+  it("folds schema 2 rows into all five aggregates and deletes them", async () => {
+    // 2026-08-09 15:10 UTC (a Sunday) = Monday 2026-08-10 00:10 JST.
+    const expiredAt = Date.UTC(2026, 7, 9, 15, 10);
+    await storeReport(env.DB, report2(expiredAt), expiredAt);
+    // Schema 1 rows add nothing to the new tables.
+    await storeReport(env.DB, report(expiredAt, ["10000001"]), expiredAt);
+    const { db, meter } = meteredDatabase();
+
+    const result = await foldExpiredReports(db, utcDay(NOW - 90 * DAY_MS));
+
+    expect(result).toMatchObject({ folded: 2, chunks: 1, stoppedAtLimit: false });
+    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 0 }]);
+    const when = { weekday_jst: 1, hour_jst: 0 };
+    expect(jst(Math.floor(expiredAt / 1000))).toEqual(when);
+    const duration = { intersection_id: "1234ABCD", ...when };
+    expect(
+      await rows("SELECT * FROM duration_counts ORDER BY kind, slot, state, step DESC, seconds"),
+    ).toEqual([
+      // cycle 98,500 ms rounds up to 99 s; held 42,400 ms down to 42 s and 39,500 ms up to 40 s.
+      { ...duration, kind: "cycle", slot: 1, state: "Green", step: 0, seconds: 99, count: 1 },
+      { ...duration, kind: "held", slot: 1, state: "Green", step: 0, seconds: 40, count: 1 },
+      { ...duration, kind: "held", slot: 1, state: "Red", step: 0, seconds: 42, count: 1 },
+      // Steps from 8 (3,900 ms) and 7 (4,400 ms) both last 4 s; an unknown step is 0.
+      { ...duration, kind: "step", slot: 1, state: "Green", step: 8, seconds: 4, count: 1 },
+      { ...duration, kind: "step", slot: 1, state: "Green", step: 7, seconds: 4, count: 1 },
+      { ...duration, kind: "step", slot: 1, state: "Green", step: 0, seconds: 0, count: 1 },
+    ]);
+    expect(await rows("SELECT * FROM range_counts ORDER BY distance")).toEqual([
+      { intersection_id: "1234ABCD", rssi: 1, distance: 0, bearing: -1, count: 1 },
+      { intersection_id: "1234ABCD", rssi: -70, distance: 20, bearing: 3, count: 2 },
+    ]);
+    expect(await rows("SELECT * FROM crosswalk_labels ORDER BY slot")).toEqual([
+      { intersection_id: "1234ABCD", slot: 1, bearing: 5, heading: 2, distance: 10, count: 2 },
+      { intersection_id: "1234ABCD", slot: 2, bearing: -1, heading: -1, distance: -1, count: 1 },
+    ]);
+    // The schema 2 row also counts in the schema 1 aggregates.
+    expect(
+      await rows("SELECT slot, from_state, count FROM transition_counts WHERE intersection_id = '1234ABCD' ORDER BY slot, from_state"),
+    ).toEqual([
+      { slot: 1, from_state: "Green", count: 1 },
+      { slot: 1, from_state: "Red", count: 1 },
+      { slot: 2, from_state: "Red", count: 1 },
+    ]);
+    expect(
+      await rows("SELECT message_type, rssi, bearing, count FROM observation_counts WHERE intersection_id = '1234ABCD' ORDER BY message_type, rssi"),
+    ).toEqual([
+      { message_type: 0, rssi: 1, bearing: -1, count: 1 },
+      { message_type: 2, rssi: -75, bearing: 4, count: 1 },
+      { message_type: 2, rssi: -70, bearing: 3, count: 2 },
+    ]);
+    // Nothing else reaches the aggregates: neither packets, coverage nor the button label.
+    expect(await rows("SELECT count(*) AS n FROM duration_counts WHERE intersection_id = '10000001'")).toEqual([{ n: 0 }]);
+    // Rows written: 3 + 3 + 6 + 2 + 2 aggregate rows for the schema 2 row (at most its 25
+    // aggregate items) and 2 + 2 for the schema 1 row, plus the 2 deleted rows. The local D1
+    // counts a deleted row once; the limits allow for its index entry too.
+    expect(result.rowsWritten).toBeGreaterThanOrEqual(16 + 4 + 2);
+    expect(result.rowsWritten).toBeLessThanOrEqual(16 + 4 + 2 * 2);
+    expect(meter.rowsWritten).toBe(result.rowsWritten);
+  });
+
+  it("computes the JST weekday and hour of each duration from its own timestamp", async () => {
+    const expiredAt = Date.UTC(2026, 7, 1, 0, 0);
+    const base = report2(expiredAt);
+    const times = [
+      Date.UTC(2026, 7, 1, 14, 59, 59), // Saturday 23:59:59 JST
+      Date.UTC(2026, 7, 1, 15, 0, 0), // Sunday 00:00 JST, still Saturday in UTC
+      Date.UTC(2026, 7, 6, 6, 30, 0), // Thursday 15:30 JST
+    ].map((ms) => Math.floor(ms / 1000));
+    const intersection = base.intersections[0]!;
+    intersection.steps = [];
+    intersection.transitions = times.map((t) => ({
+      t,
+      slot: 1,
+      from: "Red",
+      to: "Green",
+      emitter: null,
+      gap: null,
+      held: 1_000,
+      cycle: null,
+    }));
+    await storeReport(env.DB, base, expiredAt);
+    await runCron();
+    expect(await rows("SELECT weekday_jst, hour_jst FROM duration_counts ORDER BY weekday_jst, hour_jst")).toEqual([
+      { weekday_jst: 0, hour_jst: 0 },
+      { weekday_jst: 4, hour_jst: 15 },
+      { weekday_jst: 6, hour_jst: 23 },
+    ]);
+    expect(times.map(jst).sort((a, b) => a.weekday_jst - b.weekday_jst)).toEqual([
+      { weekday_jst: 0, hour_jst: 0 },
+      { weekday_jst: 4, hour_jst: 15 },
+      { weekday_jst: 6, hour_jst: 23 },
+    ]);
+  });
+
+  it("adds schema 2 aggregates to existing counts", async () => {
+    const expiredAt = Date.UTC(2026, 7, 9, 15, 10);
+    await storeReport(env.DB, report2(expiredAt), expiredAt);
+    await runCron();
+    await storeReport(env.DB, report2(expiredAt), expiredAt);
+    await runCron();
+    expect(await rows("SELECT sum(count) AS n FROM duration_counts")).toEqual([{ n: 12 }]);
+    expect(await rows("SELECT sum(count) AS n FROM range_counts")).toEqual([{ n: 6 }]);
+    expect(await rows("SELECT sum(count) AS n FROM crosswalk_labels")).toEqual([{ n: 6 }]);
+    expect(await rows("SELECT count(*) AS n FROM crosswalk_labels")).toEqual([{ n: 2 }]);
+  });
+
+  it("sizes chunks by aggregate_items", async () => {
+    const at = Date.UTC(2026, 6, 1, 0, 0);
+    await storeReport(env.DB, report2(at, ["10000001", "10000002", "10000003", "10000004"]), at);
+    // 4 observations x 2 + 3 transitions x 3 + 4 steps + 4 labels.
+    expect(await rows("SELECT DISTINCT aggregate_items, observation_count + transition_count AS n FROM reports")).toEqual([
+      { aggregate_items: 25, n: 7 },
+    ]);
+    const cutoff = utcDay(NOW - 90 * DAY_MS);
+
+    // Two rows per chunk; observations + transitions alone (7 per row) would have put all four in one.
+    const result = await foldExpiredReports(env.DB, cutoff, { ...DEFAULT_FOLD_LIMITS, chunkItems: 50 });
+
+    expect(result).toMatchObject({ folded: 4, chunks: 2, stoppedAtLimit: false });
+    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 0 }]);
+  });
+
+  it("weighs rows the previous version inserted (aggregate_items = 0) by observations and transitions", async () => {
+    // Each row holds 3 observations + 2 transitions = 5 items.
+    const at = Date.UTC(2026, 6, 1, 0, 0);
+    await storeReport(env.DB, report(at, ["10000001", "10000002", "10000003", "10000004", "10000005"]), at);
+    await env.DB.prepare("UPDATE reports SET aggregate_items = 0").run();
+
+    const result = await foldExpiredReports(env.DB, utcDay(NOW - 90 * DAY_MS), { ...DEFAULT_FOLD_LIMITS, chunkItems: 10 });
+
+    expect(result).toMatchObject({ folded: 5, chunks: 3 });
+  });
+
+  it("keeps a full chunk's writes within chunkItems + 2 x chunkRows", async () => {
+    // Every item in its own aggregate row: distinct intersections and timestamps an hour apart.
+    const at = Date.UTC(2026, 6, 1, 0, 0);
+    const ids = Array.from({ length: 6 }, (_, i) => (0x70000000 + i).toString(16).toUpperCase());
+    const spread = report2(at, ids);
+    for (const intersection of spread.intersections) {
+      intersection.observations = intersection.observations.map((o, i) => ({ ...o, rssi: -5 * i, distance: 10 }));
+      intersection.transitions = intersection.transitions.map((x, i) => ({ ...x, t: x.t + 3600 * i, held: 1000, cycle: 2000 }));
+      intersection.steps = intersection.steps.map((x, i) => ({ ...x, held: 1000 * (i + 1) }));
+      intersection.labels = intersection.labels.map((x, i) => ({ ...x, kind: "crosswalk", slot: i + 1 }));
+    }
+    await storeReport(env.DB, spread, at);
+    // Each row weighs 25 and now reaches every one of its 25 items' aggregate rows.
+    const limits = { ...DEFAULT_FOLD_LIMITS, chunkRows: 3, chunkItems: 75 };
+
+    const result = await foldExpiredReports(env.DB, utcDay(NOW - 90 * DAY_MS), limits);
+
+    expect(result).toMatchObject({ folded: 6, chunks: 2 });
+    // The aggregate rows reach the bound; deleted rows count once locally, at most twice in it.
+    expect(result.rowsWritten).toBeGreaterThanOrEqual(2 * (75 + 3));
+    expect(result.rowsWritten).toBeLessThanOrEqual(2 * (75 + 2 * 3));
   });
 
   it("deletes usage counters older than a week", async () => {

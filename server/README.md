@@ -13,7 +13,7 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
 | `POST /v1/challenge` | 有効期限 300 秒のチャレンジ（16 バイト乱数と期限に `TOKEN_SECRET` で HMAC 署名したもの）を発行します。保存しないので D1 には書き込みません。その日の書き込み上限で鍵をもう 1 つ登録できないとき（またはデータベースが上限の大きさを超えているとき）は、`503 over_capacity` を返します（D1 の読み取り 1 回だけで確かめます）。 |
 | `POST /v1/attest` | App Attest の attestation を Apple の手順どおりに検証し、公開鍵を登録してアップロード用トークンを返します。 |
 | `POST /v1/token` | 登録済みの鍵による assertion を検証し（署名・rpIdHash・カウンタの単調増加）、トークンを再発行します。 |
-| `POST /v1/reports` | `Authorization: Bearer <token>` 付きのレポート（最大 256 KiB）を検証し、交差点ごとに 1 行として D1 に保存します。 |
+| `POST /v1/reports` | `Authorization: Bearer <token>` 付きのレポート（最大 256 KiB、`schema` 1 または 2）を検証し、交差点ごとに 1 行として D1 に保存します。 |
 
 - App Attest の証明書チェーンは、ソースに埋め込んだ **Apple App Attestation Root CA**
   （SHA-256 フィンガープリント `1C:B9:82:3B:A2:8B:A6:AD:2D:33:A0:06:94:1D:E2:AE:4F:51:3E:F1:D4:E8:31:B9:F7:E0:FA:7B:62:42:C9:32`）
@@ -35,12 +35,16 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
 | --- | --- |
 | `daily_usage` | 日（UTC）ごとの書き込み行数と、保存したバイト数の見積もりだけ。1 週間で cron が削除します。 |
 | `attest_keys` | App Attest の鍵 ID・公開鍵・署名カウンタ・環境・登録日・最後に使われた日（どちらも UTC の日単位）。レポートとは一切結び付けません。最後に使われてから 30 日たつと cron が削除します。 |
-| `reports` | 1 レポート × 1 交差点 = 1 行。受信日（UTC、日単位）、schema、client、件数、payload（serviceUUIDs / emitters / observations / transitions の JSON）。主キーはランダムな整数（0 以上 2^53 未満）で、到着順を残しません。 |
+| `reports` | 1 レポート × 1 交差点 = 1 行。受信日（UTC、日単位）、schema、client、件数（observation、transition、`aggregate_items`）、payload（serviceUUIDs / emitters / observations / transitions の JSON。schema 2 では emitterInfo / steps / packets / coverage / labels も、項目ごとのフィールドをすべて書き出し、不明な値は null）。`aggregate_items` は、この行を畳み込むときに集計テーブルに足す行数の上限です（schema 1 は observation + transition、schema 2 は observation × 2 + transition × 3 + step + label）。主キーはランダムな整数（0 以上 2^53 未満）で、到着順を残しません。 |
 | `transition_counts` | 保持期間後も残る集計：交差点 × スロット × 遷移元 × 遷移先 × 時刻（JST の時）ごとの件数。 |
 | `observation_counts` | 保持期間後も残る集計：交差点 × メッセージ種別（raw から取得）× RSSI × 方位 × 端末の向きごとの件数。不明値は RSSI = 1、方位・向き = -1 で表します。 |
+| `duration_counts` | 保持期間後も残る集計（schema 2）：交差点 × 種類（`held`・`cycle`・`step`）× スロット × 状態 × 残り目安 × 曜日（JST、0 = 日曜）× 時刻（JST の時）× 続いた秒数（ミリ秒を秒に四捨五入）ごとの件数。`held` は transition の `held`（状態は `from`）、`cycle` は `cycle`（状態は `to`）、`step` は `steps[].held`（残り目安は `from`、不明なら 0）から数えます。`held` と `cycle` の残り目安は 0 です。 |
+| `range_counts` | 保持期間後も残る集計（schema 2）：交差点 × RSSI × 距離 × 方位ごとの、距離のある observation の件数。不明値は `observation_counts` と同じです。 |
+| `crosswalk_labels` | 保持期間後も残る集計（schema 2）：交差点 × スロット × 方位 × 端末の向き × 距離ごとの `crosswalk` の印の件数。不明値は -1 です。`packets`、`coverage`、`button` の印は集計せずに削除します。 |
 | `service_state` | 最後に成功した cron の実行結果（時刻、畳み込んだ行数、削除した鍵の数、書き込んだ行数、データベースの大きさ）。1 行だけで、個人に関わる情報は含みません。 |
 
-スキーマは [`migrations/`](migrations/) にあります（`0003` で `challenges` テーブルを削除し、`reports` を作り直しました）。
+スキーマは [`migrations/`](migrations/) にあります（`0003` で `challenges` テーブルを削除し、`reports` を作り直しました。
+`0004` で schema 2 の集計テーブル 3 つと `reports.aggregate_items` を追加しました）。
 
 ## プライバシー保証
 
@@ -62,6 +66,7 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
   - レポート行（秒単位の時刻を含む）：受信日（UTC）の 91 日後の 18:00 UTC の cron で集計に畳み込んで削除します。
     受信から最長 91 日 18 時間です。cron が 1 回で終わらなかった分は翌日に回ります。
   - App Attest の鍵：最後に使われた日（UTC）の 31 日後の 18:00 UTC の cron で削除します。最後に使われてから最長 31 日 18 時間です。
+  - 集計テーブルには、時刻を JST の時と曜日までしか残しません。
   - 削除したデータも、D1 の Time Travel で、削除から 7 日間（Free プランの場合。Workers Paid は 30 日）はデータベースごと
     削除前の状態に戻せます。Time Travel を使えるのは、Cloudflare アカウントで D1 を操作できる運用者だけです。
 
@@ -109,6 +114,11 @@ Workers Builds は CI の結果を見ません。CI が通らない変更を `ma
 また、`0003` は今ある鍵の「最後に使われた日」を登録日にするので、登録から 30 日を過ぎた鍵は最初の cron で削除されます。
 その端末のアプリは次のトークン更新で `404 unknown_key` を受け取り、鍵を 1 回だけ登録し直します。
 以後のマイグレーションは、できるだけ古いコードでも動く形（列の追加など）にしてください。
+`0004` はテーブルと既定値付きの列を足すだけなので、古いコードもそのまま動きます。古いコードが保存した行は
+`aggregate_items` が 0 になりますが、cron は少なくとも observation + transition の件数（schema 1 の行では正確な値）で数えます。
+`0004` は既存の行の `aggregate_items` も書き換えるので、その時点の `reports` の行数だけ書き込み行数を使います。
+古いコードは schema 2 を `400 invalid_report` で断り、アプリはそのレポートを捨てるので、schema 2 を送るアプリは
+このサーバーをデプロイしてから公開してください。
 
 ### 初回の設定（リポジトリ所有者が 1 回だけ）
 
@@ -320,8 +330,10 @@ Worker は自分の書き込みに上限を設けています（`src/budget.ts`�
     `database_bytes` を時々確かめ、増え続けているときは集計テーブルの不要な行を手で削除してください。
 - 1 台の端末が正規のトークンで上限まで送ると、その日はほかの利用者のレポートも受け付けなくなります。
   端末を区別しない設計のため、これは防げません。D1 全体が止まるのを防ぐことを優先しています。
-- cron は 1 回に最大 20 チャンク（1 チャンクは 1,000 行まで、かつ observation と transition が合わせて
-  4,000 件まで）を畳み込みます。終わらなかった分は翌日に回します（`service_state.backlog` が `1` になります）。
+- cron は 1 回に最大 20 チャンク（1 チャンクは 1,000 行まで、かつ `aggregate_items` の合計が 4,000 まで）を畳み込みます。
+  `aggregate_items` は 1 行が集計テーブル 5 つに足す行数の上限なので、1 チャンクの書き込みは集計 4,000 行と削除 2,000 行
+  （表とインデックス）までに収まります。1 行の `aggregate_items` は最大 2,720 なので、どの行も 1 チャンクに入ります。
+  終わらなかった分は翌日に回します（`service_state.backlog` が `1` になります）。
   1 日の保存量の上限から、1 日に届く行は最大でも約 4,900 行（いちばん小さい行でも 617 バイトと数えるため）なので、ふだんは 1 回で終わります。
 - 鍵の削除は、`attest_keys` を 1 日 1 回全件読みます（`last_used_day` に索引を付けると、トークンの更新ごとに書き込み行が
   増えるため）。鍵は最大でも 1 日 10,000 個（保存量の上限から）しか増えないので、読み取りの無料枠（1 日 500 万行）に収まります。
