@@ -68,3 +68,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm test
+      # Validates cloudflare.config.ts and bundles the Worker as `cf deploy` would, without
+      # credentials or an upload.
+      - name: Build with the deploy configuration (no upload)
+        run: npx cf build
