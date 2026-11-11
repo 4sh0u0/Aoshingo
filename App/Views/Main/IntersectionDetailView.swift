@@ -12,6 +12,20 @@ struct IntersectionDetailView: View {
     let colorMode: SignalColorMode
 
     @ScaledMetric(relativeTo: .body) private var tileWidth: CGFloat = 260
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The widest minimum tile width that still fits the narrowest layout: iPad Slide Over is 320 pt
+    /// wide, 288 pt inside the padding.
+    private static let maximumTileMinimum: CGFloat = 280
+
+    /// Side by side where there is room. At accessibility text sizes the scaled minimum would reach
+    /// about 810 pt, and an adaptive grid does not shrink tiles below it, so one flexible column is used.
+    private var columns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible(), spacing: 12)]
+        }
+        return [GridItem(.adaptive(minimum: min(tileWidth, Self.maximumTileMinimum)), spacing: 12)]
+    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { context in
@@ -80,7 +94,7 @@ struct IntersectionDetailView: View {
                     .foregroundStyle(.secondary)
             }
         } else {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: tileWidth), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(slots, id: \.slot) { slot in
                     let index = slot.slot - 1
                     let shown = index < confirmed.count ? confirmed[index] : nil
