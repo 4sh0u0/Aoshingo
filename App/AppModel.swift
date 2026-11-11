@@ -4,6 +4,7 @@ import FieldDataKit
 import Foundation
 import Observation
 import PICSKit
+import SwiftUI
 import UIKit
 
 /// App state: where packets come from, what we know about each intersection, and what is shown.
@@ -42,6 +43,9 @@ final class AppModel {
     private(set) var missedWhileInBackground = false
     /// `nil` follows the nearest intersection automatically.
     var selectedID: String?
+    /// The intersection that "follow the nearest" shows, chosen with hysteresis so that two
+    /// intersections with similar signal strength do not take turns (see `NearestIntersectionSelector`).
+    private(set) var followedID: String?
 
     var keepScreenOn: Bool = UserDefaults.standard.object(forKey: SettingsKey.keepScreenOn) as? Bool ?? true {
         didSet {
@@ -55,9 +59,12 @@ final class AppModel {
     @ObservationIgnored private let scanner = PICSScanner()
     @ObservationIgnored private let recorder = AdvertisementRecorder()
     @ObservationIgnored private var debouncers: [String: SlotDebouncers] = [:]
+    @ObservationIgnored private var selector = NearestIntersectionSelector()
     @ObservationIgnored private var eventsTask: Task<Void, Never>?
     @ObservationIgnored private var playbackTask: Task<Void, Never>?
     @ObservationIgnored private var counterTask: Task<Void, Never>?
+    /// Re-evaluates the followed intersection while no packets arrive (switch delay, expiry).
+    @ObservationIgnored private var followTask: Task<Void, Never>?
 
     init() {
         eventsTask = Task { [weak self, events = scanner.events] in
@@ -72,10 +79,10 @@ final class AppModel {
 
     var isActive: Bool { source != .idle }
 
-    /// The intersection to show: the user's choice, else the nearest one heard recently, else the last one.
-    func displayedIntersection(at now: Date) -> IntersectionState? {
+    /// The intersection to show: the user's choice, else the one followed automatically.
+    var displayedIntersection: IntersectionState? {
         if let selectedID, let state = store[selectedID] { return state }
-        return store.nearest(at: now) ?? store.all.last
+        return followedID.flatMap { store[$0] } ?? store.mostRecentlyHeard
     }
 
     func confirmedSignals(for id: String) -> [PedestrianSignal?] {
@@ -154,6 +161,8 @@ final class AppModel {
         playbackTask = nil
         counterTask?.cancel()
         counterTask = nil
+        followTask?.cancel()
+        followTask = nil
         if isRecording { setRecording(false) }
         source = .idle
         updateIdleTimer()
@@ -166,6 +175,8 @@ final class AppModel {
         store.removeAll()
         debouncers.removeAll()
         confirmed.removeAll()
+        selector.reset()
+        followedID = nil
         selectedID = nil
         picsPacketCount = 0
         rejectedPacketCount = 0
@@ -173,6 +184,13 @@ final class AppModel {
         missedWhileInBackground = false
         source = newSource
         updateIdleTimer()
+        followTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                self.refreshFollowed(at: Date())
+            }
+        }
     }
 
     // MARK: - Scene phase
@@ -267,12 +285,28 @@ final class AppModel {
             debouncers[id] = slots
             confirmed[id] = slots.confirmed
         }
+        refreshFollowed(at: advertisement.timestamp)
 
         guard source == .live else { return }
         if isRecording {
             Task { [recorder] in await recorder.append(advertisement) }
         }
         field.record(packet, advertisement: advertisement)
+    }
+
+    /// Updates the followed intersection and, while following automatically, tells VoiceOver users
+    /// which intersection the signals now belong to.
+    private func refreshFollowed(at now: Date) {
+        let previous = followedID
+        let next = selector.update(with: store, at: now)
+        guard next != previous else { return }
+        followedID = next
+        // A manual choice stays on screen, so there is nothing to announce then.
+        guard selectedID == nil, let next, let state = store[next] else { return }
+        let name = state.spokenName
+        AccessibilityAnnouncer.announce(previous == nil
+            ? String(localized: "最も近い交差点：\(name)")
+            : String(localized: "最も近い交差点が変わりました：\(name)"))
     }
 
     private func updateIdleTimer() {
@@ -288,5 +322,26 @@ final class AppModel {
         case .notPICS:
             String(localized: "PICS 以外のメーカーデータ")
         }
+    }
+}
+
+extension IntersectionState {
+    /// Name for VoiceOver: the Type 0 name, or the ID while no name has been received, so that two
+    /// unnamed intersections can still be told apart.
+    var spokenName: String {
+        if let identifier, !identifier.isEmpty { return identifier }
+        return String(localized: "名称未受信（ID \(id)）")
+    }
+}
+
+/// VoiceOver announcements for changes the user must not miss.
+@MainActor
+enum AccessibilityAnnouncer {
+    /// Posts a high-priority announcement, which other speech (such as VoiceOver reading the element
+    /// that receives focus after the screen changed) does not interrupt.
+    static func announce(_ message: String) {
+        var text = AttributedString(message)
+        text.accessibilitySpeechAnnouncementPriority = .high
+        AccessibilityNotification.Announcement(text).post()
     }
 }

@@ -11,7 +11,8 @@ struct IntersectionListView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let now = context.date
-            let nearestID = model.store.nearest(at: now)?.id
+            // The intersection "follow the nearest" shows, so the badge and the signal view agree.
+            let nearestID = model.followedID
             List(selection: $selection) {
                 Section {
                     Label("最も近い交差点を自動表示", systemImage: "location.north.circle")

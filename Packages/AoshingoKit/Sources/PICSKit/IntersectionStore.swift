@@ -52,9 +52,16 @@ public struct IntersectionStore: Sendable {
         states.removeAll()
     }
 
-    /// The intersection most likely being approached: the strongest smoothed RSSI among the
+    /// The intersection whose last packet (of any type) arrived most recently. Unlike `all.last`,
+    /// which is the one registered last, this follows reception.
+    public var mostRecentlyHeard: IntersectionState? {
+        states.values.max { ($0.timestamp, $1.id) < ($1.timestamp, $0.id) }
+    }
+
+    /// The intersection most likely being approached right now: the strongest smoothed RSSI among the
     /// intersections heard within `window` seconds. Falls back to the most recently heard one when
-    /// no RSSI is available.
+    /// no RSSI is available. This has no hysteresis; to decide what to show, use
+    /// `NearestIntersectionSelector`.
     public func nearest(at now: Date, within window: TimeInterval = 10) -> IntersectionState? {
         let recent = states.values.filter { now.timeIntervalSince($0.timestamp) <= window }
         let withRSSI = recent.filter { $0.smoothedRSSI != nil }

@@ -117,18 +117,19 @@ private struct DetailContainer: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 banners
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    if let state = model.displayedIntersection(at: context.date) {
-                        IntersectionDetailView(
-                            state: state,
-                            confirmed: model.confirmedSignals(for: state.id),
-                            source: model.source,
-                            isFollowingNearest: model.selectedID == nil,
-                            colorMode: colorMode
-                        )
-                    } else {
-                        EmptyStateView()
-                    }
+                if let state = model.displayedIntersection {
+                    IntersectionDetailView(
+                        state: state,
+                        confirmed: model.confirmedSignals(for: state.id),
+                        source: model.source,
+                        isFollowingNearest: model.selectedID == nil,
+                        colorMode: colorMode
+                    )
+                    // A different intersection is a different view: VoiceOver focus and view state
+                    // must not carry over from the previous intersection's signals.
+                    .id(state.id)
+                } else {
+                    EmptyStateView()
                 }
             }
             .padding()

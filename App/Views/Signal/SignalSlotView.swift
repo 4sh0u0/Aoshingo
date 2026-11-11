@@ -8,6 +8,8 @@ import SwiftUI
 /// The signal area is content, so it uses an opaque background and never Liquid Glass.
 /// Slot numbers carry no direction: which crossing a slot belongs to is not known yet.
 struct SignalSlotView: View {
+    /// Spoken first by VoiceOver, so a signal is never heard without the intersection it belongs to.
+    let intersectionName: String
     let slot: Int
     let signal: PedestrianSignal?
     let stale: Bool
@@ -64,7 +66,7 @@ struct SignalSlotView: View {
     }
 
     private func accessibilityLabel(_ appearance: SignalAppearance) -> String {
-        var parts = [String(localized: "\(slot) 番"), appearance.accessibilityTitle]
+        var parts = [intersectionName, String(localized: "\(slot) 番"), appearance.accessibilityTitle]
         if !stale, let remaining = signal?.remaining {
             parts.append(String(localized: "残り目安 \(remaining) / 8"))
         }
@@ -119,11 +121,11 @@ struct RemainingGauge: View {
 #Preview("Signals") {
     ScrollView {
         VStack {
-            SignalSlotView(slot: 1, signal: .init(remaining: 5, state: .green), stale: false, mode: .standard)
-            SignalSlotView(slot: 2, signal: .init(remaining: 2, state: .blinkGreen), stale: false, mode: .colorUniversal)
-            SignalSlotView(slot: 3, signal: .init(remaining: nil, state: .red), stale: false, mode: .monochrome)
-            SignalSlotView(slot: 4, signal: .init(remaining: 3, state: .red), stale: true, mode: .standard)
-            SignalSlotView(slot: 5, signal: nil, stale: false, mode: .standard)
+            SignalSlotView(intersectionName: DemoAdvertiser.name, slot: 1, signal: .init(remaining: 5, state: .green), stale: false, mode: .standard)
+            SignalSlotView(intersectionName: DemoAdvertiser.name, slot: 2, signal: .init(remaining: 2, state: .blinkGreen), stale: false, mode: .colorUniversal)
+            SignalSlotView(intersectionName: DemoAdvertiser.name, slot: 3, signal: .init(remaining: nil, state: .red), stale: false, mode: .monochrome)
+            SignalSlotView(intersectionName: DemoAdvertiser.name, slot: 4, signal: .init(remaining: 3, state: .red), stale: true, mode: .standard)
+            SignalSlotView(intersectionName: DemoAdvertiser.name, slot: 5, signal: nil, stale: false, mode: .standard)
         }
         .padding()
     }
