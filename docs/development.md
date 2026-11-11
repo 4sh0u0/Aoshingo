@@ -35,6 +35,7 @@ open Aoshingo.xcodeproj
 | `Packages/AoshingoKit/Sources/FieldDataKit` | 実測データの間引き・丸め、送信キュー、App Attest を使う送信クライアント |
 | `server/` | 実測データを受け取る Cloudflare Worker（`main` へのマージで Cloudflare が自動デプロイ）。[`server/README.md`](../server/README.md) |
 | `site/` | 公式サイト（GitHub Pages）。[ウェブサイト](website.md) |
+| `Tools/AppIcon/` | ロゴ（原本は `App/Views/Brand/AoshingoLogo.swift`）から App アイコンと `docs/assets/brand/` のロゴ素材を書き出すツール（Mac）。[`Tools/AppIcon/README.md`](../Tools/AppIcon/README.md) |
 | `docs/` | 使い方、プライバシーポリシー、送信 API、現地確認の手順など |
 
 ## 記録ファイルの共有
