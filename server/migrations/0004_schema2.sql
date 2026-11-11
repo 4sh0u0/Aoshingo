@@ -51,6 +51,7 @@ CREATE TABLE crosswalk_labels (
 -- 2. The most aggregate rows a report row adds when folded (src/storage.ts, aggregateItems).
 -- The cron sizes its chunks with it, so that a chunk's writes stay bounded although a schema 2
 -- item can count in more than one table. Rows stored so far are schema 1, where each observation
--- and transition counts once.
+-- and transition counts once. They keep the default 0: the cron weighs every row by at least
+-- observation_count + transition_count, which is exact for them, so rewriting each existing row
+-- (one written row each, against the daily write limit) is not needed.
 ALTER TABLE reports ADD COLUMN aggregate_items INTEGER NOT NULL DEFAULT 0;
-UPDATE reports SET aggregate_items = observation_count + transition_count;

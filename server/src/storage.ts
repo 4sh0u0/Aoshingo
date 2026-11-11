@@ -281,8 +281,9 @@ const DELETE_FOLDED_SQL = "DELETE FROM reports WHERE received_day < ?1 AND (rece
 
 // The next chunk, in (received_day, id) order so the received_day index (which carries the rowid
 // id) is read in order and only the chunk's rows are read. Returns no row when nothing has
-// expired. Rows that the previous version inserted while a deploy was under way have the column
-// default aggregate_items = 0; they are schema 1, for which observations + transitions is exact.
+// expired. Rows stored before migration 0004, and rows that the previous version inserted while a
+// deploy was under way, have the column default aggregate_items = 0; they are schema 1, for which
+// observations + transitions is exact.
 const NEXT_CHUNK_SQL = `
 WITH candidates AS (
   SELECT received_day, id, max(aggregate_items, observation_count + transition_count) AS items
