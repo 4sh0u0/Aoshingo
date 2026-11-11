@@ -115,7 +115,8 @@ final class FieldDataModel {
     func record(_ packet: PICSPacket, advertisement: ReceivedAdvertisement) {
         guard isEnabled else { return }
         let emitter = emitterAliases.alias(for: advertisement.peripheralID.uuidString)
-        let context = location.context(at: advertisement.timestamp)
+        var context = location.context(at: advertisement.timestamp)
+        context.nearbyDevices = advertisement.nearbyDevices
         Task {
             await pipeline.record(
                 packet,
@@ -124,9 +125,33 @@ final class FieldDataModel {
                 rssi: advertisement.rssi,
                 serviceUUIDs: advertisement.serviceUUIDs,
                 emitter: emitter,
+                txPower: advertisement.txPower,
+                connectable: advertisement.isConnectable,
                 context: context
             )
         }
+    }
+
+    /// What happened to a tester label.
+    enum LabelResult: Sendable, Equatable {
+        /// Recorded; `heading` is the 8-sector device heading stored with it, if known.
+        case recorded(heading: Int?)
+        /// A crosswalk label needs the device heading, and iOS has none (or only an inaccurate one) now.
+        case noHeading
+        /// Collection is off, or the label could not be added (limits).
+        case notRecorded
+    }
+
+    /// Records a tester label ("slot n is the crosswalk I am facing", or "I pressed the push button")
+    /// for an intersection being received live. It is uploaded with the field data.
+    func label(_ kind: FieldReport.Label.Kind, slot: Int?, intersectionID: String) async -> LabelResult {
+        guard isEnabled else { return .notRecorded }
+        let now = Date()
+        let context = location.context(at: now)
+        if kind == .crosswalk, context.trueHeading == nil { return .noHeading }
+        let recorded = await pipeline.recordLabel(kind, slot: slot, intersectionID: intersectionID, at: now, context: context)
+        await refreshStatus()
+        return recorded ? .recorded(heading: Bucketing.sector(degrees: context.trueHeading)) : .notRecorded
     }
 
     /// Queues the current window when due (or always when `force`) and uploads the queue.

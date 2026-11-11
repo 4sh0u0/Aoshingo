@@ -31,6 +31,16 @@
         }
       }
     },
+    "%lld 番を記録しました（%@向き）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded No. %lld (facing %@)"
+          }
+        }
+      }
+    },
     "%lld 秒前": {
       "localizations": {
         "en": {
@@ -171,6 +181,16 @@
         }
       }
     },
+    "「現地確認」欄で印を付けたときは、その印（信号の番号と端末の向き）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Labels you add in the Field Check section (the signal number and the direction your device faces)"
+          }
+        }
+      }
+    },
     "あとから設定画面でいつでも変更できます。": {
       "localizations": {
         "en": {
@@ -191,12 +211,22 @@
         }
       }
     },
-    "おおまかな方向を求めるために位置情報の許可をお願いすることがあります。位置そのものは端末の外に出ません。同じ送信用トークン（最長 6 時間有効）で送ったデータは、サーバーが受け取るときに同じ端末からのものと分かります。サーバーはトークンを実測データと一緒には保存しません。生データは 90 日後に削除し、交差点ごとの集計だけを残します。送信したデータには識別子がないため、あとから個別に削除することはできません。": {
+    "いま向いている方向の横断歩道を、この番号の信号として記録します": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aoshingo may ask for location access to work out the rough direction. Your location itself never leaves the device. Data sent with the same upload token (valid for up to 6 hours) can be recognised by the server as coming from the same device when it arrives; the server does not store the token with the field data. Raw data is deleted after 90 days and only per-intersection totals are kept. Because sent data carries no identifier, it cannot be deleted individually later."
+            "value": "Records the crosswalk you are facing as this signal number"
+          }
+        }
+      }
+    },
+    "おおまかな方向と距離を求めるために位置情報の許可をお願いすることがあります。位置そのものは端末の外に出ませんが、方向と距離を合わせると、交差点のまわり数十 m のどのあたりにいたかは分かります。同じ送信用トークン（最長 6 時間有効）で送ったデータは、サーバーが受け取るときに同じ端末からのものと分かります。サーバーはトークンを実測データと一緒には保存しません。生データは 90 日後に削除し、交差点ごとの集計だけを残します。送信したデータには識別子がないため、あとから個別に削除することはできません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aoshingo may ask for location access to work out the rough direction and distance. Your location itself never leaves the device, but together the direction and distance show roughly where you were within a few dozen metres of the intersection. Data sent with the same upload token (valid for up to 6 hours) can be recognised by the server as coming from the same device when it arrives; the server does not store the token with the field data. Raw data is deleted after 90 days and only per-intersection totals are kept. Because sent data carries no identifier, it cannot be deleted individually later."
           }
         }
       }
@@ -471,12 +501,12 @@
         }
       }
     },
-    "交差点から見たあなたの方向と、端末の向き（どちらも 8 方位のおおまかな区分）": {
+    "交差点から見たあなたの方向と距離、端末の向き、歩く向きと速さ（どれもおおまかな区分）": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your direction from the intersection and the direction your device faces (each as one of 8 rough compass sectors)"
+            "value": "Your direction and distance from the intersection, the direction your device faces, and your walking direction and speed (all as rough categories)"
           }
         }
       }
@@ -507,16 +537,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Position"
-          }
-        }
-      }
-    },
-    "信号が変わった時刻（秒単位）": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "When a signal changed (to the second)"
           }
         }
       }
@@ -557,6 +577,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Which crossing each signal number belongs to has not been confirmed yet."
+          }
+        }
+      }
+    },
+    "信号や「残り目安」が変わった時刻（秒単位）と、それぞれが続いた時間（0.1 秒単位）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When signals and the remaining-time indication changed (to the second), and how long each lasted (to 0.1 s)"
           }
         }
       }
@@ -651,6 +681,36 @@
         }
       }
     },
+    "北": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "north"
+          }
+        }
+      }
+    },
+    "北東": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "northeast"
+          }
+        }
+      }
+    },
+    "北西": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "northwest"
+          }
+        }
+      }
+    },
     "協力しない": {
       "localizations": {
         "en": {
@@ -667,6 +727,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Share"
+          }
+        }
+      }
+    },
+    "南": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "south"
+          }
+        }
+      }
+    },
+    "南東": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "southeast"
+          }
+        }
+      }
+    },
+    "南西": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "southwest"
           }
         }
       }
@@ -821,6 +911,16 @@
         }
       }
     },
+    "周りにある Bluetooth 機器のおおよその数（混み具合の目安。機器の識別子は送りません）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The approximate number of Bluetooth devices nearby, as a sign of how crowded it is (no device identifiers are sent)"
+          }
+        }
+      }
+    },
     "周囲の Bluetooth 広告：%lld 件": {
       "localizations": {
         "en": {
@@ -871,6 +971,16 @@
         }
       }
     },
+    "実測データの提供をオンにすると、どの番号がどの横断歩道の信号かを記録できます（テスター向け）。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on field data contribution to record which number belongs to which crosswalk (for testers)."
+          }
+        }
+      }
+    },
     "実測データを提供する": {
       "localizations": {
         "en": {
@@ -907,6 +1017,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "About"
+          }
+        }
+      }
+    },
+    "押しボタンを押した": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I Pressed the Button"
+          }
+        }
+      }
+    },
+    "押しボタンを押したことを記録しました": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded the button press"
+          }
+        }
+      }
+    },
+    "押しボタンを押した時刻を記録します": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Records the time you pressed the push button"
           }
         }
       }
@@ -1041,12 +1181,42 @@
         }
       }
     },
+    "東": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "east"
+          }
+        }
+      }
+    },
     "標準": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Standard"
+          }
+        }
+      }
+    },
+    "横断歩道の対応を記録（テスター向け）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record Crosswalks (for Testers)"
+          }
+        }
+      }
+    },
+    "横断歩道の手前で、渡る方向に iPhone を向けてから、その横断歩道の信号の番号を押してください。端末の向きと、交差点から見たおおまかな位置を記録して、実測データと一緒に送ります。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At the kerb, point your iPhone in the direction you would cross, then tap the number of that crosswalk’s signal. The direction your device faces and your rough position relative to the intersection are recorded and sent with the field data."
           }
         }
       }
@@ -1201,6 +1371,16 @@
         }
       }
     },
+    "端末の向きが分からないため記録しませんでした。iPhone を水平に持って少し待ち、もう一度押してください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not recorded because the direction your device faces is unknown. Hold your iPhone flat, wait a moment and tap again."
+          }
+        }
+      }
+    },
     "自動": {
       "localizations": {
         "en": {
@@ -1261,12 +1441,42 @@
         }
       }
     },
+    "西": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "west"
+          }
+        }
+      }
+    },
     "解析結果（最新）": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Decoded (latest)"
+          }
+        }
+      }
+    },
+    "記録しました": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded"
+          }
+        }
+      }
+    },
+    "記録できませんでした": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not record"
           }
         }
       }
@@ -1401,6 +1611,16 @@
         }
       }
     },
+    "送信する内容が増えました。新しい内容を確かめて、協力するかどうかをもう一度選んでください。選ぶまでは何も送信しません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aoshingo now sends more data. Please review the new list and choose again whether to contribute. Nothing is sent until you choose."
+          }
+        }
+      }
+    },
     "送信待ちの報告": {
       "localizations": {
         "en": {
@@ -1471,12 +1691,12 @@
         }
       }
     },
-    "電波の強さ（5 dB 単位）": {
+    "電波の強さ（5 dB 単位）、受信の間隔、送信機の数と送信出力": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Signal strength (in 5 dB steps)"
+            "value": "Signal strength (in 5 dB steps), reception intervals, and the number and transmit power of transmitters"
           }
         }
       }

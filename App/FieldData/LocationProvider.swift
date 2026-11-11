@@ -5,16 +5,20 @@ import FieldDataKit
 import Foundation
 import PICSKit
 
-/// Supplies the user's position and heading for the coarse bearing sectors of field data.
+/// Supplies the user's position, heading and movement for the coarse sectors and buckets of field data.
 ///
 /// Used only while field-data collection is on and live reception is running. Coordinates never
-/// leave the device; only the 8-sector bearing and heading do.
+/// leave the device; only the sectors and buckets derived from them do (docs/field-data-api.md).
 @MainActor
 final class LocationProvider: NSObject, CLLocationManagerDelegate {
     /// Fixes worse than this are not used.
     static let maximumHorizontalAccuracy: CLLocationAccuracy = 30
     static let maximumAge: TimeInterval = 10
     static let maximumHeadingError: CLLocationDirection = 30
+    /// Direction of travel is used only when iOS rates it at least this accurate.
+    static let maximumCourseError: CLLocationDirectionAccuracy = 45
+    /// Speed is used only when iOS rates it at least this accurate (m/s).
+    static let maximumSpeedError: CLLocationSpeedAccuracy = 1.5
 
     private let manager = CLLocationManager()
     private var location: CLLocation?
@@ -64,6 +68,14 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
            location.horizontalAccuracy <= Self.maximumHorizontalAccuracy,
            now.timeIntervalSince(location.timestamp) <= Self.maximumAge {
             context.userLocation = Coordinate(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
+            context.horizontalAccuracy = location.horizontalAccuracy
+            // Negative values mean "invalid" for all four.
+            if location.speed >= 0, location.speedAccuracy >= 0, location.speedAccuracy <= Self.maximumSpeedError {
+                context.speed = location.speed
+            }
+            if location.course >= 0, location.courseAccuracy >= 0, location.courseAccuracy <= Self.maximumCourseError {
+                context.course = location.course
+            }
         }
         if let heading,
            heading.trueHeading >= 0,
