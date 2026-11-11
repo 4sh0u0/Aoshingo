@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Regenerates the website icons and the Open Graph image from the app icon.
 
-    python3 site/scripts/make-images.py \
-        App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png site/public/assets
+    python3 site/scripts/make-images.py docs/assets/brand/aoshingo-icon-1024.png site/public/assets
+
+The 1024 PNG is written by Tools/AppIcon/export.sh from the SwiftUI logo.
 
 Needs Pillow, Inter Display Bold and IPAPGothic (Debian/Ubuntu: fonts-inter, fonts-ipafont-gothic).
 Set LATIN_FONT / JAPANESE_FONT to use other font files.

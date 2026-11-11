@@ -4,8 +4,8 @@
 // app's eight-step remaining-time estimate (残り 8 段階).
 //
 // The logo is drawn only with SwiftUI shapes on a 1024 × 1024 design grid, and this file is the master
-// artwork: Tools/AppIcon/export.sh writes the app icon (the Icon Composer document and the flat 1024 PNG)
-// and the brand SVGs in docs/assets/brand from these same numbers. Run it again after any change here.
+// artwork: Tools/AppIcon/export.sh writes the app icon (an Icon Composer document) and the brand files in
+// docs/assets/brand from these same numbers. Run it again after any change here.
 //
 // Colour is never the only cue: lit and unlit steps differ in lightness (3.2:1 on the icon), the
 // figure stands out from the background by more than 10:1, and nothing depends on red vs green.

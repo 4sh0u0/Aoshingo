@@ -6,10 +6,12 @@ Aoshingo のロゴの原本は SwiftUI のコード [`App/Views/Brand/AoshingoLo
 
 | ファイル | 使い道 |
 |---|---|
-| `App/Resources/AppIcon.icon/`（`icon.json` と `Assets/*.svg`） | Icon Composer のアイコン。iOS 26 以降の Liquid Glass 表示（デフォルト・ダーク・色付き・クリア） |
-| `App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png` | 1024 × 1024 の平らなアイコン。iOS 18〜25 用 |
+| `App/Resources/AppIcon.icon/`（`icon.json` と `Assets/*.svg`） | App アイコン（Icon Composer の書類）。iOS 26 以降は Liquid Glass で表示（デフォルト・ダーク・色付き・クリア） |
 | `docs/assets/brand/aoshingo-icon.svg` | 角丸の紺タイル付きロゴ（README・サイト用） |
 | `docs/assets/brand/aoshingo-mark-dark.svg` / `aoshingo-mark-light.svg` | 背景なしのロゴ。暗い背景用 / 明るい背景用 |
+| `docs/assets/brand/aoshingo-icon-1024.png` | 角なしの 1024 × 1024 PNG。サイトのアイコンと OGP 画像の元 |
+
+`AppIcon.appiconset` は置きません。iOS 18〜25 用のアイコンは、Xcode がビルド時に `AppIcon.icon` から平らな画像（ダーク・色付きの版も）を作ります。同じ名前の `AppIcon.appiconset` があっても使われません。
 
 ## 書き出す（Mac）
 
@@ -18,6 +20,8 @@ Tools/AppIcon/export.sh
 ```
 
 Xcode のコマンドラインツールでツールをビルドして、リポジトリの中のファイルを上書きします。PNG は書き出しのときに背景・点灯段・消灯段・人の色を 1 点ずつ確かめ、ずれていれば失敗します。
+
+`icon.json` に `color-space-for-untagged-svg-colors` は書きません。省くと Icon Composer は SVG の色を sRGB として読みます（設計どおり）。このキーは `display-p3` しか受け付けず、`srgb` と書くと Icon Composer が書類を開けません。
 
 ## ロゴを変えるとき
 
@@ -37,7 +41,7 @@ Xcode のコマンドラインツールでツールをビルドして、リポ�
 4. サイトの画像を作り直す（[`site/scripts/make-images.py`](../../site/scripts/make-images.py)）。
 
    ```sh
-   python3 site/scripts/make-images.py App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png site/public/assets
+   python3 site/scripts/make-images.py docs/assets/brand/aoshingo-icon-1024.png site/public/assets
    ```
 
 ## デザイン

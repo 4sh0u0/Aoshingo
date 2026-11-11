@@ -3,9 +3,12 @@
 // Writes the app icon and the brand files from the SwiftUI master artwork in
 // App/Views/Brand/AoshingoLogo.swift. Build and run it with Tools/AppIcon/export.sh on a Mac.
 //
-//   App/Resources/AppIcon.icon/icon.json, Assets/*.svg        Icon Composer document (iOS 26 and later)
-//   App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png   flat 1024 × 1024 icon (iOS 18–25)
-//   docs/assets/brand/aoshingo-*.svg                            logo files for the README and the website
+//   App/Resources/AppIcon.icon/icon.json, Assets/*.svg   the app icon, an Icon Composer document
+//   docs/assets/brand/aoshingo-*.svg                       logo files for the README and the website
+//   docs/assets/brand/aoshingo-icon-1024.png               flat square icon the website images start from
+//
+// There is no AppIcon.appiconset: Xcode builds the icons for iOS 18–25 from the Icon Composer document
+// itself (flattened, with dark and tinted variants), and ignores a same-named PNG icon set.
 //
 // The SVG paths are the SwiftUI paths themselves (strokes already outlined), so every output matches the
 // logo the app draws.
@@ -23,9 +26,8 @@ enum ExportAppIcon {
         let root = URL(fileURLWithPath: ProcessInfo.processInfo.arguments.dropFirst().first ?? ".", isDirectory: true)
         let iconDocument = root.appending(path: "App/Resources/AppIcon.icon")
         let iconAssets = iconDocument.appending(path: "Assets")
-        let appIconSet = root.appending(path: "App/Resources/Assets.xcassets/AppIcon.appiconset")
         let brand = root.appending(path: "docs/assets/brand")
-        for directory in [iconAssets, appIconSet, brand] {
+        for directory in [iconAssets, brand] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
 
@@ -37,13 +39,13 @@ enum ExportAppIcon {
         }
         try write(iconJSON(), to: iconDocument.appending(path: "icon.json"))
 
-        // iOS 18–25 do not read the Icon Composer document and use this single opaque square instead.
-        try writeFlatPNG(of: AoshingoLogoMark(appearance: .tile, roundedTile: false), side: 1024, to: appIconSet.appending(path: "AppIcon.png"))
-
         let all = AoshingoLogoArtwork.layers
         try write(SVG.document(all, appearance: .tile, tile: true), to: brand.appending(path: "aoshingo-icon.svg"))
         try write(SVG.document(all, appearance: .dark), to: brand.appending(path: "aoshingo-mark-dark.svg"))
         try write(SVG.document(all, appearance: .light), to: brand.appending(path: "aoshingo-mark-light.svg"))
+        // The website makes its favicon, apple-touch-icon and Open Graph image from this square
+        // (site/scripts/make-images.py).
+        try writeFlatPNG(of: AoshingoLogoMark(appearance: .tile, roundedTile: false), side: 1024, to: brand.appending(path: "aoshingo-icon-1024.png"))
     }
 
     // MARK: Icon Composer document
@@ -94,7 +96,7 @@ enum ExportAppIcon {
         renderer.isOpaque = true
         guard let image = renderer.cgImage else { throw ExportError("ImageRenderer returned no image") }
 
-        // Redraw as 8-bit sRGB without alpha: App Store Connect rejects an app icon with an alpha channel.
+        // Redraw as 8-bit sRGB without alpha: the apple-touch-icon made from it must be opaque.
         guard let space = CGColorSpace(name: CGColorSpace.sRGB),
               let context = CGContext(
                   data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0, space: space,
@@ -113,7 +115,7 @@ enum ExportAppIcon {
     }
 
     /// Samples one point of each colour, so that a colour-space slip or an upside-down gradient fails the
-    /// export instead of reaching the App Store.
+    /// export instead of reaching the website.
     static func checkColours(in context: CGContext, side: Int) throws {
         guard let data = context.data else { throw ExportError("no pixel data") }
         let pixels = data.assumingMemoryBound(to: UInt8.self)
