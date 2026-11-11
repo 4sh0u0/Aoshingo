@@ -5,6 +5,11 @@ import SwiftUI
 
 /// How one pedestrian signal is drawn. Colour is never the only cue: every state also has its own
 /// symbol and words, in every colour mode.
+///
+/// Every `foreground` keeps at least 4.5:1 (WCAG 2.x) against its `fill`, because the slot number and
+/// the remaining-time text are small: standard 青 4.88, standard 赤 5.02, colour-universal 青 5.38,
+/// colour-universal 赤 6.26 (black text), monochrome 21, neutral (systemGray4 with .primary) 11.4 in
+/// dark and 13.8 in light mode, 7.6 and 11.1 with Increase Contrast.
 struct SignalAppearance: Equatable {
     var symbol: String
     var title: LocalizedStringKey
@@ -23,8 +28,9 @@ struct SignalAppearance: Equatable {
     }
 
     enum Standard {
-        /// Japanese 青 signals are blue-green.
-        static let green = Color(red: 0x00 / 255, green: 0x99 / 255, blue: 0x80 / 255)
+        /// Japanese 青 signals are blue-green. #00806B keeps the hue of the earlier #009980 but is dark
+        /// enough for white text (4.88:1 instead of 3.58:1).
+        static let green = Color(red: 0x00 / 255, green: 0x80 / 255, blue: 0x6B / 255)
         static let red = Color(red: 0xD7 / 255, green: 0x26 / 255, blue: 0x1E / 255)
     }
 

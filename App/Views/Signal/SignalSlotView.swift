@@ -38,6 +38,7 @@ struct SignalSlotView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             Image(systemName: appearance.symbol)
                 .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 96 : 72, weight: .bold))
+                .modifier(BlinkModifier(active: appearance.blinks && !reduceMotion))
                 .accessibilityHidden(true)
             VStack(spacing: 2) {
                 Text(appearance.title)
@@ -60,7 +61,6 @@ struct SignalSlotView: View {
                 style: StrokeStyle(lineWidth: appearance.isDashed ? 6 : 1.5, dash: appearance.isDashed ? [14, 10] : [])
             )
         }
-        .modifier(BlinkModifier(active: appearance.blinks && !reduceMotion))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel(appearance))
         // The remaining time is the value, so its steps never make VoiceOver re-read the label.
@@ -85,15 +85,20 @@ struct SignalSlotView: View {
     }
 }
 
-/// Blinks the slot twice a second for 青点滅. With Reduce Motion the dashed border alone marks it.
+/// Blinks the walking figure for 青点滅, on and off every half second, like the real signal head.
+/// Only the symbol blinks: the words and the remaining-time text keep their full contrast in both
+/// phases. With Reduce Motion the dashed border alone marks it.
 private struct BlinkModifier: ViewModifier {
+    /// Opacity of the symbol in the off phase; it stays faintly visible so the shape is not lost.
+    static let offOpacity = 0.2
+
     let active: Bool
 
     func body(content: Content) -> some View {
         if active {
             TimelineView(.periodic(from: .now, by: 0.5)) { context in
                 let on = Int(context.date.timeIntervalSinceReferenceDate * 2).isMultiple(of: 2)
-                content.opacity(on ? 1 : 0.6)
+                content.opacity(on ? 1 : Self.offOpacity)
             }
         } else {
             content
