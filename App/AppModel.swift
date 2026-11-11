@@ -36,7 +36,11 @@ final class AppModel {
     private(set) var picsPacketCount = 0
     private(set) var otherAdvertisementCount = 0
     private(set) var rejectedPacketCount = 0
+    /// Why the most recent PICS packet was discarded. Shown while searching, where it explains why
+    /// nothing appears (for example a transmitter whose messages are shorter than expected).
     private(set) var lastRejection: String?
+    /// Set when the chosen recording could not be read or held no packets.
+    private(set) var replayLoadFailed = false
     private(set) var isRecording = false
     private(set) var recordingError: String?
     /// Set when the app returned from the background while receiving: nothing was received meanwhile.
@@ -127,10 +131,14 @@ final class AppModel {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url) else {
-            lastRejection = String(localized: "記録ファイルを読み込めませんでした。")
+            reportReplayLoadFailure()
             return
         }
         let records = RecordingFormat.decode(data).records.sorted { $0.t < $1.t }
+        guard records.contains(where: { $0.bytes != nil }) else {
+            reportReplayLoadFailure()
+            return
+        }
         begin(.replay(name: url.lastPathComponent))
         playbackTask = Task { [weak self] in
             var peripherals: [String: UUID] = [:]
@@ -151,6 +159,16 @@ final class AppModel {
                 ))
             }
         }
+    }
+
+    func dismissReplayError() {
+        replayLoadFailed = false
+    }
+
+    /// The file importer has just closed, so VoiceOver users also hear why nothing starts.
+    private func reportReplayLoadFailure() {
+        replayLoadFailed = true
+        AccessibilityAnnouncer.announce(String(localized: "記録ファイルを読み込めませんでした。"))
     }
 
     func stop() {
@@ -181,6 +199,7 @@ final class AppModel {
         picsPacketCount = 0
         rejectedPacketCount = 0
         lastRejection = nil
+        replayLoadFailed = false
         missedWhileInBackground = false
         source = newSource
         updateIdleTimer()

@@ -149,6 +149,11 @@ private struct DetailContainer: View {
         case .idle, .live:
             EmptyView()
         }
+        if model.replayLoadFailed {
+            Banner(systemImage: "exclamationmark.triangle.fill", text: "記録ファイルを読み込めませんでした。") {
+                model.dismissReplayError()
+            }
+        }
         if model.missedWhileInBackground {
             Banner(systemImage: "lock.fill", text: "画面を閉じている間は受信できません。表示を続けてください。") {
                 model.dismissBackgroundNotice()
@@ -246,6 +251,10 @@ private struct EmptyStateView: View {
                     if model.rejectedPacketCount > 0 {
                         Text("破棄したパケット：\(model.rejectedPacketCount) 件")
                             .font(.footnote)
+                        if let reason = model.lastRejection {
+                            Text("最後に破棄した理由：\(reason)")
+                                .font(.footnote)
+                        }
                     }
                 }
             }
