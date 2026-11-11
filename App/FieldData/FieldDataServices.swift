@@ -82,7 +82,9 @@ struct URLSessionTransport: HTTPTransport {
         configuration.timeoutIntervalForRequest = 20
         configuration.httpCookieStorage = nil
         configuration.urlCache = nil
-        configuration.httpAdditionalHeaders = ["User-Agent": "Aoshingo"]
+        // Fixed values, so requests do not carry the OS version (the default User-Agent names the
+        // CFNetwork and Darwin versions) or the user's preferred languages (Accept-Language).
+        configuration.httpAdditionalHeaders = ["User-Agent": "Aoshingo", "Accept-Language": "en"]
         session = URLSession(configuration: configuration)
     }
 

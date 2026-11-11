@@ -80,14 +80,14 @@ Pull Request で `site/` を変更すると、GitHub Actions でも同じチェ�
 
 最初の 1 回だけ、リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** にしておく必要があります。
 
-独自ドメイン `aoshingo.4sh.es` は、**Settings → Pages → Custom domain** で設定し、**Enforce HTTPS** をオンにしています。DNS（Cloudflare）には `aoshingo.4sh.es` から `4sh0u0.github.io` への CNAME レコードを、プロキシを使わない **DNS only** で置きます。プロキシを有効にすると、Cloudflare がページにボット検知のスクリプトなどを差し込み、閲覧者の通信も Cloudflare を通るため、プライバシーポリシーの「11. このウェブサイト」と合わなくなります。また GitHub が HTTPS の証明書を発行できず、Enforce HTTPS も使えません。GitHub Actions で公開するサイトでは `CNAME` ファイルは使われないため、リポジトリには置きません。
+独自ドメイン `aoshingo.4sh.es` は、**Settings → Pages → Custom domain** で設定し、**Enforce HTTPS** をオンにしています。DNS（Cloudflare）には `aoshingo.4sh.es` から `4sh0u0.github.io` への CNAME レコードを、プロキシを使わない **DNS only** で置きます。プロキシを有効にすると、Cloudflare がページにボット検知のスクリプトなどを差し込み、閲覧者の通信も Cloudflare を通るため、プライバシーポリシーの「12. このウェブサイト」と合わなくなります。また GitHub が HTTPS の証明書を発行できず、Enforce HTTPS も使えません。GitHub Actions で公開するサイトでは `CNAME` ファイルは使われないため、リポジトリには置きません。
 
 ## 書くときの決まり
 
 - 日本語を基本にします。ほかの言語は `site/public/en/` のように言語ごとのフォルダーに同じ構成で追加し、各ページの `<html lang>` と `hreflang` の相互リンクを設定します。
 - 外部のサービスは、開発の基盤として使っている GitHub と Cloudflare のものだけを使います（例：お問い合わせ用の Cloudflare Workers、Turnstile、Email Routing）。それ以外のフォント、画像、スクリプト、解析ツール、広告、SNS の埋め込みは読み込みません。
 - GitHub や Cloudflare のサービスを新しくページで使うときは、同じ Pull Request で次の 2 つを行います。
-  - プライバシーポリシーの「11. このウェブサイト」に、サービスの名前、使う目的、そのサービスに送られる情報を書く
+  - プライバシーポリシーの「12. このウェブサイト」に、サービスの名前、使う目的、そのサービスに送られる情報を書く
   - ページが読み込むホスト名を、そのまま `site/scripts/check-pages.mjs` の `ALLOWED_EXTERNAL_HOSTS` に加える（完全一致）
 - スクリプトは必要な部分（「メールアドレスを表示」ボタンなど）にだけ使い、文章と表はスクリプトなしでも読めるようにします。スクリプトはサイトの中に置き（`site/public/assets/`）、外部のスクリプトは操作されたときにだけ読み込みます。
 - このサイト自体は Cookie とアクセス解析を使いません。使う場合は、先にプライバシーポリシーを改定します。Turnstile のように、外部のサービスが確認のために Cookie などを使う場合も、プライバシーポリシーに書きます。

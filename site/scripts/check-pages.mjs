@@ -37,7 +37,7 @@ const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-
 // Hosts outside the site that pages may load from: only this project's own GitHub and Cloudflare
 // infrastructure. Exact host names only: github.io, workers.dev and the like are shared by everyone,
 // so a suffix match would let any third party's page or Worker through. Before a page starts loading
-// from a new host, say in "11. このウェブサイト" of the privacy policy what it is used for and what it
+// from a new host, say in "12. このウェブサイト" of the privacy policy what it is used for and what it
 // receives. Requests to these hosts are blocked during the check, so it stays offline.
 const ALLOWED_EXTERNAL_HOSTS = new Set([
   "github.com",
