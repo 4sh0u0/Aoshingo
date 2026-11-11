@@ -12,6 +12,28 @@ const SERVICE_UUID_PATTERN =
   /^(?:[0-9A-F]{4}|[0-9A-F]{8}|[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})$/;
 const RAW_PATTERN = /^CE01(?:[0-9A-F]{2})+$/;
 const MAX_PAST_SECONDS = 7 * 24 * 3600;
+
+/**
+ * Smallest PICS payload (the bytes after the company ID) per message type, from
+ * PICSParser.minimumLength in Packages/AoshingoKit/Sources/PICSKit/PICSPacket.swift. The app
+ * uploads a packet only when that parser accepts it, so the server accepts exactly the same
+ * packets: the 10-byte common header, plus for type 0 (name) bytes 10..<24, type 1 (position)
+ * bytes 10..<18 and type 2 (signals) at least one signal byte. Other message types carry only
+ * the header as far as the parser knows; the app still uploads them, so they are accepted.
+ * Update both together.
+ */
+export function picsMinimumLength(messageType: number): number {
+  switch (messageType) {
+    case 0:
+      return 24;
+    case 1:
+      return 18;
+    case 2:
+      return 11;
+    default:
+      return 10;
+  }
+}
 const MAX_FUTURE_SECONDS = 300;
 
 export interface Observation {
@@ -100,9 +122,12 @@ function validateObservation(value: unknown, intersectionId: string, nowSeconds:
   checkKeys(value, ["t", "raw", "rssi", "bearing", "heading"], where);
   const t = checkTime(value.t, nowSeconds, where);
   const raw = value.raw;
+  // 24 characters: the company ID and the 10-byte PICS header.
   if (typeof raw !== "string" || raw.length < 24 || raw.length > 128 || !RAW_PATTERN.test(raw)) {
     invalid(`${where}.raw`);
   }
+  // The message type is payload byte 2 (hex characters 8..<10); see picsMinimumLength.
+  if ((raw.length - 4) / 2 < picsMinimumLength(parseInt(raw.slice(8, 10), 16))) invalid(`${where}.raw length`);
   // Bytes 6..<10 after the two company-ID bytes, i.e. bytes 8..<12 of raw (hex characters 16..<24).
   if (raw.slice(16, 24) !== intersectionId) invalid(`${where}.raw intersection`);
   const rssi = nullableInteger(value, "rssi", -130, 0, where);

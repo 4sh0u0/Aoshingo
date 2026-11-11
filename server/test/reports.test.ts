@@ -74,7 +74,8 @@ const ACCEPTED: [string, Mutation][] = [
   ["600 observations", (r) => (intersection(r).observations = Array(600).fill(observation(r)))],
   ["observation t = now - 7 days", (r, now) => set(observation(r), "t", now - 7 * DAY)],
   ["observation t = now + 300", (r, now) => set(observation(r), "t", now + 300)],
-  ["raw of 24 characters", (r) => set(observation(r), "raw", rawWithId(ID, 24))],
+  ["raw of 24 characters (an unknown message type with only the header)", (r) =>
+    set(observation(r), "raw", "CE010000632A0000" + ID)],
   ["raw of 128 characters", (r) => set(observation(r), "raw", rawWithId(ID, 128))],
   ["rssi 0", (r) => set(observation(r), "rssi", 0)],
   ["rssi -130", (r) => set(observation(r), "rssi", -130)],
@@ -239,6 +240,87 @@ describe("report validation table", () => {
     });
     expect((await submit(report)).status).toBe(400);
     expect(await reportCount()).toBe(0);
+  });
+});
+
+/**
+ * A PICS packet as iOS delivers it ("CE01" + payload), built like packet(type:length:) in
+ * Packages/AoshingoKit/Tests/PICSKitTests/PICSParserTests.swift: message ID 42 and intersection
+ * 1234ABCD, everything else zero unless `fill` sets it.
+ */
+function pics(type: number, length: number, fill: Record<number, number[]> = {}): string {
+  const bytes = new Array<number>(length).fill(0);
+  bytes[2] = type;
+  bytes[3] = 42;
+  bytes.splice(6, 4, 0x12, 0x34, 0xab, 0xcd);
+  for (const [offset, values] of Object.entries(fill)) bytes.splice(Number(offset), values.length, ...values);
+  return "CE01" + bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+
+const utf8 = (text: string) => [...new TextEncoder().encode(text)];
+const int32 = (value: number) => {
+  const view = new DataView(new ArrayBuffer(4));
+  view.setInt32(0, value);
+  return [...new Uint8Array(view.buffer)];
+};
+
+/** Packets that PICSParser.parse(manufacturerData:) accepts; the server must accept them all. */
+const PARSER_ACCEPTS: [string, string][] = [
+  // Vectors of PICSParserTests.swift.
+  ["type 0 with a UTF-8 name (24 bytes)", pics(0, 24, { 10: utf8("交差点A") })],
+  ["type 1 with coordinates (18 bytes)", pics(1, 18, { 10: [...int32(-35_123_456), ...int32(139_654_321)] })],
+  ["type 2 with seven signal bytes (24 bytes)", pics(2, 24, { 10: [0x00, 0x71, 0x82, 0xf3, 0x24, 0x0f, 0x33] })],
+  ["type 2 with one signal (11 bytes)", pics(2, 11, { 10: [0x13] })],
+  ["type 2 with two signals (12 bytes)", pics(2, 12, { 10: [0x83, 0x21] })],
+  ["type 2 as iOS delivers it (16 bytes)", pics(2, 16)],
+  ["unknown type 99 with only the header (10 bytes)", pics(99, 10)],
+  ["type 0 with NUL, an invalid byte and a BOM in the name", pics(0, 24, { 10: [0xef, 0xbb, 0xbf, 0x58, 0x00, 0xff] })],
+  // Lengths the parser accepts beyond what it reads.
+  ["type 0 longer than 24 bytes", pics(0, 31)],
+  ["type 1 longer than 18 bytes", pics(1, 25)],
+  ["unknown type 3 with a body", pics(3, 20)],
+  ["the longest raw the server takes (62 payload bytes)", pics(2, 62)],
+];
+
+/** Packets that PICSParser rejects (too short for their type); the app never uploads them. */
+const PARSER_REJECTS: [string, string][] = [
+  ["type 0 one byte short (23 bytes)", pics(0, 23)],
+  ["type 1 one byte short (17 bytes)", pics(1, 17)],
+  ["type 2 without a signal byte (10 bytes)", pics(2, 10)],
+];
+
+describe("raw PICS packets (rules of PICSParser in PICSPacket.swift)", () => {
+  const withRaw = (raw: string) => mutated((r) => set(observation(r), "raw", raw));
+
+  it.each(PARSER_ACCEPTS)("accepts %s", async (_name, raw) => {
+    expect(validateReport(withRaw(raw), context.clock.seconds)).toMatchObject({ ok: true });
+    expect((await submit(withRaw(raw))).status).toBe(202);
+  });
+
+  it.each(PARSER_REJECTS)("rejects %s", async (_name, raw) => {
+    expect(validateReport(withRaw(raw), context.clock.seconds).ok).toBe(false);
+    const response = await submit(withRaw(raw));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_report" });
+    expect(await reportCount()).toBe(0);
+  });
+
+  it("accepts every packet of the app's demo mode (DemoAdvertiser.swift)", async () => {
+    const demo = (type: number, length: number, fill: Record<number, number[]>) => {
+      const raw = pics(type, length, fill);
+      // Demo packets use intersection 00000001 and message ID = step.
+      return raw.slice(0, 10) + "00" + raw.slice(12, 16) + "00000001" + raw.slice(24);
+    };
+    const packets = [
+      demo(0, 24, { 10: utf8("DEMO CROSSING") }),
+      demo(1, 18, { 10: [...int32(35_681_236), ...int32(139_767_125)] }),
+      demo(2, 16, { 10: [0x73, 0x71, 0x84, 0x84, 0x84, 0x84] }),
+    ];
+    const report = mutated((r) => {
+      intersection(r).id = "00000001";
+      intersection(r).observations = packets.map((raw) => ({ ...intersection(r).observations[0]!, raw }));
+    });
+    expect((await submit(report)).status).toBe(202);
   });
 });
 
