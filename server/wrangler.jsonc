@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: Apache-2.0
+// Test configuration of the Cloudflare Worker that receives opt-in field data from the Aoshingo
+// iOS app. Deploys use cloudflare.config.ts (Cloudflare CLI); this file is kept only because
+// @cloudflare/vitest-plugin reads it. When you change a binding, a variable or a trigger, change
+// both files. See README.md for the setup and docs/field-data-api.md for the API contract.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "aoshingo-reports",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "preview_urls": false,
+
+  // Privacy: no Workers Logs, invocation logs or traces. The code itself never logs.
+  "observability": {
+    "enabled": false,
+    "logs": { "enabled": false, "invocation_logs": false },
+    "traces": { "enabled": false }
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "aoshingo-reports",
+      // Created in APAC. The ID is not a secret. Deploys from Workers Builds apply migrations
+      // first (`npm run deploy`).
+      "database_id": "ca8ff962-c094-4c66-b9fd-bbf2189ef549",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Workers Rate Limiting. Periods can only be 10 or 60 seconds; counters are per Cloudflare
+  // location. namespace_id must be unique within the Cloudflare account.
+  "ratelimits": [
+    {
+      // POST /v1/reports, keyed by the upload token's random ID.
+      "name": "REPORTS_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 6, "period": 60 }
+    },
+    {
+      // Verified attestations (key "attest") and token refreshes per App Attest key (a hash of the
+      // keyId). Checked after verification, so junk requests cannot use it up. /v1/challenge has no
+      // limit: it only reads.
+      "name": "AUTH_RATE_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
+
+  "vars": {
+    // Apple Developer team ID of the app (not secret).
+    "APPLE_TEAM_ID": "XTCC8DPHBX",
+    "APP_BUNDLE_ID": "io.github.4sh0u0.aoshingo",
+    // "true" accepts keys from the App Attest development environment (debug builds).
+    "ALLOW_DEVELOPMENT_ATTESTATION": "false",
+    "RETENTION_DAYS": "90",
+    "TOKEN_TTL_SECONDS": "21600",
+    // Daily write budget for API requests (src/budget.ts); over it, writes and new challenges
+    // answer 503 over_capacity. Sized for the Workers Free plan: 100,000 rows written per day for
+    // the whole account (the cron writes at most about 61,000 more), and a 500 MB database. The
+    // storage limit counts payload plus 500 bytes per row, so 90 days of reports stay near 300 MB.
+    "DAILY_WRITE_LIMIT": "30000",
+    "DAILY_STORAGE_LIMIT_BYTES": "3000000",
+    "MAX_DATABASE_BYTES": "450000000"
+  },
+  // TOKEN_SECRET (HMAC key for upload tokens and challenges, at least 32 characters) is a secret and is not
+  // stored here. The tests set their own value in vitest.config.ts; production gets it from
+  // `cf deploy --secrets-file` (see README.md).
+
+  "triggers": {
+    // Daily at 18:00 UTC = 03:00 JST: fold expired reports into aggregates, delete unused App
+    // Attest keys and old usage counters (src/cron.ts).
+    "crons": ["0 18 * * *"]
+  }
+}

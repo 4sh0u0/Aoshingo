@@ -1,0 +1,268 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A05A0000000000000000E014 /* PICSKit in Frameworks */ = {isa = PBXBuildFile; productRef = A05A0000000000000000E016 /* PICSKit */; };
+		A05A0000000000000000E015 /* FieldDataKit in Frameworks */ = {isa = PBXBuildFile; productRef = A05A0000000000000000E017 /* FieldDataKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A05A0000000000000000E006 /* Aoshingo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aoshingo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A05A0000000000000000E007 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		A05A0000000000000000E008 /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
+		A05A0000000000000000E009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A05A0000000000000000E01F /* AoshingoKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = AoshingoKit; path = Packages/AoshingoKit; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A05A0000000000000000E005 /* App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A05A0000000000000000E012 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A05A0000000000000000E014 /* PICSKit in Frameworks */,
+				A05A0000000000000000E015 /* FieldDataKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A05A0000000000000000E002 = {
+			isa = PBXGroup;
+			children = (
+				A05A0000000000000000E005 /* App */,
+				A05A0000000000000000E004 /* Config */,
+				A05A0000000000000000E01F /* AoshingoKit */,
+				A05A0000000000000000E003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A05A0000000000000000E003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A05A0000000000000000E006 /* Aoshingo.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A05A0000000000000000E004 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				A05A0000000000000000E007 /* Base.xcconfig */,
+				A05A0000000000000000E008 /* App.xcconfig */,
+				A05A0000000000000000E009 /* Info.plist */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A05A0000000000000000E010 /* Aoshingo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A05A0000000000000000E01C /* Build configuration list for PBXNativeTarget "Aoshingo" */;
+			buildPhases = (
+				A05A0000000000000000E011 /* Sources */,
+				A05A0000000000000000E012 /* Frameworks */,
+				A05A0000000000000000E013 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A05A0000000000000000E005 /* App */,
+			);
+			name = Aoshingo;
+			packageProductDependencies = (
+				A05A0000000000000000E016 /* PICSKit */,
+				A05A0000000000000000E017 /* FieldDataKit */,
+			);
+			productName = Aoshingo;
+			productReference = A05A0000000000000000E006 /* Aoshingo.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A05A0000000000000000E001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2610;
+				LastUpgradeCheck = 2610;
+				TargetAttributes = {
+					A05A0000000000000000E010 = {
+						CreatedOnToolsVersion = 26.1;
+					};
+				};
+			};
+			buildConfigurationList = A05A0000000000000000E019 /* Build configuration list for PBXProject "Aoshingo" */;
+			developmentRegion = ja;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				ja,
+				en,
+				Base,
+			);
+			mainGroup = A05A0000000000000000E002;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A05A0000000000000000E018 /* XCLocalSwiftPackageReference "Packages/AoshingoKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A05A0000000000000000E003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A05A0000000000000000E010 /* Aoshingo */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A05A0000000000000000E013 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A05A0000000000000000E011 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A05A0000000000000000E01A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A05A0000000000000000E01B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A05A0000000000000000E01D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A05A0000000000000000E008 /* App.xcconfig */;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		A05A0000000000000000E01E /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A05A0000000000000000E008 /* App.xcconfig */;
+			buildSettings = {
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A05A0000000000000000E019 /* Build configuration list for PBXProject "Aoshingo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A05A0000000000000000E01A /* Debug */,
+				A05A0000000000000000E01B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A05A0000000000000000E01C /* Build configuration list for PBXNativeTarget "Aoshingo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A05A0000000000000000E01D /* Debug */,
+				A05A0000000000000000E01E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A05A0000000000000000E018 /* XCLocalSwiftPackageReference "Packages/AoshingoKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/AoshingoKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A05A0000000000000000E016 /* PICSKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PICSKit;
+		};
+		A05A0000000000000000E017 /* FieldDataKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FieldDataKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A05A0000000000000000E001 /* Project object */;
+}

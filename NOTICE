@@ -1,0 +1,10 @@
+Aoshingo
+Copyright 2026 4sh0u0 and the Aoshingo contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The decoding of Advanced PICS (高度化PICS) Bluetooth advertisements, the per-intersection
+state handling, the demo packet generator and the ported test cases are derived from
+ble-pics-viewer (https://github.com/yumu19/ble-pics-viewer),
+Copyright (c) 2025 Tsubasa Yumura, licensed under the MIT License.
+See THIRD_PARTY_NOTICES.md for the full license text.
