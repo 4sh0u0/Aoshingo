@@ -1,63 +1,63 @@
-# Aoshingo（青信号）
+<p align="center">
+  <img src="docs/assets/readme/banner.png" width="100%" alt="Aoshingo（青信号）：歩行者用信号を、手のひらに。高度化PICS 対応・非公式・オープンソース">
+</p>
 
-交差点の信号機が発信する **高度化PICS** の Bluetooth 信号を受信して、歩行者用信号の状態を表示する iOS アプリです。視覚に障害のある方、色の見え方に違いのある方、横断に時間がかかる方の「いま渡れるか」の判断を補助することを目指しています。
+<p align="center">
+  <img alt="Status: pre-alpha" src="https://img.shields.io/badge/status-pre--alpha-ffd23f?style=flat-square&labelColor=0a1a3a">
+  <img alt="iOS 18 以降" src="https://img.shields.io/badge/iOS-18%2B-00806b?style=flat-square&labelColor=0a1a3a&logo=apple&logoColor=white">
+  <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-00806b?style=flat-square&labelColor=0a1a3a&logo=swift&logoColor=white">
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-00806b?style=flat-square&labelColor=0a1a3a"></a>
+  <a href="https://github.com/4sh0u0/Aoshingo/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/4sh0u0/Aoshingo/ci.yml?branch=main&style=flat-square&labelColor=0a1a3a&label=CI"></a>
+</p>
+
+<p align="center">
+  <a href="https://4sh0u0.github.io/Aoshingo/"><b>ウェブサイト</b></a>
+  &nbsp;·&nbsp;
+  <a href="docs/guide.md">使い方</a>
+  &nbsp;·&nbsp;
+  <a href="https://4sh0u0.github.io/Aoshingo/support/">サポート</a>
+  &nbsp;·&nbsp;
+  <a href="https://4sh0u0.github.io/Aoshingo/privacy/">プライバシー</a>
+  &nbsp;·&nbsp;
+  <a href="docs/development.md">開発ガイド</a>
+</p>
+
+<br>
+
+交差点の信号機が発信する **高度化PICS** の Bluetooth 信号を受け取り、歩行者用信号のいまの状態を iPhone に表示して読み上げる、非公式のオープンソースアプリです。視覚に障害のある方、色の見え方に違いのある方、横断に時間がかかる方の「いま渡れるか」の判断を補助します。
 
 > [!IMPORTANT]
-> 現在は **pre-alpha（開発中の試験版）** です。App Store では配布していません。表示は補助情報です。必ず実際の信号と周囲の安全を自分で確認してください。
+> **pre-alpha（開発中）** です。App Store ではまだ配布していません。表示は補助情報なので、渡る前に必ず実際の信号と周りの安全を確かめてください。
 
-## 特長
+<p align="center">
+  <img src="docs/assets/readme/screen-standard.png" width="30%" alt="標準の配色のデモ画面。1 番は緑の背景に歩く人の記号と「青 進める」、残り目安 4/8。2 番は赤の背景に立ち止まる人の記号と「止まれ」。">
+  &nbsp;
+  <img src="docs/assets/readme/screen-cud-dark.png" width="30%" alt="色覚サポートの配色とダークモードのデモ画面。1 番は青の背景に破線の枠、歩く人の記号と「青点滅 渡り始めないで」。2 番は朱色の背景に立ち止まる人の記号と「止まれ」。">
+  &nbsp;
+  <img src="docs/assets/readme/screen-monochrome.png" width="30%" alt="モノクロのデモ画面。1 番は白の背景に黒い歩く人の記号と「青 進める」、残り目安 4/8。2 番は黒の背景に白い立ち止まる人の記号と「止まれ」。">
+</p>
+<p align="center"><sub>左から「標準」「色覚サポート（ダークモード）」「モノクロ」。いずれもデモ表示です。</sub></p>
 
-- **画面表示中のリアルタイム受信**：高度化PICS の BLE アドバタイズを受信し、最大 6 灯の歩行者信号の状態と「残り目安」（8 段階）を表示します。
-- **色だけに頼らない表示**：青・青点滅・赤を、色に加えて図形・文字・点滅（青点滅は人の形の記号が点滅し、枠は破線）で示します。「標準」「色覚サポート（CUD 推奨配色）」「モノクロ」を選べ、iOS の「カラー以外で区別」がオンなら自動で色覚サポートに切り替わります。
-- **安全側に倒した判定**：危険側への変化（青→青点滅→赤）は 1 パケットで即時に、安全側への変化（赤→青）は、0.5 秒以上離れた 2 つのパケットが続けて一致したときだけ反映します。受信直後や更新が途切れた後の最初の信号が青・青点滅のときは、確定するまで「判定中」と表示します。5 秒間更新がなければ「更新なし」と表示し、古い色は出しません。
-- **現地確認のための情報**：Service UUID の有無、送信機の数、メッセージ種別ごとの広告間隔、16 進ダンプ、解析結果 JSON を表示します。
-- **デモと記録の再生**：合成データのデモ、受信データの記録（JSON Lines）と再生ができます。どちらも実機受信と同じ解析処理を通ります。
-- **実測データの提供（任意）**：初回起動時に協力するかどうかを選べます。詳しくは「プライバシー」をご覧ください。
-- **日本語・英語**に対応しています。
+## できること
 
-## 対応交差点と動作環境
+- **信号の状態を表示**：最大 6 灯の歩行者用信号と、8 段階の「残り目安」を表示します。
+- **声で伝える**：VoiceOver で「1 番、青。進めます」のように読み上げます。
+- **色に頼らない**：図形・文字・点滅でも区別できます。配色は標準・色覚サポート・モノクロ。
+- **安全側に倒す**：青点滅・赤への変化はすぐに、青への変化は 2 回一致してから反映します。
+- **受信するだけ**：信号機には何も送りません。
+- **データ提供は任意**：初回起動時に選べます。現在地（緯度・経度）は送りません。
 
-- 対応交差点：高度化PICS が整備された交差点（全国で約 600 か所）。設置場所は e-Gov データポータルの「[高度化PICS整備交差点_csv](https://data.e-gov.go.jp/data/dataset/npa_20221124_0054/resource/6f7e83e1-be28-4030-961f-3b489c9f6ad8)」で公開されています。それ以外の交差点では何も受信しません。
-- iOS 18 以降の iPhone（iPhone XS / XR 以降）。Liquid Glass（iOS 26 以降）と iPhone Duo の画面サイズには、システム標準の部品とサイズクラスで対応しています。
-- Bluetooth が必要です。iOS の制約により、**アプリが画面に表示されている間だけ**受信できます。
+くわしくは [使い方](docs/guide.md) をご覧ください。
 
-## 使い方
+## 動作環境
 
-1. 初回起動時に注意事項を確認し、実測データの提供に協力するかどうかを選びます（どちらを選んでも機能は同じです）。
-2. 対応交差点の近くで「受信開始」を押します。数秒で最寄りの交差点の信号が表示されます。近くに複数の交差点があるときは、ほかの交差点の電波が 6 dB 以上強い状態が 3 秒続いたときだけ表示を切り替え、切り替えたことを読み上げます。
-3. 受信中は画面を表示したままにしてください。設定の「受信中は画面を消さない」は初期状態でオンです。
+- iOS 18 以降の iPhone（XS / XR 以降）と Bluetooth
+- 高度化PICS が整備された交差点（全国で約 600 か所）でだけ受信できます
+- アプリを画面に表示している間だけ受信します
 
-VoiceOver では、各信号は「〇〇交差点、1 番、青。進めます」のように 1 つの要素として読み上げられ、「残り目安 5 / 8」は値として読み上げられます。フォーカスしている信号の状態が変わったときだけ読み上げ、残り目安が進むたびには読み上げません。画面カーテン（VoiceOver で 3 本指トリプルタップ）を使うと、画面を暗くしたまま受信を続けられます。
+## ビルド
 
-信号の近くにいなくても、右上のメニューの「デモを表示」で画面を確認できます。
-
-## ご注意
-
-- 本アプリは**補助情報**を表示するもので、横断の安全を保証するものではありません。
-- 画面を閉じる、ほかのアプリに切り替えるなどすると**受信できません**。
-- 「残り目安」は信号機が送る 8 段階の目安で、**秒数ではありません**。一部の交差点にしかありません。
-- 信号の番号（1 番〜6 番）が**どの横断歩道に当たるかは、まだ確認できていません**。そのため方向（「前方」など）は表示しません。
-- 警察庁、信号機メーカー、「信GO!」とは関係のない**非公式アプリ**です。
-
-## プライバシー
-
-- 受信したデータは、初期状態では端末の外に送信しません。
-- 初回起動時に「協力する」を選んだ場合だけ、交差点 ID、受信した信号データそのもの、信号が変わった時刻、5 dB 単位の電波強度、8 方位に丸めた方向を、開発者が運用するサーバー（Cloudflare Workers）へ送信します。
-- あなたの現在地（緯度・経度）、機種、OS のバージョン、言語、広告 ID は送信しません。サーバーは IP アドレスを記録しません。
-- 不正なデータを防ぐため、App Attest の鍵の ID（インストールごとに 1 つ）を、鍵の登録と送信用トークンの取得のときだけ送ります。サーバーはこれを実測データとは別に保存し、結び付けません。
-- 設定画面でいつでもオフにでき、オフにすると未送信のデータはすぐに削除されます。
-
-詳しくは [プライバシーポリシー](docs/privacy.md) と [送信 API の仕様](docs/field-data-api.md) をご覧ください。サーバーのコードは [`server/`](server/) にあります。
-
-## 法令に関する注記
-
-高度化PICS の BLE アドバタイズは、交差点の信号制御機から不特定多数に向けて発信される公開の電波で、個人を識別できる情報や秘匿性のある通信内容は含まれていません。本アプリはこれを**受信するだけ**で、信号機に対して送信・改変・再送信・妨害を行う機能は一切ありません。「信GO!」の青時間延長のような、信号機への要求を送る機能も実装しません。
-
-（この注記は ble-pics-viewer の Legal Notice を参考にしています。法的な助言ではありません。）
-
-## ビルド方法
-
-必要なもの：Xcode 27.1 以降（iOS 26 SDK 以降であればビルドできます）。
+Xcode 27.1 以降で開きます。
 
 ```bash
 git clone https://github.com/4sh0u0/Aoshingo.git
@@ -65,38 +65,35 @@ cd Aoshingo
 open Aoshingo.xcodeproj
 ```
 
-- 署名用の Team ID などは `Config/Local.xcconfig`（Git 管理外）に書くと、プロジェクトファイルを変更せずに済みます。
+解析ロジックのテストは macOS と Linux で実行できます。
 
-  ```
-  DEVELOPMENT_TEAM = XXXXXXXXXX
-  AOSHINGO_REPORT_HOST = aoshingo-reports.example.workers.dev
-  ```
+```bash
+swift test --package-path Packages/AoshingoKit
+```
 
-- `AOSHINGO_REPORT_HOST` が空のビルドは、実測データを端末内にためるだけで送信しません。
-- 解析ロジックは Swift Package（`Packages/AoshingoKit`）に分かれていて、macOS・Linux でテストできます。
+署名の設定、実測データの送信先、リポジトリの構成は [開発ガイド](docs/development.md) にまとめています。
 
-  ```bash
-  swift test --package-path Packages/AoshingoKit
-  ```
+## ドキュメント
 
-### 構成
-
-| パス | 内容 |
+| 文書 | 内容 |
 | --- | --- |
-| `App/` | iOS アプリ（SwiftUI） |
-| `Packages/AoshingoKit/Sources/PICSKit` | 高度化PICS の解析、交差点ごとの状態、安全側デバウンス、デモ、記録形式 |
-| `Packages/AoshingoKit/Sources/FieldDataKit` | 実測データの間引き・丸め、送信キュー、App Attest を使う送信クライアント |
-| `server/` | 実測データを受け取る Cloudflare Worker（`main` へのマージで Cloudflare が自動デプロイ） |
-| `docs/` | プライバシーポリシー、送信 API、現地確認の手順 |
+| [使い方](docs/guide.md) | 画面の見方、VoiceOver、ご注意、法令に関する注記 |
+| [開発ガイド](docs/development.md) | ビルド、署名、リポジトリの構成 |
+| [現地確認の手順](docs/field-test.md) | 対応交差点での受信テストと、記録の共有 |
+| [プライバシーポリシー](docs/privacy.md) | 実測データの扱い |
+| [送信 API の仕様](docs/field-data-api.md) | アプリと受信サーバー（[`server/`](server/)）の通信 |
+| [ウェブサイト](docs/website.md) | 公式サイト（[`site/`](site/)）の構成と公開 |
 
 ## コントリビュート
 
-Issue と Pull Request を歓迎します。現地で受信した記録ファイル（設定 → 受信データの記録）は、解析やテストにとても役立ちます。記録にあなたの現在地（緯度・経度）は含まれませんが、交差点 ID と交差点の位置、受信した時刻は含まれるため、いつどの交差点にいたかは分かります。共有する前に、このことを踏まえて判断してください。手順は [現地確認の手順](docs/field-test.md) をご覧ください。
+Issue と Pull Request を歓迎します。対応交差点で受信した記録ファイルは、解析とテストにとても役立ちます。記録には交差点と時刻が含まれるので、共有する前に [現地確認の手順](docs/field-test.md) をご覧ください。
 
 ## 謝辞
 
-Aoshingo の高度化PICS アドバタイズ解析は、[yumu19/ble-pics-viewer](https://github.com/yumu19/ble-pics-viewer)（MIT License, Copyright (c) 2025 Tsubasa Yumura）の解析仕様と実装を参考に、Swift で再実装したものです。受信方法と解析結果を公開してくださった作者に心より感謝します。
+高度化PICS の解析は、[yumu19/ble-pics-viewer](https://github.com/yumu19/ble-pics-viewer)（MIT License, Copyright (c) 2025 Tsubasa Yumura）の解析仕様と実装を参考に、Swift で再実装したものです。受信方法と解析結果を公開してくださった作者に心より感謝します。
 
 ## ライセンス
 
 [Apache License 2.0](LICENSE)。第三者のライセンスは [NOTICE](NOTICE) と [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) をご覧ください。
+
+警察庁、信号機メーカー、「信GO!」とは関係のない非公式アプリです。

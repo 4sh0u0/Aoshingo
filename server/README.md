@@ -199,7 +199,7 @@ Workers Builds は CI の結果を見ません。CI が通らない変更を `ma
 8. **iOS アプリの送信先を設定**
 
    アプリは送信先のホスト名をビルド設定 `AOSHINGO_REPORT_HOST` から読みます。
-   `Config/Local.xcconfig`（Git 管理外。ルートの README を参照）にホスト名だけ（`https://` やパスは付けない）を書きます。
+   `Config/Local.xcconfig`（Git 管理外。[開発ガイド](../docs/development.md) を参照）にホスト名だけ（`https://` やパスは付けない）を書きます。
    ホスト名は秘密情報ではないため、配布用ビルドで固定したい場合は `Config/Base.xcconfig` に書いてもかまいません。
 
    ```
