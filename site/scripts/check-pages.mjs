@@ -49,8 +49,9 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
 const isAllowedExternal = (hostname) => ALLOWED_EXTERNAL_HOSTS.has(hostname);
 
 // Links to files in this repository on GitHub are checked against the checkout. Files that another
-// pull request adds can be listed here until it is merged; the check fails once they exist, so the
-// entry is not forgotten.
+// pull request adds can be listed here until it is merged. Once they exist, the check prints a warning
+// (a GitHub Actions annotation) so that the entry is removed, but does not fail: merging the other pull
+// request first must not stop this site from being published.
 const REPOSITORY_BLOB_PREFIX = "https://github.com/4sh0u0/Aoshingo/blob/main/";
 const REPOSITORY_ROOT = path.resolve(PUBLIC_DIR, "../..");
 const PENDING_REPOSITORY_FILES = new Set([
@@ -120,6 +121,7 @@ async function routeRequests(context, external, handle = null) {
 
 const pageIds = new Map();
 const repositoryLinks = new Map();
+const pendingWarned = new Set();
 
 async function checkRepositoryLink(label, href) {
   const file = decodeURIComponent(new URL(href).pathname.slice(new URL(REPOSITORY_BLOB_PREFIX).pathname.length));
@@ -132,7 +134,10 @@ async function checkRepositoryLink(label, href) {
   }
   const exists = repositoryLinks.get(file);
   if (exists && PENDING_REPOSITORY_FILES.has(file)) {
-    fail(`${label}: ${file} now exists; remove it from PENDING_REPOSITORY_FILES`);
+    if (!pendingWarned.has(file)) {
+      pendingWarned.add(file);
+      console.log(`::warning::${file} now exists; remove it from PENDING_REPOSITORY_FILES in site/scripts/check-pages.mjs`);
+    }
   } else if (!exists && !PENDING_REPOSITORY_FILES.has(file)) {
     fail(`${label}: link ${href} points to a file that is not in the repository`);
   }
