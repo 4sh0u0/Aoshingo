@@ -564,6 +564,32 @@ describe("service_state", () => {
     ]);
   });
 
+  it("runs the other jobs when the fold fails, and records nothing", async () => {
+    await runDailyJobs(env.DB, NOW, 90);
+    const expiredAt = Date.UTC(2026, 7, 1, 0, 30);
+    await storeReport(env.DB, report(expiredAt), expiredAt);
+    await insertKey("old-key", utcDay(NOW - 40 * DAY_MS));
+    const failing = new Proxy(env.DB, {
+      get(target, property) {
+        if (property === "prepare") {
+          return (query: string) => {
+            if (query.includes("WITH candidates")) throw new Error("D1 limit");
+            return target.prepare(query);
+          };
+        }
+        const value: unknown = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await expect(runDailyJobs(failing, NOW + DAY_MS, 90)).rejects.toThrow("D1 limit");
+    // The key was deleted all the same; the report waits for the next run.
+    expect(await rows("SELECT count(*) AS n FROM attest_keys")).toEqual([{ n: 0 }]);
+    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 1 }]);
+    expect(await rows("SELECT cron_last_success FROM service_state")).toEqual([
+      { cron_last_success: "2026-11-10T18:00:00Z" },
+    ]);
+  });
+
   it("is not updated when a step fails", async () => {
     await runDailyJobs(env.DB, NOW, 90);
     const failing = new Proxy(env.DB, {

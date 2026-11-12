@@ -70,16 +70,21 @@ struct IntersectionDetailView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// The seconds are left out for VoiceOver: the header is one element that is redrawn every
+    /// half second, and its label should change only when the reception state does.
     @ViewBuilder
     private func freshness(now: Date, stale: Bool) -> some View {
         if let age = state.signalAge(at: now) {
             let seconds = Int(age.rounded(.down))
             if source == .idle {
                 Text("停止中 · 最終受信値（\(seconds) 秒前）")
+                    .accessibilityLabel(Text("停止中 · 最終受信値"))
             } else if stale {
                 Label("更新なし · 最終信号受信 \(seconds) 秒前", systemImage: "exclamationmark.triangle.fill")
+                    .accessibilityLabel(Text("更新なし · 信号データが 5 秒以上届いていません"))
             } else {
                 Text("信号データ受信中 · \(seconds) 秒前")
+                    .accessibilityLabel(Text("信号データ受信中"))
             }
         } else {
             Text("信号情報をまだ受信していません")

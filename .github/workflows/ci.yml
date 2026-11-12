@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: swift:6.2-noble
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: swift test
         run: swift test --package-path Packages/AoshingoKit
 
@@ -36,7 +36,7 @@ jobs:
     name: iOS app (macOS)
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select the newest release Xcode
         run: |
           xcode="$(ls -d /Applications/Xcode_*.app | grep -iv beta | sort -V | tail -1)"
@@ -59,8 +59,8 @@ jobs:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm

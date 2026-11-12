@@ -19,6 +19,8 @@ struct SignalSlotView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AccessibilityFocusState private var isAccessibilityFocused: Bool
+    @AppStorage(SettingsKey.announceSignalWarnings)
+    private var warningsAnnouncedForEverySignal = SettingsKey.announceSignalWarningsDefault
 
     private var appearance: SignalAppearance {
         SignalAppearance.make(
@@ -27,6 +29,13 @@ struct SignalSlotView: View {
             mode: mode,
             differentiateWithoutColor: differentiateWithoutColor
         )
+    }
+
+    /// The same condition that AppModel gives `SignalChangeMonitor` for this slot.
+    private var condition: SignalCondition {
+        if stale { return .stale }
+        guard let signal else { return .pending }
+        return .state(signal.state)
     }
 
     var body: some View {
@@ -67,9 +76,12 @@ struct SignalSlotView: View {
         .accessibilityValue(remainingDescription)
         .accessibilityFocused($isAccessibilityFocused)
         .onChange(of: appearance.accessibilityTitle) { _, title in
-            // Only a real change of what the signal means is announced, and only for the slot that
-            // VoiceOver is on (which is what `.updatesFrequently` used to re-read).
+            // Only a real change of what the signal means is announced here, and only for the slot
+            // that VoiceOver is on (which is what `.updatesFrequently` used to re-read). Changes into
+            // 青点滅, 赤 and the other warnings are announced by AppModel for every slot, wherever
+            // the focus is, unless that is switched off in Settings.
             guard isAccessibilityFocused else { return }
+            if warningsAnnouncedForEverySignal, condition.needsAttention { return }
             AccessibilityAnnouncer.announce([String(localized: "\(slot) 番"), title].joined(separator: "、"))
         }
     }

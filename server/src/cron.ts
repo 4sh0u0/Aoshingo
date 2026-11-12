@@ -3,7 +3,9 @@
 // The daily cron (0 18 * * * UTC = 03:00 JST): drops old usage counters, folds expired reports
 // into aggregates, deletes App Attest keys that are no longer used, and records what it did in
 // service_state, since the Worker keeps no logs. That row holds only times, counts and the
-// database size.
+// database size. Each job runs even when an earlier one failed (for example a fold that hits a D1
+// limit must not keep unused keys); a run with a failed job records nothing, so
+// cron_last_success falls behind, and ends with that job's error.
 //
 // Free plan limits per run: D1 queries 1 (usage) + 2 per fold chunk (the chunk query and one batch
 // with all its statements; at most 40) + 1 (keys) + 1 (record) = 43 of 50. Rows written at most
@@ -57,9 +59,21 @@ export async function runDailyJobs(
   retentionDays: number,
   limits: CronLimits = DEFAULT_CRON_LIMITS,
 ): Promise<CronResult> {
-  const usage = await deleteOldUsage(db, utcDay(nowMs - USAGE_KEEP_DAYS * DAY_MS));
-  const fold = await foldExpiredReports(db, utcDay(nowMs - retentionDays * DAY_MS), limits.fold);
-  const keys = await deleteUnusedKeys(db, utcDay(nowMs - KEY_RETENTION_DAYS * DAY_MS), limits.keyDeleteLimit);
+  const errors: unknown[] = [];
+  async function attempt<T>(job: () => Promise<T>): Promise<T | null> {
+    try {
+      return await job();
+    } catch (error) {
+      errors.push(error);
+      return null;
+    }
+  }
+  const usage = await attempt(() => deleteOldUsage(db, utcDay(nowMs - USAGE_KEEP_DAYS * DAY_MS)));
+  const fold = await attempt(() => foldExpiredReports(db, utcDay(nowMs - retentionDays * DAY_MS), limits.fold));
+  const keys = await attempt(() =>
+    deleteUnusedKeys(db, utcDay(nowMs - KEY_RETENTION_DAYS * DAY_MS), limits.keyDeleteLimit),
+  );
+  if (usage === null || fold === null || keys === null) throw errors[0];
 
   const size = keys.meta.size_after;
   const result: CronResult = {

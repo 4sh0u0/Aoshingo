@@ -7,6 +7,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(SettingsKey.colorMode) private var colorMode: SignalColorMode = .automatic
     @AppStorage(SettingsKey.collectionConsent) private var consent: CollectionConsent = .undecided
+    @AppStorage(SettingsKey.announceSignalWarnings)
+    private var announceSignalWarnings = SettingsKey.announceSignalWarningsDefault
 
     var body: some View {
         @Bindable var model = model
@@ -25,6 +27,14 @@ struct SettingsView: View {
                     Text("表示")
                 } footer: {
                     Text("どのモードでも、色だけでなく形と文字で信号を示します。")
+                }
+
+                Section {
+                    Toggle("すべての信号の青点滅・赤を読み上げる", isOn: $announceSignalWarnings)
+                } header: {
+                    Text("VoiceOver")
+                } footer: {
+                    Text("オンにすると、表示中の交差点のどの信号でも、青点滅・赤・信号なしに変わったときと受信が途切れたときに、VoiceOver のフォーカスの位置にかかわらず読み上げます。青に変わったことは、フォーカスしている信号だけ読み上げます。オフにすると、フォーカスしている信号の変化だけを読み上げます。")
                 }
 
                 Section {
