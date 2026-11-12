@@ -29,6 +29,9 @@ export default defineConfig({
       // Daily at 18:00 UTC = 03:00 JST: fold expired reports into aggregates, delete unused App
       // Attest keys and old usage counters (src/cron.ts).
       triggers.scheduled({ schedule: "0 18 * * *" }),
+      // Daily at 18:30 UTC = 03:30 JST: fit the timing plans of up to 12 intersections from the
+      // reports received before that UTC day (src/timing.ts).
+      triggers.scheduled({ schedule: "30 18 * * *" }),
     ],
 
     env: {
@@ -41,7 +44,7 @@ export default defineConfig({
       TOKEN_TTL_SECONDS: bindings.text("21600"),
       // Daily write budget for API requests (src/budget.ts); over it, writes and new challenges
       // answer 503 over_capacity. Sized for the Workers Free plan: 100,000 rows written per day for
-      // the whole account (the cron writes at most about 61,000 more), and a 500 MB database. The
+      // the whole account (the crons write at most about 68,000 more), and a 500 MB database. The
       // storage limit counts payload plus 500 bytes per row, so 90 days of reports stay near 300 MB.
       DAILY_WRITE_LIMIT: bindings.text("30000"),
       DAILY_STORAGE_LIMIT_BYTES: bindings.text("3000000"),
@@ -61,7 +64,8 @@ export default defineConfig({
 
       // Workers Rate Limiting. Periods can only be 10 or 60 seconds; counters are per Cloudflare
       // location. The namespace must be unique within the Cloudflare account.
-      // POST /v1/reports, keyed by the upload token's random ID.
+      // POST /v1/reports, keyed by the upload token's random ID, and GET /v1/plans, keyed by
+      // "plans:" and that ID.
       REPORTS_RATE_LIMITER: bindings.rateLimit({
         namespace: "1001",
         simple: { limit: 6, period: 60 },

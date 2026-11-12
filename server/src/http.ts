@@ -7,7 +7,12 @@ const JSON_HEADERS = {
 };
 
 export function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(body), { status, headers: { ...JSON_HEADERS, ...headers } });
+  return jsonText(status, JSON.stringify(body), headers);
+}
+
+/** A response whose body is already JSON text. */
+export function jsonText(status: number, body: string, headers: Record<string, string> = {}): Response {
+  return new Response(body, { status, headers: { ...JSON_HEADERS, ...headers } });
 }
 
 export function errorResponse(status: number, code: string, headers?: Record<string, string>): Response {

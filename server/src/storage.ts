@@ -12,11 +12,29 @@ export function utcDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+/** reports.clock_ok: 1 or 0 for schema 4 rows, null for earlier schemas. */
+export type ClockOk = 0 | 1 | null;
+
+/** Largest difference (ms) between the device clock and the server's for clock_ok = 1. */
+export const CLOCK_TOLERANCE_MS = 2000;
+
+/**
+ * The clock check of schema 4 (docs/timing-estimation.md): 1 when the device clock when the request
+ * was built (sentAt) was within CLOCK_TOLERANCE_MS of `receivedMs`, the server's time when it
+ * started to handle the request, before reading the body. Only this flag is stored, never sentAt
+ * or the difference: a device's steady clock offset could link its reports.
+ */
+export function clockOk(report: Report, receivedMs: number): ClockOk {
+  if (report.schema !== 4) return null;
+  return Math.abs(receivedMs - report.sentAt) <= CLOCK_TOLERANCE_MS ? 1 : 0;
+}
+
 /**
  * The JSON stored for each intersection, in report order. Schema 1 rows keep the shape they always
- * had. Schema 2 and 3 rows add the new lists, always written out (empty when the body left them
- * out), and their items carry every field, null when unknown; schema 3 observations also carry
- * `activity`. The cron does not aggregate `activity`, so it is deleted with the row.
+ * had. Schema 2 to 4 rows add the new lists, always written out (empty when the body left them
+ * out), and their items carry every field, null when unknown; schema 3 and 4 observations also
+ * carry `activity`, and schema 4 transitions and steps `ms`. The cron does not aggregate `activity`
+ * or `ms`, so they are deleted with the row. The top-level sentAt of schema 4 is never stored.
  */
 export function reportPayloads(report: Report): string[] {
   if (report.schema === 1) {
@@ -47,7 +65,7 @@ export function reportPayloads(report: Report): string[] {
 /**
  * For each intersection, in report order, the most aggregate rows that folding its stored row can
  * add or update (reports.aggregate_items, which sizes the cron's chunks). A schema 1 observation
- * counts in observation_counts and a transition in transition_counts only. In schema 2 and 3 an
+ * counts in observation_counts and a transition in transition_counts only. In schema 2 to 4 an
  * observation can also count in range_counts, a transition in duration_counts twice (held and
  * cycle), and a step or label in one row at most (duration_counts, crosswalk_labels). packets and
  * coverage are not aggregated. A schema 2 row weighs at most 600 x 2 + 300 x 3 + 600 + 20 = 2,720.
@@ -67,6 +85,14 @@ export function aggregateItems(report: Report): number[] {
 
 /** Rows written per stored intersection: the table and the received_day index. */
 export const ROWS_WRITTEN_PER_INTERSECTION = 2;
+
+/**
+ * A row with clock_ok = 1 is also an entry of the partial index reports_for_timing (migration
+ * 0005), which the timing cron reads: one more row written and TIMING_INDEX_BYTES more stored.
+ * Rows with clock_ok 0 or NULL are not in it.
+ */
+export const TIMING_INDEX_ROWS = 1;
+export const TIMING_INDEX_BYTES = 64;
 
 // SQLite's table B-tree layout (https://www.sqlite.org/fileformat2.html#b_tree_pages) with D1's
 // 4,096-byte pages: a record larger than MAX_LOCAL keeps a part of MIN_LOCAL..MAX_LOCAL bytes in
@@ -98,13 +124,15 @@ export function rowStorageBytes(length: number): number {
 }
 
 /**
- * What storing `payloads` costs. Payloads are ASCII (validated hex, numbers and fixed names), so
- * their length is their size in bytes.
+ * What storing `payloads` with `clock` (see clockOk) costs. Payloads are ASCII (validated hex,
+ * numbers and fixed names), so their length is their size in bytes.
  */
-export function reportWriteCost(payloads: string[]): WriteCost {
+export function reportWriteCost(payloads: string[], clock: ClockOk = null): WriteCost {
+  const indexed = clock === 1 ? payloads.length : 0;
   return {
-    rows: payloads.length * ROWS_WRITTEN_PER_INTERSECTION,
-    storedBytes: payloads.reduce((sum, payload) => sum + rowStorageBytes(payload.length), 0),
+    rows: payloads.length * ROWS_WRITTEN_PER_INTERSECTION + indexed * TIMING_INDEX_ROWS,
+    storedBytes:
+      payloads.reduce((sum, payload) => sum + rowStorageBytes(payload.length), 0) + indexed * TIMING_INDEX_BYTES,
   };
 }
 
@@ -119,7 +147,10 @@ export function randomRowId(): number {
   return id;
 }
 
-/** Stores one row per intersection in a single D1 batch (one transaction). */
+/**
+ * Stores one row per intersection in a single D1 batch (one transaction). `nowMs` is when the
+ * request arrived, before its body was read: it gives the received day and the clock check.
+ */
 export async function storeReport(
   db: D1Database,
   report: Report,
@@ -128,10 +159,12 @@ export async function storeReport(
 ): Promise<void> {
   const receivedDay = utcDay(nowMs);
   const items = aggregateItems(report);
+  const clock = clockOk(report, nowMs);
   const statement = db.prepare(
     `INSERT INTO reports
-       (id, intersection_id, received_day, schema, client, observation_count, transition_count, aggregate_items, payload)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
+       (id, intersection_id, received_day, schema, client, observation_count, transition_count, aggregate_items,
+        payload, clock_ok)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
   );
   const statements = report.intersections.map((intersection, index) =>
     statement.bind(
@@ -144,6 +177,7 @@ export async function storeReport(
       intersection.transitions.length,
       items[index]!,
       payloads[index]!,
+      clock,
     ),
   );
   await db.batch(statements);
@@ -169,8 +203,9 @@ export interface FoldLimits {
   maxRowsWritten: number;
 }
 
-// Worst case per chunk: 4,000 aggregate rows + 2 x 1,000 deleted rows (table and index) = 6,000
-// rows written, so a run writes at most 45,000 + 6,000 rows and uses 1 + 2 x 20 queries.
+// Worst case per chunk: 4,000 aggregate rows + 3 x 1,000 deleted rows (the table, the received_day
+// index and, for clock_ok = 1 rows, the timing index) = 7,000 rows written, so a run writes at
+// most 45,000 + 7,000 rows and uses 1 + 2 x 20 queries.
 export const DEFAULT_FOLD_LIMITS: FoldLimits = {
   chunkRows: 1000,
   chunkItems: 4000,

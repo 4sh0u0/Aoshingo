@@ -91,6 +91,8 @@ export async function resetDatabase(): Promise<void> {
       "crosswalk_labels",
       "daily_usage",
       "service_state",
+      "timing_plans",
+      "timing_places",
     ].map((table) => bindings.DB.prepare(`DELETE FROM ${table}`)),
   );
 }
@@ -231,6 +233,25 @@ export function exampleReport3(nowSeconds: number) {
     intersections: report.intersections.map((intersection) => ({
       ...intersection,
       observations: intersection.observations.map((observation) => ({ ...observation, activity: "walking" })),
+    })),
+  };
+}
+
+/**
+ * The schema 4 example report from docs/field-data-api.md, with times moved to `nowSeconds`:
+ * schema 3 plus sentAt (123 ms after the start of `nowSeconds`, so within the clock check's 2 s of
+ * the server's clock) and the ms of each transition and step (written last, as they are stored).
+ */
+export function exampleReport4(nowSeconds: number) {
+  const report = exampleReport3(nowSeconds);
+  return {
+    schema: 4,
+    sentAt: nowSeconds * 1000 + 123,
+    client: report.client,
+    intersections: report.intersections.map((intersection) => ({
+      ...intersection,
+      transitions: intersection.transitions.map((transition) => ({ ...transition, ms: 400 })),
+      steps: intersection.steps.map((step) => ({ ...step, ms: 900 })),
     })),
   };
 }

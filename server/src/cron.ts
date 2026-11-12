@@ -9,14 +9,17 @@
 //
 // Free plan limits per run: D1 queries 1 (usage) + 2 per fold chunk (the chunk query and one batch
 // with all its statements; at most 40) + 1 (keys) + 1 (record) = 43 of 50. Rows written at most
-// about 51,000 (fold) + 10,000 (keys) + a few, which with the API's DAILY_WRITE_LIMIT of 30,000
-// stays below the account's 100,000 per day.
+// about 52,000 (fold) + 10,000 (keys) + a few; with the API's DAILY_WRITE_LIMIT of 30,000 and the
+// timing cron's 5,741 (src/timing.ts) that stays below the account's 100,000 per day.
 
 import { deleteOldUsage } from "./budget";
 import { deleteUnusedKeys, KEY_DELETE_LIMIT, KEY_RETENTION_DAYS } from "./keys";
 import { DEFAULT_FOLD_LIMITS, foldExpiredReports, utcDay, type FoldLimits, type FoldResult } from "./storage";
 
 const DAY_MS = 86_400_000;
+
+/** The cron expression of the daily jobs, as declared in cloudflare.config.ts and wrangler.jsonc. */
+export const DAILY_CRON = "0 18 * * *";
 
 /** daily_usage rows older than this many days are deleted. */
 export const USAGE_KEEP_DAYS = 7;

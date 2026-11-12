@@ -7,7 +7,16 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { validateReport, type Report } from "../src/report";
-import { aggregateItems, DEFAULT_FOLD_LIMITS, reportPayloads, rowStorageBytes, storeReport } from "../src/storage";
+import {
+  aggregateItems,
+  clockOk,
+  DEFAULT_FOLD_LIMITS,
+  reportPayloads,
+  reportWriteCost,
+  rowStorageBytes,
+  storeReport,
+  TIMING_INDEX_BYTES,
+} from "../src/storage";
 import { resetDatabase } from "./helpers/context";
 
 beforeEach(async () => {
@@ -72,12 +81,56 @@ describe("rowStorageBytes", () => {
   });
 });
 
+describe("the timing index (rows with clock_ok = 1)", () => {
+  /** Bytes per row of 1,000 schema 4 rows in random intersection order, with clock_ok `ok`. */
+  async function perRow(ok: boolean): Promise<number> {
+    await resetDatabase();
+    const before = await databaseSize();
+    const ids = Array.from({ length: 1000 }, (_, i) => (0x70000000 + ((i * 7919) % 1000)).toString(16).toUpperCase());
+    for (let stored = 0; stored < ids.length; stored += 50) {
+      const at = Date.UTC(2026, 10, 1 + (stored % 7));
+      const report: Report = {
+        schema: 4,
+        client: "aoshingo-ios/0.3.0",
+        sentAt: ok ? at : 1,
+        intersections: ids.slice(stored, stored + 50).map((id) => ({
+          id,
+          serviceUUIDs: [],
+          emitters: 0,
+          emitterInfo: [],
+          observations: [],
+          transitions: [
+            { t: 1_794_290_000, slot: 1, from: "Red", to: "Green", emitter: null, gap: null, held: null, cycle: null, ms: 400 },
+          ],
+          steps: [],
+          packets: [],
+          coverage: [],
+          labels: [],
+        })),
+      };
+      expect(clockOk(report, at)).toBe(ok ? 1 : 0);
+      await storeReport(env.DB, report, at);
+    }
+    return ((await databaseSize()) - before) / ids.length;
+  }
+
+  it("takes at most TIMING_INDEX_BYTES more per row, which the budget adds", async () => {
+    const indexed = await perRow(true);
+    const plain = await perRow(false);
+    expect(indexed).toBeGreaterThan(plain);
+    expect(indexed - plain).toBeLessThanOrEqual(TIMING_INDEX_BYTES);
+    expect(reportWriteCost(["x"], 1)).toEqual({ rows: 3, storedBytes: rowStorageBytes(1) + TIMING_INDEX_BYTES });
+    expect(reportWriteCost(["x"], 0)).toEqual({ rows: 2, storedBytes: rowStorageBytes(1) });
+    expect(reportWriteCost(["x"], null)).toEqual(reportWriteCost(["x"]));
+  });
+});
+
 describe("aggregateItems", () => {
   const now = 1_794_290_000;
   const raw = "CE010000022A00001234ABCD311384848484";
 
   /** A validated report with one intersection of the given sizes. */
-  function sized(schema: 1 | 2 | 3, counts: { observations: number; transitions: number; steps?: number; labels?: number }) {
+  function sized(schema: 1 | 2 | 3 | 4, counts: { observations: number; transitions: number; steps?: number; labels?: number }) {
     const intersection: Record<string, unknown> = {
       id: "1234ABCD",
       serviceUUIDs: [],
@@ -89,7 +142,8 @@ describe("aggregateItems", () => {
       intersection.steps = Array(counts.steps ?? 0).fill({ t: now, slot: 1, state: "Red", from: 2, to: 1 });
       intersection.labels = Array(counts.labels ?? 0).fill({ t: now, kind: "button" });
     }
-    const result = validateReport({ schema, intersections: [intersection] }, now);
+    const body = schema === 4 ? { schema, sentAt: now * 1000, intersections: [intersection] } : { schema, intersections: [intersection] };
+    const result = validateReport(body, now);
     if (!result.ok) throw new Error(result.reason);
     return result.report;
   }
@@ -109,6 +163,12 @@ describe("aggregateItems", () => {
 
   it("counts a schema 3 row like a schema 2 row (the activity is not aggregated)", () => {
     expect(aggregateItems(sized(3, { observations: 3, transitions: 2, steps: 4, labels: 5 }))).toEqual([
+      2 * 3 + 3 * 2 + 4 + 5,
+    ]);
+  });
+
+  it("counts a schema 4 row like a schema 2 row (ms is not aggregated)", () => {
+    expect(aggregateItems(sized(4, { observations: 3, transitions: 2, steps: 4, labels: 5 }))).toEqual([
       2 * 3 + 3 * 2 + 4 + 5,
     ]);
   });

@@ -8,6 +8,8 @@
 import { describe, expect, it } from "vitest";
 import deployConfig from "../cloudflare.config";
 import packageJson from "../package.json";
+import { DAILY_CRON } from "../src/cron";
+import { TIMING_CRON } from "../src/timing";
 import wranglerText from "../wrangler.jsonc?raw";
 
 /** Parses JSON with comments and trailing commas (JSONC), as wrangler.jsonc uses. */
@@ -128,10 +130,11 @@ describe("cloudflare.config.ts and wrangler.jsonc", () => {
     expect(wrangler.ratelimits).toEqual(expected);
   });
 
-  it("have the same cron triggers and nothing else", () => {
+  it("have the same cron triggers and nothing else, the two that scheduled() dispatches on", () => {
     expect(worker.triggers.every((trigger) => trigger.type === "scheduled")).toBe(true);
     expect(wrangler.triggers.crons).toEqual(worker.triggers.map((trigger) => trigger.schedule));
-    expect(wrangler.triggers.crons).toEqual(["0 18 * * *"]);
+    expect(wrangler.triggers.crons).toEqual(["0 18 * * *", "30 18 * * *"]);
+    expect(wrangler.triggers.crons).toEqual([DAILY_CRON, TIMING_CRON]);
   });
 
   it("declare every binding in one of the checks above", () => {

@@ -6,6 +6,7 @@ import { decodeBase64Url, encodeBase64, encodeBase64Url, toHex } from "../src/en
 import {
   createContext,
   exampleReport,
+  exampleReport4,
   makeToken,
   registerKey,
   reportRequest,
@@ -49,6 +50,7 @@ describe("privacy", () => {
     expect(Object.keys(results[0]!).sort()).toEqual([
       "aggregate_items",
       "client",
+      "clock_ok",
       "id",
       "intersection_id",
       "observation_count",
@@ -62,6 +64,58 @@ describe("privacy", () => {
     // The row ID is a random 53-bit integer, not derived from the token.
     const id = results[0]!.id;
     expect(Number.isSafeInteger(id) && (id as number) >= 0).toBe(true);
+  });
+
+  it("stores only the clock check of schema 4, neither sentAt nor its difference from the server's clock", async () => {
+    context.clock.ms = Date.UTC(2026, 10, 12, 3, 4, 5, 678);
+    const { token } = await makeToken(context);
+    // 1,777 ms behind: within the 2 s of the clock check.
+    const sentAt = context.clock.ms - 1777;
+    const response = await context.fetch(reportRequest(token, { ...exampleReport4(context.clock.seconds), sentAt }));
+    expect(response.status).toBe(202);
+
+    const { results } = await env.DB.prepare("SELECT * FROM reports").all<Record<string, unknown>>();
+    expect(results).toHaveLength(1);
+    expect(results[0]!.clock_ok).toBe(1);
+    const numbers: number[] = [];
+    const collect = (value: unknown): void => {
+      if (typeof value === "number") numbers.push(value);
+      else if (typeof value === "string" && value.startsWith("{")) collect(JSON.parse(value));
+      else if (typeof value === "object" && value !== null) Object.values(value).forEach(collect);
+    };
+    collect(results[0]);
+    for (const secret of [sentAt, 1777, -1777, sentAt % 1000, Math.floor(sentAt / 1000)]) {
+      expect(numbers, String(secret)).not.toContain(secret);
+    }
+    expect(JSON.stringify(results)).not.toContain("sentAt");
+    expect(JSON.stringify(results)).not.toContain(String(sentAt));
+  });
+
+  it("keeps only what the signal does in the timing tables, with days as the finest time", async () => {
+    const columns: Record<string, string[]> = {};
+    for (const table of ["timing_plans", "timing_places"]) {
+      const { results } = await env.DB.prepare("SELECT name FROM pragma_table_info(?1) ORDER BY cid").bind(table).all();
+      columns[table] = results.map((row) => row.name as string);
+    }
+    expect(columns).toEqual({
+      timing_plans: [
+        "intersection_id",
+        "slot",
+        "day_type",
+        "bin",
+        "cycle_ms",
+        "reference",
+        "phase_ms",
+        "spread_ms",
+        "green_ms",
+        "blink_ms",
+        "days",
+        "reports",
+        "last_day",
+        "updated_day",
+      ],
+      timing_places: ["intersection_id", "name_raw", "position_raw", "updated_day"],
+    });
   });
 
   it("gives report rows random keys, so rows carry no arrival order", async () => {

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { runDailyJobs } from "../src/cron";
 import { encodeBase64 } from "../src/encoding";
 import { KEY_WRITE_COST } from "../src/keys";
-import type { Report } from "../src/report";
+import { validateReport, type Report } from "../src/report";
 import { reportPayloads, reportWriteCost, rowStorageBytes, storeReport, utcDay } from "../src/storage";
 import { buildAssertion } from "./helpers/appattest";
 import {
@@ -13,6 +13,7 @@ import {
   BASE,
   createContext,
   exampleReport,
+  exampleReport4,
   getChallenge,
   makeToken,
   meteredDatabase,
@@ -62,6 +63,12 @@ function storedBytes(body: ReturnType<typeof reportWith>): number {
   return reportWriteCost(reportPayloads(body as never)).storedBytes;
 }
 
+function validated(body: unknown, nowSeconds: number): Report {
+  const result = validateReport(body, nowSeconds);
+  if (!result.ok) throw new Error(result.reason);
+  return result.report;
+}
+
 async function databaseSize(): Promise<number> {
   return (await env.DB.prepare("SELECT 1").all()).meta.size_after;
 }
@@ -101,6 +108,29 @@ describe("daily write budget", () => {
 
     const body = reportWith(3, metered.clock.seconds);
     expect((await metered.fetch(reportRequest(key.token, body))).status).toBe(202);
+    expect((await usage(day))?.rows_written).toBe(meter.rowsWritten);
+  });
+
+  it("counts the timing index of schema 4 rows with clock_ok = 1, exactly as D1 reports it", async () => {
+    const { db, meter } = meteredDatabase();
+    const metered = await createContext({ DB: db });
+    const day = utcDay(metered.clock.ms);
+    const { token } = await makeToken(metered);
+    const report = (sentAt: number) => {
+      const body = exampleReport4(metered.clock.seconds);
+      const second = { ...body.intersections[0]!, id: "0000FFFF", observations: [] };
+      return { ...body, sentAt, intersections: [body.intersections[0]!, second] };
+    };
+
+    // clock_ok = 1: table, received_day index and timing index per row, plus the counter.
+    expect((await metered.fetch(reportRequest(token, report(metered.clock.ms)))).status).toBe(202);
+    const payloads = reportPayloads(validated(report(metered.clock.ms), metered.clock.seconds));
+    expect(await usage(day)).toEqual({ rows_written: 2 * 3 + 1, stored_bytes: reportWriteCost(payloads, 1).storedBytes });
+    expect(meter.rowsWritten).toBe(2 * 3 + 1);
+
+    // clock_ok = 0: not in the timing index.
+    expect((await metered.fetch(reportRequest(token, report(metered.clock.ms + 60_000)))).status).toBe(202);
+    expect((await usage(day))?.rows_written).toBe(2 * 3 + 1 + 2 * 2 + 1);
     expect((await usage(day))?.rows_written).toBe(meter.rowsWritten);
   });
 

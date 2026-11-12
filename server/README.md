@@ -13,7 +13,8 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
 | `POST /v1/challenge` | 有効期限 300 秒のチャレンジ（16 バイト乱数と期限に `TOKEN_SECRET` で HMAC 署名したもの）を発行します。保存しないので D1 には書き込みません。その日の書き込み上限で鍵をもう 1 つ登録できないとき（またはデータベースが上限の大きさを超えているとき）は、`503 over_capacity` を返します（D1 の読み取り 1 回だけで確かめます）。 |
 | `POST /v1/attest` | App Attest の attestation を Apple の手順どおりに検証し、公開鍵を登録してアップロード用トークンを返します。 |
 | `POST /v1/token` | 登録済みの鍵による assertion を検証し（署名・rpIdHash・カウンタの単調増加）、トークンを再発行します。 |
-| `POST /v1/reports` | `Authorization: Bearer <token>` 付きのレポート（最大 256 KiB、`schema` 1〜3）を検証し、交差点ごとに 1 行として D1 に保存します。 |
+| `POST /v1/reports` | `Authorization: Bearer <token>` 付きのレポート（最大 256 KiB、`schema` 1〜4）を検証し、交差点ごとに 1 行として D1 に保存します。schema 4 では、端末の時計の確認の結果（`clock_ok`）だけを行に保存します。 |
+| `GET /v1/plans` | `Authorization: Bearer <token>`（`/v1/reports` と同じ送信用トークン）付きの要求に、信号の時刻表（[`docs/timing-estimation.md`](../docs/timing-estimation.md)）を返します。読み取りだけで、D1 には書き込みません。 |
 
 - App Attest の証明書チェーンは、ソースに埋め込んだ **Apple App Attestation Root CA**
   （SHA-256 フィンガープリント `1C:B9:82:3B:A2:8B:A6:AD:2D:33:A0:06:94:1D:E2:AE:4F:51:3E:F1:D4:E8:31:B9:F7:E0:FA:7B:62:42:C9:32`）
@@ -21,6 +22,7 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
   テストだけが `createApp({ attestationRootForTesting })` という関数引数で偽のルートを渡します。
 - トークンはステートレスです。中身は「ランダムな 16 バイトの ID」「有効期限」「App Attest の環境
   （production / development）」だけで、`TOKEN_SECRET` による HMAC-SHA256 で改ざんを防ぎ、定数時間で比較します。
+- cron は 2 つあり、`scheduled()` は `controller.cron` で処理を分けます（知らない cron では何もせずにエラーで終わります）。
 - 毎日 03:00 JST（`0 18 * * *` UTC）の cron（`src/cron.ts`）で、次のことをします。
   - `RETENTION_DAYS`（既定 90 日）を過ぎたレポート行を、集計テーブルに畳み込んでから削除する
   - 30 日使われていない App Attest の鍵を削除する
@@ -28,6 +30,15 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
   - 実行結果を `service_state` に 1 行だけ記録する（下の「cron の実行結果の確認」）
   - どれかの処理が失敗しても、残りの処理は実行します（たとえば畳み込みが D1 の上限で失敗しても、鍵は削除します）。
     その回は `service_state` を更新せず、最後に失敗した処理のエラーで終わります。
+- 毎日 03:30 JST（`30 18 * * *` UTC）の cron（`src/timing.ts`）で、信号の時刻表を当てはめます
+  （計算は [`docs/timing-estimation.md`](../docs/timing-estimation.md) の「暦」と「当てはめ」のとおり）。
+  - 使うのは `clock_ok = 1` で、受信日（UTC）がその日より前の行だけです。
+  - まだ当てはめていない交差点、次に前回の当てはめが古い交差点から順に、1 回に最大 12 交差点を処理します
+    （その日にもう当てはめた交差点は除きます）。交差点ごとに、時刻表の行をすべて置き換え、名称と位置を更新します（1 回のバッチ）。
+  - 時刻表の行の書き込み（削除と追加）が 4,000 行を超えたら、新しい交差点を始めず、残りを翌日に回します。
+  - 1 つの交差点で失敗しても、ほかの交差点は処理します。その回は `service_state` を更新せず、エラーで終わります。
+  - 重い計算（payload からの transition の取り出し、暦、周期の中央値、位相の単位ベクトルの合計）は D1 の SQL で行い、
+    Worker は交差点ごとに、周期が条件を満たしたセルの合計だけを受け取ります。payload を Worker で JSON として読むことはしません。
 - D1 に書き込む `/v1/attest`・`/v1/token`・`/v1/reports` は、書き込む前に 1 日の書き込み上限を確かめます
   （下の「1 日の書き込み上限」）。`/v1/challenge` も、鍵を登録できる余裕があるかを読み取りだけで確かめます。
 
@@ -37,16 +48,19 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
 | --- | --- |
 | `daily_usage` | 日（UTC）ごとの書き込み行数と、保存したバイト数の見積もりだけ。1 週間で cron が削除します。 |
 | `attest_keys` | App Attest の鍵 ID・公開鍵・署名カウンタ・環境・登録日・最後に使われた日（どちらも UTC の日単位）。レポートとは一切結び付けません。最後に使われてから 30 日たつと cron が削除します。 |
-| `reports` | 1 レポート × 1 交差点 = 1 行。受信日（UTC、日単位）、schema、client、件数（observation、transition、`aggregate_items`）、payload（serviceUUIDs / emitters / observations / transitions の JSON。schema 2 と 3 では emitterInfo / steps / packets / coverage / labels も、項目ごとのフィールドをすべて書き出し、不明な値は null。schema 3 では observation に `activity` も入ります）。`aggregate_items` は、この行を畳み込むときに集計テーブルに足す行数の上限です（schema 1 は observation + transition、schema 2 と 3 は observation × 2 + transition × 3 + step + label）。主キーはランダムな整数（0 以上 2^53 未満）で、到着順を残しません。 |
+| `reports` | 1 レポート × 1 交差点 = 1 行。受信日（UTC、日単位）、schema、client、件数（observation、transition、`aggregate_items`）、payload（serviceUUIDs / emitters / observations / transitions の JSON。schema 2〜4 では emitterInfo / steps / packets / coverage / labels も、項目ごとのフィールドをすべて書き出し、不明な値は null。schema 3 と 4 では observation に `activity`、schema 4 では transition と step に `ms` も入ります）、`clock_ok`（schema 4 の端末の時計の確認：差が 2000 ミリ秒以内なら 1、超えれば 0。schema 1〜3 は NULL）。`sentAt` も時計の差そのものも保存しません。`aggregate_items` は、この行を畳み込むときに集計テーブルに足す行数の上限です（schema 1 は observation + transition、schema 2〜4 は observation × 2 + transition × 3 + step + label）。主キーはランダムな整数（0 以上 2^53 未満）で、到着順を残しません。`clock_ok = 1` の行だけが部分インデックス `reports_for_timing`（交差点 ID × 受信日）に入り、時刻表の cron はそれを読みます。 |
 | `transition_counts` | 保持期間後も残る集計：交差点 × スロット × 遷移元 × 遷移先 × 時刻（JST の時）ごとの件数。 |
 | `observation_counts` | 保持期間後も残る集計：交差点 × メッセージ種別（raw から取得）× RSSI × 方位 × 端末の向きごとの件数。不明値は RSSI = 1、方位・向き = -1 で表します。 |
 | `duration_counts` | 保持期間後も残る集計（schema 2）：交差点 × 種類（`held`・`cycle`・`step`）× スロット × 状態 × 残り目安 × 曜日（JST、0 = 日曜）× 時刻（JST の時）× 続いた秒数（ミリ秒を秒に四捨五入）ごとの件数。`held` は transition の `held`（状態は `from`）、`cycle` は `cycle`（状態は `to`）、`step` は `steps[].held`（残り目安は `from`、不明なら 0）から数えます。`held` と `cycle` の残り目安は 0 です。 |
 | `range_counts` | 保持期間後も残る集計（schema 2）：交差点 × RSSI × 距離 × 方位ごとの、距離のある observation の件数。不明値は `observation_counts` と同じです。 |
 | `crosswalk_labels` | 保持期間後も残る集計（schema 2）：交差点 × スロット × 方位 × 端末の向き × 距離ごとの `crosswalk` の印の件数。不明値は -1 です。`packets`、`coverage`、`button` の印、observation の `activity`（schema 3）は集計せずに削除します。 |
-| `service_state` | 最後に成功した cron の実行結果（時刻、畳み込んだ行数、削除した鍵の数、書き込んだ行数、データベースの大きさ）。1 行だけで、個人に関わる情報は含みません。 |
+| `timing_plans` | 信号の時刻表：交差点 × 信号の番号（slot）× 日の種類 × 時間帯（bin）ごとに、公開の条件を満たしたセルだけ 1 行。周期・基準（`epoch` か `midnight`）・位相・ばらつき・青と青点滅の長さ（すべてミリ秒）、日数、報告の行数、最後の日（JST）、更新した日（UTC）。信号機のふるまいだけで、個人に関わる情報は含みません。保存期間は定めず、当てはめのたびに交差点ごとに置き換えます。 |
+| `timing_places` | 当てはめた交差点ごとに 1 行：当てはめに使った行の observation のうち、時刻 `t` が最も新しい名称（メッセージ種別 0）と位置（種別 1）の `raw`（信号機が発信している公開の情報）、最後に当てはめた日（UTC）。使った行にどちらかがなければ、前回の値を残します（時刻表も行より長く残るため）。 |
+| `service_state` | 最後に成功した cron の実行結果（時刻、畳み込んだ行数、削除した鍵の数、書き込んだ行数、データベースの大きさ、時刻表の cron の結果）。1 行だけで、個人に関わる情報は含みません。 |
 
 スキーマは [`migrations/`](migrations/) にあります（`0003` で `challenges` テーブルを削除し、`reports` を作り直しました。
-`0004` で schema 2 の集計テーブル 3 つと `reports.aggregate_items` を追加しました）。
+`0004` で schema 2 の集計テーブル 3 つと `reports.aggregate_items` を追加しました。`0005` で `reports.clock_ok` と
+部分インデックス `reports_for_timing`、`timing_plans`、`timing_places`、`service_state` の時刻表の cron の列を追加しました）。
 
 ## プライバシー保証
 
@@ -61,6 +75,12 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
 - **結び付けられる可能性も正直に書きます。** 1 つのトークン（最長 6 時間有効）で送ったレポートは、受信して処理している間は
   同じトークンで届いたことが分かります（サーバーはそれを保存しません）。また、レポートの中の時刻 `t` は秒単位なので、
   保存された行でも、時刻の続く行を並べれば同じ人が続けて通った交差点を推測できる可能性があります。
+- **端末の時計のずれを残しません。** schema 4 の `sentAt` は、要求を受け付け始めた時刻（本文を読む前）との差が 2 秒以内かどうか
+  （`clock_ok` の 1 か 0）を決めるためだけに使い、`sentAt` も差そのものも保存しません。端末ごとに決まった時計のずれは、
+  報告どうしを結び付ける手がかりになるためです（テストで確認しています）。
+- **時刻表から協力者の通った時刻が分からないようにします。** 時刻表の cron は、受信日（UTC）がその日より前の行だけを使います。
+  時刻表と `timing_places` には、信号機のふるまいと信号機が発信している名称・位置だけが入り、日付より細かい時刻
+  （更新した日、最後の日）は残しません。
 - **想定外のデータを受け取りません。** レポートは仕様の検証表どおりに厳密に検証し、未知のフィールド（緯度経度など）が
   含まれていれば全体を `400 invalid_report` で拒否します。`raw` は、アプリの解析器（`PICSPacket.swift`）が受け付ける
   形だけを受け付けます。保存するのは検証済みの値から組み立て直した JSON だけです。
@@ -119,9 +139,13 @@ Workers Builds は CI の結果を見ません。CI が通らない変更を `ma
 `0004` はテーブルと既定値付きの列を足すだけなので、古いコードもそのまま動きます。それまでに保存した行と古いコードが
 保存した行は `aggregate_items` が 0 になりますが、cron は少なくとも observation + transition の件数（schema 1 の行では正確な値）で数えます。
 既存の行は書き換えないので、`reports` が大きくても書き込み行数を使いません。
-古いコードは知らない schema（schema 2 を受け付ける前のコードなら schema 2、その次のコードなら schema 3）を
-`400 invalid_report` で断り、アプリはそのレポートを捨てるので、新しい schema を送るアプリは
+古いコードは知らない schema（schema 2 を受け付ける前のコードなら schema 2、その次のコードなら schema 3、
+その次なら schema 4）を `400 invalid_report` で断り、アプリはそのレポートを捨てるので、新しい schema を送るアプリは
 それを受け付けるサーバーをデプロイしてから公開してください。schema 3 にはマイグレーションがありません。
+`0005`（schema 4 と時刻表）も、NULL を許す列、部分インデックス、テーブルを足すだけなので、古いコードもそのまま動きます。
+古いコードが保存する行は `clock_ok` が NULL なので部分インデックスに入らず、書き込み行数の数え方も変わりません。
+古いコードの日次の cron は `service_state` の自分の列だけを書きます。2 つ目の cron（`30 18 * * *`）は、
+新しいコードと同じデプロイで追加されます。
 
 ### 初回の設定（リポジトリ所有者が 1 回だけ）
 
@@ -271,6 +295,15 @@ npx cf d1 query <Database ID> --sql "SELECT * FROM daily_usage ORDER BY day DESC
 | `deleted_keys` | 30 日使われずに削除した鍵の数 |
 | `rows_written` | その実行で書き込んだ行数（インデックスを含む） |
 | `database_bytes` | 実行後のデータベースの大きさ（D1 の `size_after`、バイト） |
+| `timing_last_success` | 時刻表の cron が最後に成功した実行の開始時刻（UTC）。まだ成功していなければ NULL。1 日以上前なら、時刻表の cron が失敗しているか動いていません。 |
+| `timing_fitted` | その実行で当てはめた交差点の数 |
+| `timing_plan_rows` | その実行で保存した時刻表の行の数 |
+| `timing_backlog` | `1` なら、時刻表の行の書き込みが 4,000 行を超えて止まり、残りの交差点が翌日に回りました。 |
+| `timing_waiting` | 当てはめる行があるのに、その実行で当てはめなかった（上限を超えた、または失敗した）交差点の数。12 を超える交差点にデータがあれば、毎日順に回ります。 |
+| `timing_rows_written` | 時刻表の cron がその実行で書き込んだ行数 |
+
+日次の cron がまだ一度も記録していないときに時刻表の cron が成功すると、日次の cron の列を空（`cron_last_success` は空文字、件数は 0）にした行を作ります。
+日次の cron は、次に成功したときに自分の列を上書きします。
 
 `daily_usage` には、その日の API による書き込み行数（`rows_written`）と保存量の見積もり（`stored_bytes`）が入っています。
 
@@ -303,16 +336,20 @@ Worker は自分の書き込みに上限を設けています（`src/budget.ts`�
 | API による書き込み行数（UTC の 1 日） | `DAILY_WRITE_LIMIT` | 30,000 行 |
 | API による保存量の見積もり（UTC の 1 日） | `DAILY_STORAGE_LIMIT_BYTES` | 3,000,000 バイト |
 | データベースの大きさ | `MAX_DATABASE_BYTES` | 450,000,000 バイト |
-| cron の 1 回の書き込み行数 | `DEFAULT_FOLD_LIMITS`、`KEY_DELETE_LIMIT`（コード内） | 畳み込みは 45,000 行で新しいチャンクを始めない（最大で約 51,000 行）、鍵の削除は 10,000 行まで |
+| cron の 1 回の書き込み行数 | `DEFAULT_FOLD_LIMITS`、`KEY_DELETE_LIMIT`（コード内） | 畳み込みは 45,000 行で新しいチャンクを始めない（最大で約 52,000 行）、鍵の削除は 10,000 行まで |
 | cron の 1 回の D1 クエリ数 | 同上 | 最大 43 回（無料枠は 1 回の呼び出しで 50 回） |
+| 時刻表の cron の 1 回の書き込み行数 | `DEFAULT_TIMING_LIMITS`（`src/timing.ts`） | 最大 12 交差点。時刻表の行の書き込みが 4,000 行を超えたら新しい交差点を始めない（最大で 5,741 行） |
+| 時刻表の cron の 1 回の D1 クエリ数 | 同上 | 最大 26 回 |
 
-- 行数はインデックスへの書き込みも含めて数えます。レポートは「交差点数 × 2 + 1」行、
+- 行数はインデックスへの書き込みも含めて数えます。レポートは「交差点数 × 2 + 1」行（`clock_ok = 1` の schema 4 では
+  部分インデックスの分も足して「交差点数 × 3 + 1」行）、
   `/v1/attest` と `/v1/token` は 2 行です（`/v1/token` は「最後に使われた日」も同じ行の更新で記録するので増えません）。
   テストで D1 自身が返す書き込み行数と一致することを確かめています。
 - 保存量は、レポート 1 行ごとに本文の長さから見積もった大きさ（ほかの列、インデックス、ページの空きを含む。
   `rowStorageBytes()`）と、鍵 1 つあたり 300 バイトを数えます。SQLite は 4 KiB のページに行を詰めるため、
   本文が 2〜4 KB の行は 1 行で 1 ページ（約 4.1 KB）を使います。見積もりは、ローカルの D1 で 150 B〜60 KB の本文を
-  実測した大きさ以上になるようにしてあります（`test/storage.test.ts`）。
+  実測した大きさ以上になるようにしてあります（`test/storage.test.ts`）。`clock_ok = 1` の行は、部分インデックスの分として
+  さらに 64 バイトを数えます（ローカルの実測は 1 行あたり 30〜40 バイト程度）。
 - 上限に達すると、その日は `503 over_capacity` を返して何も保存しません。`/v1/challenge` も、鍵をもう 1 つ登録できないときは
   `503` を返すので、アプリは Apple に鍵の証明を頼む前に止まります。アプリは時間をおいて送り直し、
   端末内のレポートは 6 日まで残ります。
@@ -322,12 +359,16 @@ Worker は自分の書き込みに上限を設けています（`src/budget.ts`�
   で計算しており、本番の D1 も auto-vacuum で動いていると Cloudflare が説明しています
   （[workerd#1618](https://github.com/cloudflare/workerd/issues/1618)）。そのため、上限を超えても cron が古い行を
   削除すれば値が下がり、書き込みは自動で再開します（テストで確かめています）。
-- 1 日の書き込み行数の合計は、最大でも API の 30,000 + cron の約 61,000 行で、100,000 行を下回ります。
+- 1 日の書き込み行数の合計は、最大でも API の 30,000 + 日次の cron の約 62,000 行（畳み込みの 1 チャンクは、集計 4,000 行と、
+  削除する行の表・受信日のインデックス・部分インデックスの 3 × 1,000 行まで）+ 時刻表の cron の 5,741 行 ≈ 98,000 行で、100,000 行を下回ります。
 - データベースの大きさの見積もり（最悪の場合）:
   - レポート行と鍵：1 日に増えるのは最大 3 MB です。レポート行は最長 91 日 18 時間、鍵は最長 31 日 18 時間で削除されるので、
     合わせて最大で約 3 MB × 92 日 ≈ 275 MB です。実際の行は見積もりより小さいことが多く（本文 150 B の行は約 280 バイト）、
     これより少なくなります。
   - `daily_usage`（8 行程度）と `service_state`（1 行）はごくわずかです。
+  - 時刻表（`timing_plans`、1 行 100 バイト程度）は削除しませんが、交差点ごとに置き換えるので、ふつうは時刻表のある交差点の数 ×
+    セルの数で頭打ちになります。正規の端末が存在しない交差点 ID の、条件を満たすデータを送り続けると、最悪で 1 日 4,864 行
+    （4,000 + 1 交差点の最大 864 行、約 0.5 MB）ずつ増えます。集計テーブルと同じく、`database_bytes` が増え続けるときは不要な行を手で削除してください。
   - 集計テーブルは削除しません。1 行は 50〜70 バイト程度で、ふつうは交差点・信号・時間帯の組み合わせの数で頭打ちになります。
     ただし、正規の端末から存在しない交差点 ID のデータを上限いっぱいに送り続けると、最悪で 1 日 3 MB ほど増え続け、
     約 2 か月で `MAX_DATABASE_BYTES` に達します。こうして超えた分は cron では減らないので、`service_state` の
@@ -342,6 +383,9 @@ Worker は自分の書き込みに上限を設けています（`src/budget.ts`�
   ただし、信号の変化ばかりの重い行（`aggregate_items` が 2,000 を超える行は 1 チャンクに 1 行）を正規の端末が毎日上限まで送り続けると、
   1 日に届く分が 1 回で畳み込める分（約 20 行）を上回り、積み残しが日ごとに増えます。そのときはレポート行が 91 日 18 時間より長く残るので、
   プライバシーポリシーにも「通常は」と、長くなる場合があることを書いています。`backlog` が続くときは上限を見直してください。
+- 時刻表の cron は、`clock_ok = 1` の行だけを部分インデックスで読みます（全件は読みません）。交差点ごとの計算は D1 の中で行うので、
+  Worker の CPU 時間は交差点ごとに受け取るセルの数（多くても数十）にしか比例せず、無料枠の 10 ms に収まる見込みです
+  （Cloudflare 上の実測ではありません）。`GET /v1/plans` も、応答の JSON を D1 の SQL で組み立てて、Worker は文字列のまま返します。
 - 鍵の削除は、`attest_keys` を 1 日 1 回全件読みます（`last_used_day` に索引を付けると、トークンの更新ごとに書き込み行が
   増えるため）。鍵は最大でも 1 日 10,000 個（保存量の上限から）しか増えないので、読み取りの無料枠（1 日 500 万行）に収まります。
 - Workers Paid プランでは、上の値を `cloudflare.config.ts` と `wrangler.jsonc` で上げられます。
@@ -352,7 +396,7 @@ Workers Rate Limiting を使っています（期間は 10 秒か 60 秒のみ�
 
 | バインディング | キー | 既定値 |
 | --- | --- | --- |
-| `REPORTS_RATE_LIMITER` | トークンのランダム ID | 60 秒あたり 6 回 |
+| `REPORTS_RATE_LIMITER` | `/v1/reports` はトークンのランダム ID、`/v1/plans` は `plans:` + トークンのランダム ID | 60 秒あたり各 6 回 |
 | `AUTH_RATE_LIMITER` | `/v1/attest` は固定キー `attest`、`/v1/token` は鍵 ID の SHA-256 の先頭 16 バイト | 60 秒あたり各 30 回 |
 
 `AUTH_RATE_LIMITER` は、attestation や assertion の検証に通ったリクエストだけを数えます。
@@ -386,8 +430,9 @@ server/
 │   ├── budget.ts           1 日の書き込み上限
 │   ├── keys.ts             App Attest の鍵の保存と、使われなくなった鍵の削除
 │   ├── report.ts           レポートの検証（raw は PICS のメッセージ種別ごとの長さも確かめる）
-│   ├── storage.ts          レポートの保存、保存量の見積もり、集計への畳み込み
+│   ├── storage.ts          レポートの保存（端末の時計の確認を含む）、保存量の見積もり、集計への畳み込み
 │   ├── cron.ts             毎日の cron（畳み込み、鍵と古い記録の削除、service_state への記録）
+│   ├── timing.ts           暦、時刻表の当てはめの cron、GET /v1/plans の応答
 │   ├── env.ts, http.ts, encoding.ts
 └── test/                   vitest のテスト（偽のルート CA → 中間 CA → 端末証明書を生成して検証。
                             config.test.ts は 2 つの設定ファイルを比べる）

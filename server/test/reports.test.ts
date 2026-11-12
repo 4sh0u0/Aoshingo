@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import { createExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createApp } from "../src/app";
 import { validateReport } from "../src/report";
 import {
   createContext,
   exampleReport,
   exampleReport2,
   exampleReport3,
+  exampleReport4,
   makeToken,
   reportRequest,
   resetDatabase,
@@ -111,9 +114,10 @@ const ACCEPTED: [string, Mutation][] = [
 const REJECTED: [string, Mutation][] = [
   // schema
   ["schema 0", (r) => set(r as never, "schema", 0)],
-  ["schema 4", (r) => set(r as never, "schema", 4)],
+  ["schema 5", (r) => set(r as never, "schema", 5)],
   ["a schema 1 body declared as schema 2 (no emitterInfo for its emitter)", (r) => set(r as never, "schema", 2)],
   ["a schema 1 body declared as schema 3 (no emitterInfo for its emitter)", (r) => set(r as never, "schema", 3)],
+  ["a schema 1 body declared as schema 4 (no sentAt)", (r) => set(r as never, "schema", 4)],
   ["schema \"1\"", (r) => set(r as never, "schema", "1")],
   ["schema missing", (r) => set(r as never, "schema", undefined)],
   // client
@@ -213,7 +217,9 @@ const REJECTED: [string, Mutation][] = [
   ["an unexpected intersection field", (r) => set(intersection(r) as never, "location", [35.68, 139.76])],
   ["an unexpected observation field", (r) => set(observation(r), "deviceModel", "iPhone")],
   ["an unexpected transition field", (r) => set(transition(r), "note", "x")],
-  // fields that schema 2 and 3 added, even when null or empty
+  // fields that schema 2 to 4 added, even when null or empty
+  ["schema 1 with sentAt", (r, now) => set(r as never, "sentAt", now * 1000)],
+  ["schema 1 with sentAt = null", (r) => set(r as never, "sentAt", null)],
   ...(
     [
       ["emitterInfo", [{ txPower: null, connectable: null }]],
@@ -231,7 +237,7 @@ const REJECTED: [string, Mutation][] = [
     [`schema 1 with observation.${key} = 0`, (r) => set(observation(r), key, 0)],
     [`schema 1 with observation.${key} = null`, (r) => set(observation(r), key, null)],
   ]),
-  ...(["emitter", "gap", "held", "cycle"] as const).flatMap((key): [string, Mutation][] => [
+  ...(["emitter", "gap", "held", "cycle", "ms"] as const).flatMap((key): [string, Mutation][] => [
     [`schema 1 with transition.${key} = 0`, (r) => set(transition(r), key, 0)],
     [`schema 1 with transition.${key} = null`, (r) => set(transition(r), key, null)],
   ]),
@@ -288,10 +294,14 @@ function mutated2(mutation: Mutation2, base: Base2 = exampleReport2): Report2 {
   return report;
 }
 
-/** Schema 3 is schema 2 plus observations[].activity, so schema 2's rules hold for both. */
+/**
+ * Schema 3 is schema 2 plus observations[].activity, and schema 4 is schema 3 plus sentAt and the
+ * ms of transitions and steps, so schema 2's rules hold for all three.
+ */
 const LATER_SCHEMAS: [string, Base2][] = [
   ["schema 2", exampleReport2],
   ["schema 3", exampleReport3],
+  ["schema 4", exampleReport4 as unknown as Base2],
 ];
 
 const at = (r: Report2) => r.intersections[0]! as unknown as Item;
@@ -584,6 +594,199 @@ describe("schema 3 validation table (activity)", () => {
     expect(validateReport(JSON.parse(JSON.stringify(report)), context.clock.seconds).ok).toBe(false);
     expect((await submit(report)).status).toBe(400);
     expect(await reportCount()).toBe(0);
+  });
+});
+
+type Report4 = ReturnType<typeof exampleReport4>;
+type Mutation4 = (report: Report4, now: number) => void;
+
+function mutated4(mutation: Mutation4): Report4 {
+  const report = exampleReport4(context.clock.seconds);
+  mutation(report, context.clock.seconds);
+  return report;
+}
+
+const at4 = (r: Report4) => r.intersections[0]! as unknown as Item;
+const first4 = (r: Report4, list: string) => (at4(r)[list] as Item[])[0]!;
+const setFirst4 = (list: string, key: string, value: unknown): Mutation4 => (r) => set(first4(r, list), key, value);
+const setTop4 = (key: string, value: unknown): Mutation4 => (r) => set(r as never, key, value);
+
+/** Each entry: [description, mutation of the schema 4 example]. All of these must be accepted. */
+const ACCEPTED_4: [string, Mutation4][] = [
+  ["the schema 4 contract example", () => {}],
+  ["sentAt 1 (a clock far off)", setTop4("sentAt", 1)],
+  ["sentAt 2^53 - 1", setTop4("sentAt", Number.MAX_SAFE_INTEGER)],
+  ["sentAt written as a float with no fraction", (r) => set(r as never, "sentAt", r.sentAt + 0.0)],
+  ...(["transitions", "steps"] as const).flatMap((list): [string, Mutation4][] => [
+    ...[0, 100, 500, 900].map((value): [string, Mutation4] => [`${list} ms ${value}`, setFirst4(list, "ms", value)]),
+    [`${list} ms null`, setFirst4(list, "ms", null)],
+    [`${list} ms absent (treated as null)`, setFirst4(list, "ms", undefined)],
+  ]),
+];
+
+/** Each entry: [description, mutation of the schema 4 example]. All of these must be rejected. */
+const REJECTED_4: [string, Mutation4][] = [
+  ["sentAt missing", setTop4("sentAt", undefined)],
+  ["sentAt null", setTop4("sentAt", null)],
+  ["sentAt 0", setTop4("sentAt", 0)],
+  ["sentAt -1", setTop4("sentAt", -1)],
+  ["sentAt 2^53", setTop4("sentAt", 2 ** 53)],
+  ["sentAt with a fraction", (r) => set(r as never, "sentAt", r.sentAt + 0.5)],
+  ["sentAt as a string", (r) => set(r as never, "sentAt", String(r.sentAt))],
+  ["sentAt in seconds as a list", (r, now) => set(r as never, "sentAt", [now])],
+  ["sentAt on an intersection", (r) => set(at4(r), "sentAt", r.sentAt)],
+  ...(["transitions", "steps"] as const).flatMap((list): [string, Mutation4][] => [
+    ...[50, 150, 950, 1000, -100].map((value): [string, Mutation4] => [`${list} ms ${value}`, setFirst4(list, "ms", value)]),
+    [`${list} ms 100.5`, setFirst4(list, "ms", 100.5)],
+    [`${list} ms as a string`, setFirst4(list, "ms", "400")],
+    [`${list} ms true`, setFirst4(list, "ms", true)],
+  ]),
+  ["ms on an observation", setFirst4("observations", "ms", 400)],
+  ["ms on a label", setFirst4("labels", "ms", 400)],
+  ["ms on a coverage span", setFirst4("coverage", "ms", 400)],
+  ["an unexpected top-level field", setTop4("offset", 0)],
+  // The rules of schema 3's activity hold too.
+  ["activity unknown", setFirst4("observations", "activity", "unknown")],
+];
+
+/** Fields of schema 4 in a body of an earlier schema. */
+const EARLIER_WITH_SCHEMA4_FIELDS: [string, Mutation2][] = [
+  ["sentAt", (r, now) => set(r as never, "sentAt", now * 1000)],
+  ["sentAt = null", (r) => set(r as never, "sentAt", null)],
+  ["transition.ms = 0", setFirst("transitions", "ms", 0)],
+  ["transition.ms = null", setFirst("transitions", "ms", null)],
+  ["step.ms = 400", setFirst("steps", "ms", 400)],
+  ["step.ms = null", setFirst("steps", "ms", null)],
+];
+
+describe("schema 4 validation table (sentAt and ms)", () => {
+  it.each(ACCEPTED_4)("accepts %s", async (_name, mutation) => {
+    const response = await submit(mutated4(mutation));
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(202);
+    expect(await reportCount()).toBe(1);
+  });
+
+  it.each(REJECTED_4)("rejects %s", async (_name, mutation) => {
+    const report = mutated4(mutation);
+    expect(validateReport(JSON.parse(JSON.stringify(report)), context.clock.seconds).ok).toBe(false);
+    const response = await submit(report);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_report" });
+    expect(await reportCount()).toBe(0);
+  });
+
+  describe.each([
+    ["schema 2", exampleReport2],
+    ["schema 3", exampleReport3],
+  ] as [string, Base2][])("%s", (_schema, base) => {
+    it.each(EARLIER_WITH_SCHEMA4_FIELDS)("rejects a body with %s", async (_name, mutation) => {
+      const report = mutated2(mutation, base);
+      expect(validateReport(JSON.parse(JSON.stringify(report)), context.clock.seconds).ok).toBe(false);
+      const response = await submit(report);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "invalid_report" });
+      expect(await reportCount()).toBe(0);
+    });
+  });
+});
+
+describe("schema 4 storage and the clock check", () => {
+  async function stored(): Promise<{ schema: number; clock_ok: number | null; payload: string }[]> {
+    return (
+      await env.DB.prepare("SELECT schema, clock_ok, payload FROM reports ORDER BY intersection_id").all<{
+        schema: number;
+        clock_ok: number | null;
+        payload: string;
+      }>()
+    ).results;
+  }
+
+  it("stores ms with every transition and step, null when unknown, and never sentAt", async () => {
+    const report = mutated4((r, now) => {
+      r.intersections.push({
+        id: "0000FFFF",
+        serviceUUIDs: [],
+        emitters: 0,
+        observations: [],
+        transitions: [{ t: now - 2, slot: 2, from: "Green", to: "BlinkGreen" }],
+        steps: [{ t: now - 1, slot: 2, state: "BlinkGreen", from: 2, to: 1, ms: null }],
+      } as never);
+    });
+    expect((await submit(report)).status).toBe(202);
+    const rows = await stored();
+    expect(rows.map(({ payload: _payload, ...row }) => row)).toEqual([
+      { schema: 4, clock_ok: 1 },
+      { schema: 4, clock_ok: 1 },
+    ]);
+    const bare = JSON.parse(rows[0]!.payload);
+    const now = context.clock.seconds;
+    expect(bare.transitions).toEqual([
+      { t: now - 2, slot: 2, from: "Green", to: "BlinkGreen", emitter: null, gap: null, held: null, cycle: null, ms: null },
+    ]);
+    expect(bare.steps).toEqual([{ t: now - 1, slot: 2, state: "BlinkGreen", from: 2, to: 1, emitter: null, held: null, ms: null }]);
+    // The example spells out every field, in the stored order.
+    const { id: _id, ...example } = report.intersections[0]!;
+    expect(rows[1]!.payload).toBe(JSON.stringify(example));
+    for (const row of rows) {
+      expect(row.payload).not.toContain("sentAt");
+      expect(row.payload).not.toContain(String(report.sentAt));
+    }
+  });
+
+  it("stores clock_ok 1 within 2000 ms of the server's clock and 0 beyond", async () => {
+    const at = await createContext();
+    at.clock.ms = Date.UTC(2026, 10, 12, 3, 0, 0, 500);
+    const { token: fresh } = await makeToken(at);
+    const cases: [number, number][] = [
+      [0, 1],
+      [2000, 1],
+      [-2000, 1],
+      [2001, 0],
+      [-2001, 0],
+      [-3_600_000, 0],
+    ];
+    for (const [offset, expected] of cases) {
+      await resetDatabase();
+      const report = { ...exampleReport4(at.clock.seconds), sentAt: at.clock.ms + offset };
+      expect((await at.fetch(reportRequest(fresh, report))).status, String(offset)).toBe(202);
+      expect((await stored()).map((row) => row.clock_ok), String(offset)).toEqual([expected]);
+    }
+  });
+
+  it("compares sentAt with the time the request arrived, before the body was read", async () => {
+    // The clock moves on while the body streams in; the check uses the time the handler started.
+    let clockMs = Date.UTC(2026, 10, 12, 3, 0, 0);
+    const at = await createContext();
+    at.clock.ms = clockMs;
+    const app = createApp({ attestationRootForTesting: at.pki.rootDer, now: () => clockMs });
+    const { token: fresh } = await makeToken(at);
+    const body = new TextEncoder().encode(JSON.stringify({ ...exampleReport4(at.clock.seconds), sentAt: clockMs }));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(body.subarray(0, 10));
+      },
+      pull(controller) {
+        clockMs += 10_000;
+        controller.enqueue(body.subarray(10));
+        controller.close();
+      },
+    });
+    const request = new Request("https://reports.example/v1/reports", {
+      method: "POST",
+      headers: { authorization: `Bearer ${fresh}`, "content-type": "application/json" },
+      body: stream,
+    });
+    expect((await app.fetch(request, at.env, createExecutionContext())).status).toBe(202);
+    expect(clockMs).toBeGreaterThan(Date.UTC(2026, 10, 12, 3, 0, 0));
+    expect((await stored()).map((row) => row.clock_ok)).toEqual([1]);
+  });
+
+  it("stores clock_ok NULL for schema 1 to 3", async () => {
+    for (const body of [exampleReport, exampleReport2, exampleReport3]) {
+      await resetDatabase();
+      expect((await submit(body(context.clock.seconds))).status).toBe(202);
+      expect((await stored()).map((row) => row.clock_ok)).toEqual([null]);
+    }
   });
 });
 
