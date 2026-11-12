@@ -6,7 +6,8 @@ import SwiftUI
 /// One pedestrian signal slot: symbol, words and the remaining-time indication.
 ///
 /// The signal area is content, so it uses an opaque background and never Liquid Glass.
-/// Slot numbers carry no direction: which crossing a slot belongs to is not known yet.
+/// Slot numbers carry no direction: which crossing a slot belongs to is not known, unless the user
+/// has checked it and named the slot (`SlotPreference`).
 struct SignalSlotView: View {
     /// Spoken first by VoiceOver, so a signal is never heard without the intersection it belongs to.
     let intersectionName: String
@@ -14,6 +15,9 @@ struct SignalSlotView: View {
     let signal: PedestrianSignal?
     let stale: Bool
     let mode: SignalColorMode
+    var preference = SlotPreference()
+    /// Opens this signal's settings (name, notifications, sound and vibration).
+    var onEdit: (() -> Void)?
 
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -31,6 +35,11 @@ struct SignalSlotView: View {
         )
     }
 
+    /// 「n 番」, or the name the user gave the signal.
+    private var spokenSlotName: String {
+        preference.spokenName ?? String(localized: "\(slot) 番")
+    }
+
     /// The same condition that AppModel gives `SignalChangeMonitor` for this slot.
     private var condition: SignalCondition {
         if stale { return .stale }
@@ -42,9 +51,7 @@ struct SignalSlotView: View {
         let appearance = appearance
         let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
         VStack(spacing: 12) {
-            Text("\(slot) 番")
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            header
             Image(systemName: appearance.symbol)
                 .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 96 : 72, weight: .bold))
                 .modifier(BlinkModifier(active: appearance.blinks && !reduceMotion))
@@ -75,19 +82,57 @@ struct SignalSlotView: View {
         // The remaining time is the value, so its steps never make VoiceOver re-read the label.
         .accessibilityValue(remainingDescription)
         .accessibilityFocused($isAccessibilityFocused)
+        .accessibilityActions {
+            if let onEdit {
+                Button("この信号の設定", action: onEdit)
+            }
+        }
         .onChange(of: appearance.accessibilityTitle) { _, title in
             // Only a real change of what the signal means is announced here, and only for the slot
-            // that VoiceOver is on (which is what `.updatesFrequently` used to re-read). Changes into
-            // 青点滅, 赤 and the other warnings are announced by AppModel for every slot, wherever
-            // the focus is, unless that is switched off in Settings.
+            // that VoiceOver is on (which is what `.updatesFrequently` used to re-read). The changes
+            // that AppModel announces wherever the focus is (warnings for every signal unless that
+            // is switched off in Settings, and 青 for a signal the user chose) are left to it.
             guard isAccessibilityFocused else { return }
-            if warningsAnnouncedForEverySignal, condition.needsAttention { return }
-            AccessibilityAnnouncer.announce([String(localized: "\(slot) 番"), title].joined(separator: "、"))
+            let watch = preference.watch(warningsForEverySignal: warningsAnnouncedForEverySignal)
+            if watch.reports(condition) { return }
+            AccessibilityAnnouncer.announce([spokenSlotName, title].joined(separator: "、"))
+        }
+    }
+
+    /// The name the user gave the signal above its number, and the button for its settings.
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                if let name = preference.displayName {
+                    Text(verbatim: name)
+                        .font(.headline)
+                    Text("\(slot) 番")
+                        .font(.subheadline)
+                } else {
+                    Text("\(slot) 番")
+                        .font(.headline)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if let onEdit {
+                Button(action: onEdit) {
+                    Label("この信号の設定", systemImage: "slider.horizontal.3")
+                        .labelStyle(.iconOnly)
+                        .font(.title3)
+                        // A tap target of at least 44 × 44 pt around the small icon.
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                // The extra area reaches into the tile's padding, so the header keeps its height.
+                .padding(.vertical, -12)
+                .padding(.trailing, -12)
+            }
         }
     }
 
     private func accessibilityLabel(_ appearance: SignalAppearance) -> String {
-        [intersectionName, String(localized: "\(slot) 番"), appearance.accessibilityTitle].joined(separator: "、")
+        [intersectionName, spokenSlotName, appearance.accessibilityTitle].joined(separator: "、")
     }
 
     /// Spoken as the accessibility value; empty when there is nothing current to say.
@@ -149,7 +194,10 @@ struct RemainingGauge: View {
 #Preview("Signals") {
     ScrollView {
         VStack {
-            SignalSlotView(intersectionName: DemoAdvertiser.name, slot: 1, signal: .init(remaining: 5, state: .green), stale: false, mode: .standard)
+            SignalSlotView(
+                intersectionName: DemoAdvertiser.name, slot: 1, signal: .init(remaining: 5, state: .green), stale: false, mode: .standard,
+                preference: SlotPreference(name: "駅の方へ"), onEdit: {}
+            )
             SignalSlotView(intersectionName: DemoAdvertiser.name, slot: 2, signal: .init(remaining: 2, state: .blinkGreen), stale: false, mode: .colorUniversal)
             SignalSlotView(intersectionName: DemoAdvertiser.name, slot: 3, signal: .init(remaining: nil, state: .red), stale: false, mode: .monochrome)
             SignalSlotView(intersectionName: DemoAdvertiser.name, slot: 4, signal: .init(remaining: 3, state: .red), stale: true, mode: .standard)

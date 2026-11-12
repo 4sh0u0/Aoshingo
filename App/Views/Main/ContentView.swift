@@ -112,6 +112,7 @@ extension View {
 private struct DetailContainer: View {
     @Environment(AppModel.self) private var model
     let colorMode: SignalColorMode
+    @State private var editedSlot: SlotEditTarget?
 
     var body: some View {
         ScrollView {
@@ -123,7 +124,8 @@ private struct DetailContainer: View {
                         confirmed: model.confirmedSignals(for: state.id),
                         source: model.source,
                         isFollowingNearest: model.selectedID == nil,
-                        colorMode: colorMode
+                        colorMode: colorMode,
+                        onEditSlot: { editedSlot = $0 }
                     )
                     // A different intersection is a different view: VoiceOver focus and view state
                     // must not carry over from the previous intersection's signals.
@@ -133,6 +135,11 @@ private struct DetailContainer: View {
                 }
             }
             .padding()
+        }
+        // Presented here, not in the detail view, so that a switch to another nearest
+        // intersection does not close the settings while the user is typing a name.
+        .sheet(item: $editedSlot) { target in
+            SlotSettingsView(target: target)
         }
     }
 

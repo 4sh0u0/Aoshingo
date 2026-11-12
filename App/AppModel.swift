@@ -59,6 +59,9 @@ final class AppModel {
     }
 
     let field = FieldDataModel()
+    /// Names, notification settings, sounds and vibrations the user set for each signal.
+    let slotPreferences = SlotPreferenceStore()
+    let cuePlayer = SignalCuePlayer()
 
     @ObservationIgnored private let scanner = PICSScanner()
     @ObservationIgnored private let recorder = AdvertisementRecorder()
@@ -374,10 +377,28 @@ final class AppModel {
         UserDefaults.standard.object(forKey: SettingsKey.announceSignalWarnings) as? Bool ?? SettingsKey.announceSignalWarningsDefault
     }
 
+    /// Which changes of a signal are announced wherever VoiceOver focus is, with its cue.
+    private func signalWatch(intersectionID: String, slot: Int) -> SignalWatch {
+        slotPreferences[intersectionID, slot].watch(warningsForEverySignal: announcesSignalWarnings)
+    }
+
+    /// The name of a signal for VoiceOver: the reading or name the user gave it, else 「n 番」.
+    private func spokenSlotName(intersectionID: String, slot: Int) -> String {
+        slotPreferences[intersectionID, slot].spokenName ?? String(localized: "\(slot) 番")
+    }
+
     /// Feeds what the displayed intersection shows now (as `IntersectionDetailView` draws it) to the
     /// change monitor, and speaks the changes that need attention shortly after the first one.
     private func checkSignalChanges(at now: Date) {
-        guard isActive, announcesSignalWarnings, let state = displayedIntersection else {
+        guard isActive, let state = displayedIntersection else {
+            stopSignalChangeAnnouncements()
+            return
+        }
+        var watches: [Int: SignalWatch] = [:]
+        for slot in state.activeSlots {
+            watches[slot.slot] = signalWatch(intersectionID: state.id, slot: slot.slot)
+        }
+        guard watches.values.contains(where: { $0 != SignalWatch.none }) else {
             stopSignalChangeAnnouncements()
             return
         }
@@ -397,7 +418,7 @@ final class AppModel {
             }
             conditions[slot.slot] = condition
         }
-        changeMonitor.update(intersectionID: state.id, conditions: conditions)
+        changeMonitor.update(intersectionID: state.id, conditions: conditions, watches: watches)
         guard changeMonitor.hasPendingChanges, changeAnnouncementTask == nil else { return }
         changeAnnouncementTask = Task { [weak self] in
             try? await Task.sleep(for: SignalChangeMonitor.collectionDelay)
@@ -407,20 +428,37 @@ final class AppModel {
         }
     }
 
-    /// For example 「〇〇交差点、1 番、3 番、赤。止まってください」. 更新なし of every signal is
-    /// spoken once for the intersection.
+    /// For example 「〇〇交差点、1 番、駅の方へ、赤。止まってください」, after the sounds and
+    /// vibrations chosen for those signals. 更新なし of every announced signal is spoken once for the
+    /// intersection.
     private func speakSignalChanges(at now: Date) {
         guard let state = displayedIntersection else { return }
         let changes = changeMonitor.flush(at: now)
         guard !changes.isEmpty else { return }
-        let slotsInUse = state.activeSlots.count
+        let id = state.id
+        let slotsAnnounced = state.activeSlots.filter { signalWatch(intersectionID: id, slot: $0.slot) != SignalWatch.none }.count
         let parts = changes.map { change -> String in
             let title = SignalAppearance.accessibilityTitle(for: change.condition)
-            if change.condition == .stale, change.slots.count == slotsInUse { return title }
-            let slots = change.slots.map { String(localized: "\($0) 番") }.formatted(.list(type: .and))
+            if change.condition == .stale, change.slots.count == slotsAnnounced { return title }
+            let slots = change.slots.map { spokenSlotName(intersectionID: id, slot: $0) }.formatted(.list(type: .and))
             return [slots, title].joined(separator: "、")
         }
-        AccessibilityAnnouncer.announce([state.spokenName, parts.joined(separator: "。")].joined(separator: "、"))
+        let message = [state.spokenName, parts.joined(separator: "。")].joined(separator: "、")
+        let cues = Set(changes.flatMap(\.slots)).sorted().map { slot in
+            let preference = slotPreferences[id, slot]
+            return SignalCuePlayer.Cue(sound: preference.sound, vibration: preference.vibration)
+        }
+        let cueLength = cuePlayer.play(cues)
+        guard cueLength > 0 else {
+            AccessibilityAnnouncer.announce(message)
+            return
+        }
+        // VoiceOver speaks after the cues, so that a sound does not cover the first words.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(cueLength))
+            guard self?.isActive == true else { return }
+            AccessibilityAnnouncer.announce(message)
+        }
     }
 
     private func stopSignalChangeAnnouncements() {

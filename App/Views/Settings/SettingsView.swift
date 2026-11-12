@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.collectionConsent) private var consent: CollectionConsent = .undecided
     @AppStorage(SettingsKey.announceSignalWarnings)
     private var announceSignalWarnings = SettingsKey.announceSignalWarningsDefault
+    @State private var confirmingSlotReset = false
 
     var body: some View {
         @Bindable var model = model
@@ -34,7 +35,26 @@ struct SettingsView: View {
                 } header: {
                     Text("VoiceOver")
                 } footer: {
-                    Text("オンにすると、表示中の交差点のどの信号でも、青点滅・赤・信号なしに変わったときと受信が途切れたときに、VoiceOver のフォーカスの位置にかかわらず読み上げます。青に変わったことは、フォーカスしている信号だけ読み上げます。オフにすると、フォーカスしている信号の変化だけを読み上げます。")
+                    Text("オンにすると、表示中の交差点のどの信号でも、青点滅・赤・信号なしに変わったときと受信が途切れたときに、VoiceOver のフォーカスの位置にかかわらず読み上げます。青に変わったことは、フォーカスしている信号と、「青に変わったときも知らせる」をオンにした信号だけ読み上げます。オフにすると、フォーカスしている信号と、音や振動を選んだ信号、「青に変わったときも知らせる」をオンにした信号の変化だけを読み上げます。")
+                }
+
+                Section {
+                    LabeledContent("設定した交差点", value: "\(model.slotPreferences.preferences.count)")
+                    Button("信号ごとの設定をすべて消去", role: .destructive) {
+                        confirmingSlotReset = true
+                    }
+                    .disabled(model.slotPreferences.preferences.isEmpty)
+                    .confirmationDialog("信号ごとの設定をすべて消去しますか？", isPresented: $confirmingSlotReset, titleVisibility: .visible) {
+                        Button("すべて消去", role: .destructive) {
+                            model.slotPreferences.removeAll()
+                        }
+                    } message: {
+                        Text("すべての交差点の信号の名前、知らせ方、音、振動が元に戻ります。")
+                    }
+                } header: {
+                    Text("信号ごとの設定")
+                } footer: {
+                    Text("信号の名前、知らせ方、音、振動は、交差点の画面で各信号の設定ボタン（VoiceOver ではアクション）から変えられます。この端末にだけ保存し、送信しません。")
                 }
 
                 Section {

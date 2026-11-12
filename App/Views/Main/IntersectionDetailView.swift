@@ -11,9 +11,14 @@ struct IntersectionDetailView: View {
     let source: AppModel.Source
     let isFollowingNearest: Bool
     let colorMode: SignalColorMode
+    /// Opens the settings of one signal. The sheet is presented outside this view, so that it stays
+    /// open when the displayed intersection changes.
+    var onEditSlot: (SlotEditTarget) -> Void = { _ in }
 
     @ScaledMetric(relativeTo: .body) private var tileWidth: CGFloat = 260
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(AppModel.self) private var model
+    @State private var showsMutedSignals = false
 
     /// The widest minimum tile width that still fits the narrowest layout: iPad Slide Over is 320 pt
     /// wide, 288 pt inside the padding.
@@ -35,7 +40,7 @@ struct IntersectionDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header(now: now, stale: stale)
                 signals(stale: stale)
-                Text("番号は信号データ内の並び順です。どの横断歩道の信号かはまだ確認できていません。")
+                Text("番号は信号データ内の並び順で、どの横断歩道の信号かは分かりません。現地で確かめた信号には、各信号の設定ボタンから名前を付け、知らせ方や音を変えられます。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 IntersectionInfoSection(state: state, now: now)
@@ -100,18 +105,45 @@ struct IntersectionDetailView: View {
                     .foregroundStyle(.secondary)
             }
         } else {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(slots, id: \.slot) { slot in
-                    let index = slot.slot - 1
-                    let shown = index < confirmed.count ? confirmed[index] : nil
-                    SignalSlotView(
-                        intersectionName: state.spokenName,
-                        slot: slot.slot,
-                        signal: shown,
-                        stale: stale,
-                        mode: colorMode
-                    )
+            let preferences = model.slotPreferences
+            let numbers = slots.map { $0.slot }
+            let announced = numbers.filter { !preferences[state.id, $0].isMuted }
+            let muted = numbers.filter { preferences[state.id, $0].isMuted }
+            if announced.isEmpty {
+                Text("この交差点の信号は、すべて「知らせる」をオフにしています。")
+                    .foregroundStyle(.secondary)
+            } else {
+                tiles(announced, stale: stale)
+            }
+            if !muted.isEmpty {
+                // Signals the user switched off stay reachable, folded below the others.
+                DisclosureGroup(isExpanded: $showsMutedSignals) {
+                    tiles(muted, stale: stale)
+                        .padding(.top, 8)
+                } label: {
+                    let names = muted.map { preferences[state.id, $0].displayName ?? String(localized: "\($0) 番") }
+                    Text("知らせない信号：\(names.formatted(.list(type: .and)))")
                 }
+            }
+        }
+    }
+
+    private func tiles(_ slots: [Int], stale: Bool) -> some View {
+        LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(slots, id: \.self) { slot in
+                let index = slot - 1
+                let shown = index < confirmed.count ? confirmed[index] : nil
+                SignalSlotView(
+                    intersectionName: state.spokenName,
+                    slot: slot,
+                    signal: shown,
+                    stale: stale,
+                    mode: colorMode,
+                    preference: model.slotPreferences[state.id, slot],
+                    onEdit: {
+                        onEditSlot(SlotEditTarget(intersectionID: state.id, intersectionName: state.identifier, slot: slot))
+                    }
+                )
             }
         }
     }

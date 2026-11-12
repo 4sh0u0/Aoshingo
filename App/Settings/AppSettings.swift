@@ -18,6 +18,9 @@ enum SettingsKey {
     /// displayed intersection, and not only for the one VoiceOver is on.
     static let announceSignalWarnings = "announceSignalWarnings"
     static let announceSignalWarningsDefault = true
+    /// Names, notification settings, sounds and vibrations per intersection and signal slot
+    /// (`SlotPreferences` as JSON).
+    static let slotPreferences = "slotPreferences"
     static let recordingEnabled = "recordingEnabled"
 }
 
