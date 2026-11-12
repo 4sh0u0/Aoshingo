@@ -44,6 +44,8 @@ FIRST_HOLIDAY_YEAR = 2026
 LAST_HOLIDAY_YEAR = 2027
 
 # Same limits as the spec.
+MIN_DAYS = 7
+MIN_REPORTS = 2
 MIN_CYCLE_EVENTS = 3
 CYCLE_SHARE_MIN = 0.8
 CYCLE_MIN_S = 30
@@ -427,7 +429,20 @@ def fit_reference(
     return ReferenceFit(name, r_days, min(1.0, r_events), spread, phase, day_phase)
 
 
-def fit_cells(events: list[Event], min_days: int = 3, min_reports: int = 2) -> list[Cell]:
+def chosen_reference(fits: dict[str, ReferenceFit]) -> str:
+    """The reference with the smaller spread rounded to whole ms (as published); epoch on a tie.
+
+    When the cycle divides a day both references give the same spread up to rounding errors, and
+    those must not decide (server/src/timing.ts, planOf). Rounds half up like the server.
+    """
+
+    def rounded(spread_ms: float) -> float:
+        return round_half_up(spread_ms) if math.isfinite(spread_ms) else math.inf
+
+    return "midnight" if rounded(fits["midnight"].spread_ms) < rounded(fits["epoch"].spread_ms) else "epoch"
+
+
+def fit_cells(events: list[Event], min_days: int = MIN_DAYS, min_reports: int = MIN_REPORTS) -> list[Cell]:
     """Fits every cell. Events on excluded days are dropped first."""
     starts: dict[tuple[str, int, int, int], list[tuple[float, JstTime, str, int | None]]] = {}
     greens: dict[tuple[str, int, int, int], list[int]] = {}
@@ -477,10 +492,7 @@ def fit_cells(events: list[Event], min_days: int = 3, min_reports: int = 2) -> l
             cycle_ms = cell.cycle_s * 1000
             plain = [(time_ms, jst, source) for time_ms, jst, source, _ in rows]
             cell.fits = {name: fit_reference(name, plain, cycle_ms) for name in ("epoch", "midnight")}
-            # The smaller spread wins; a tie goes to epoch.
-            cell.chosen = (
-                "midnight" if cell.fits["midnight"].spread_ms < cell.fits["epoch"].spread_ms else "epoch"
-            )
+            cell.chosen = chosen_reference(cell.fits)
             chosen = cell.fits[cell.chosen]
             if cell.days < min_days:
                 cell.reasons.append(f"日数が {min_days} 日未満（{cell.days} 日）")
@@ -624,9 +636,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("files", nargs="+", type=Path,
                         help="記録ファイル（.jsonl）または reports 表の JSON 書き出し")
-    parser.add_argument("--min-days", type=int, default=3, help="必要な日数（初期値 3）")
-    parser.add_argument("--min-reports", type=int, default=2,
-                        help="必要な報告の行数。記録ファイルは別のファイルの数（初期値 2）")
+    parser.add_argument("--min-days", type=int, default=MIN_DAYS, help=f"必要な日数（初期値 {MIN_DAYS}）")
+    parser.add_argument("--min-reports", type=int, default=MIN_REPORTS,
+                        help=f"必要な報告の行数。記録ファイルは別のファイルの数（初期値 {MIN_REPORTS}）")
     parser.add_argument("--by-day", action="store_true", help="セルごとに日ごとの位相も表示する")
     parser.add_argument("--json", action="store_true", help="JSON で出力する")
     parser.add_argument("--today", metavar="YYYY-MM-DD",

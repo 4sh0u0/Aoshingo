@@ -26,8 +26,9 @@ import { createContext, meteredDatabase, resetDatabase, type TestContext } from 
 // Friday 2026-11-27 18:30 UTC = Saturday 2026-11-28 03:30 JST, when the timing cron runs.
 const NOW = Date.UTC(2026, 10, 27, 18, 30);
 const TODAY = "2026-11-27";
-// Tuesday to Friday (JST), no holidays.
-const WEEKDAYS = ["2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20"];
+// Seven weekdays (JST), Thursday 2026-11-12 to Friday 2026-11-20, no holidays: the fewest that
+// pass the publication threshold.
+const WEEKDAYS = ["2026-11-12", "2026-11-13", "2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20"];
 const ID = "1234ABCD";
 
 let context: TestContext;
@@ -292,7 +293,7 @@ describe("phaseFit", () => {
 });
 
 describe("fitting", () => {
-  it("publishes a fixed-time signal seen on four weekdays", async () => {
+  it("publishes a fixed-time signal seen on seven weekdays", async () => {
     await storeDays(ID, FIXED, WEEKDAYS);
     const result = await runTimingJob(env.DB, NOW);
     expect(result).toMatchObject({ fitted: 1, planRows: 1, backlog: false, waiting: 0 });
@@ -308,8 +309,8 @@ describe("fitting", () => {
         spread_ms: 0,
         green_ms: 24_000,
         blink_ms: 6_000,
-        days: 4,
-        reports: 4,
+        days: 7,
+        reports: 7,
         last_day: "2026-11-20",
         updated_day: TODAY,
       },
@@ -324,7 +325,7 @@ describe("fitting", () => {
     });
     await runTimingJob(env.DB, NOW);
     const [plan] = await plans();
-    expect(plan).toMatchObject({ cycle_ms: 120_000, reference: "epoch", days: 4 });
+    expect(plan).toMatchObject({ cycle_ms: 120_000, reference: "epoch", days: 7 });
     expect(Math.abs((plan!.phase_ms as number) - 37_400)).toBeLessThanOrEqual(100);
     expect(plan!.spread_ms as number).toBeLessThan(300);
   });
@@ -335,7 +336,7 @@ describe("fitting", () => {
     await storeDays(ID, signal, WEEKDAYS);
     await runTimingJob(env.DB, NOW);
     expect(await plans()).toMatchObject([
-      { cycle_ms: 97_000, reference: "midnight", phase_ms: 12_300, spread_ms: 0, days: 4, reports: 4 },
+      { cycle_ms: 97_000, reference: "midnight", phase_ms: 12_300, spread_ms: 0, days: 7, reports: 7 },
     ]);
   });
 
@@ -360,13 +361,13 @@ describe("fitting", () => {
       await store(ID, changes);
     }
     await runTimingJob(env.DB, NOW);
-    expect(await plans()).toMatchObject([{ phase_ms: 37_500, spread_ms: 0, days: 4 }]);
+    expect(await plans()).toMatchObject([{ phase_ms: 37_500, spread_ms: 0, days: 7 }]);
   });
 
   it("places each green start by its own JST time, at day and bin boundaries", async () => {
     // Fridays 23:59:59.9 JST (day type 0, bin 47) and the following Saturdays 00:00:00.0 JST
     // (day type 1, bin 0): the same UTC day, but different JST days.
-    const fridays = ["2026-11-06", "2026-11-13", "2026-11-20"];
+    const fridays = ["2026-10-09", "2026-10-16", "2026-10-23", "2026-10-30", "2026-11-06", "2026-11-13", "2026-11-20"];
     for (const friday of fridays) {
       const late = jst(friday, 23, 59, 59, 900);
       const midnight = late + 100;
@@ -380,8 +381,8 @@ describe("fitting", () => {
     await runTimingJob(env.DB, NOW);
     const late = jst("2026-11-20", 23, 59, 59, 900);
     expect(await plans()).toMatchObject([
-      { slot: 1, day_type: 0, bin: 47, phase_ms: late % 120_000, days: 3, last_day: "2026-11-20" },
-      { slot: 2, day_type: 1, bin: 0, phase_ms: (late + 100) % 120_000, days: 3, last_day: "2026-11-21" },
+      { slot: 1, day_type: 0, bin: 47, phase_ms: late % 120_000, days: 7, last_day: "2026-11-20" },
+      { slot: 2, day_type: 1, bin: 0, phase_ms: (late + 100) % 120_000, days: 7, last_day: "2026-11-21" },
     ]);
   });
 
@@ -389,8 +390,9 @@ describe("fitting", () => {
     await storeDays(ID, FIXED, WEEKDAYS);
     await storeDays(ID, { ...FIXED, phase: 1_000 }, WEEKDAYS, { slot: 3 });
     await storeDays(ID, { ...FIXED, phase: 5_000 }, WEEKDAYS, { fromMinute: 7 * 60 + 30, toMinute: 8 * 60 });
-    await storeDays(ID, { ...FIXED, phase: 9_000 }, ["2026-11-07", "2026-11-14", "2026-11-21"]);
-    await storeDays(ID, { ...FIXED, phase: 13_000 }, ["2026-11-08", "2026-11-15", "2026-11-22"]);
+    const saturdays = ["2026-10-10", "2026-10-17", "2026-10-24", "2026-10-31", "2026-11-07", "2026-11-14", "2026-11-21"];
+    await storeDays(ID, { ...FIXED, phase: 9_000 }, saturdays);
+    await storeDays(ID, { ...FIXED, phase: 13_000 }, saturdays.map((date) => dayDate(dayNumber(date) + 1)));
     const result = await runTimingJob(env.DB, NOW);
     expect(result).toMatchObject({ fitted: 1, planRows: 5 });
     expect((await plans()).map((plan) => [plan.slot, plan.day_type, plan.bin, plan.phase_ms])).toEqual([
@@ -403,13 +405,13 @@ describe("fitting", () => {
   });
 
   it("ignores holidays and other excluded days", async () => {
-    // Monday 2026-11-23 is Labour Thanksgiving Day.
-    await storeDays(ID, FIXED, ["2026-11-23", "2026-11-24", "2026-11-25"]);
+    // Monday 2026-11-23 is Labour Thanksgiving Day: with it, seven dates but six days count.
+    await storeDays(ID, FIXED, ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-23", "2026-11-24"]);
     await runTimingJob(env.DB, NOW);
     expect(await plans()).toEqual([]);
-    await storeDays(ID, FIXED, ["2026-11-26"]);
+    await storeDays(ID, FIXED, ["2026-11-25"]);
     await runTimingJob(env.DB, NOW + 86_400_000);
-    expect(await plans()).toMatchObject([{ days: 3, reports: 3, last_day: "2026-11-26" }]);
+    expect(await plans()).toMatchObject([{ days: 7, reports: 7, last_day: "2026-11-25" }]);
   });
 
   it("publishes nothing for a signal whose cycle varies", async () => {
@@ -420,8 +422,9 @@ describe("fitting", () => {
 
   it("takes the lower middle cycle, and needs 80% of the cycles within a second of it", async () => {
     // Half 120 s and half 121 s: the lower middle, 120 s, fits the 120 s signal; 121 s would not.
+    // Eight days of 15 green starts, so that the count is even.
     let i = 0;
-    await storeDays(ID, FIXED, WEEKDAYS, { cycleOf: () => (i++ % 2 === 0 ? 120_000 : 121_000) });
+    await storeDays(ID, FIXED, [...WEEKDAYS, "2026-11-24"], { cycleOf: () => (i++ % 2 === 0 ? 120_000 : 121_000) });
     expect(i % 2).toBe(0);
     await runTimingJob(env.DB, NOW);
     expect(await plans()).toMatchObject([{ cycle_ms: 120_000, spread_ms: 0 }]);
@@ -459,10 +462,14 @@ describe("fitting", () => {
     }
   });
 
-  it("needs green starts on 3 days", async () => {
-    await storeDays(ID, FIXED, WEEKDAYS.slice(0, 2));
+  it("needs green starts on 7 days", async () => {
+    await storeDays(ID, FIXED, WEEKDAYS.slice(0, 6));
     await runTimingJob(env.DB, NOW);
     expect(await plans()).toEqual([]);
+    // The seventh day, received before the next run.
+    await storeDays(ID, FIXED, WEEKDAYS.slice(6));
+    await runTimingJob(env.DB, NOW + 86_400_000);
+    expect(await plans()).toMatchObject([{ days: 7 }]);
   });
 
   it("needs green starts in 2 report rows", async () => {
@@ -472,22 +479,27 @@ describe("fitting", () => {
   });
 
   it("publishes nothing when the daily phases spread over more than 3 s", async () => {
-    // Three days 4 s apart: R_days = (1 + 2 cos(2π x 4/120)) / 3, spread about 3.27 s.
-    for (const [i, date] of WEEKDAYS.slice(0, 3).entries()) {
-      await storeDays(ID, { ...FIXED, phase: FIXED.phase + 4_000 * i }, [date]);
-    }
+    // Seven days whose phases are d before, at and after the signal's, as -d, 0, d, -d, 0, d, 0:
+    // R_days = (3 + 4 cos(2π d / 120)) / 7. d = 5 s: spread about 3.79 s.
+    const spreadOf = (d: number) =>
+      (120_000 / (2 * Math.PI)) * Math.sqrt(-2 * Math.log((3 + 4 * Math.cos((2 * Math.PI * d) / 120)) / 7));
+    const store7 = async (d: number) => {
+      for (const [i, date] of WEEKDAYS.entries()) {
+        const offset = i === 6 ? 0 : ((i % 3) - 1) * d;
+        await storeDays(ID, { ...FIXED, phase: FIXED.phase + offset }, [date]);
+      }
+    };
+    expect(spreadOf(5)).toBeGreaterThan(3_700);
+    await store7(5_000);
     await runTimingJob(env.DB, NOW);
     expect(await plans()).toEqual([]);
-    // 2 s apart: about 1.6 s.
+    // d = 2 s: about 1.51 s.
     await resetDatabase();
-    for (const [i, date] of WEEKDAYS.slice(0, 3).entries()) {
-      await storeDays(ID, { ...FIXED, phase: FIXED.phase + 2_000 * i }, [date]);
-    }
+    await store7(2_000);
     await runTimingJob(env.DB, NOW);
-    expect(await plans()).toMatchObject([{ phase_ms: FIXED.phase + 2_000, days: 3 }]);
+    expect(await plans()).toMatchObject([{ phase_ms: FIXED.phase, days: 7 }]);
     const spread = (await plans())[0]!.spread_ms as number;
-    expect(spread).toBeGreaterThan(1_500);
-    expect(spread).toBeLessThan(1_700);
+    expect(Math.abs(spread - spreadOf(2))).toBeLessThanOrEqual(1);
   });
 
   it("publishes nothing when the green starts scatter within the days", async () => {
@@ -527,31 +539,30 @@ describe("fitting", () => {
   });
 
   it("uses no row received on the day of the run", async () => {
-    await storeDays(ID, FIXED, WEEKDAYS.slice(0, 2));
+    await storeDays(ID, FIXED, WEEKDAYS.slice(0, 6));
     // Data of Friday morning (JST) received this afternoon (UTC), the day of the run.
     await store(ID, signalChanges(FIXED, "2026-11-27"), { received: NOW - 3_600_000 });
     expect(await runTimingJob(env.DB, NOW)).toMatchObject({ fitted: 1, planRows: 0 });
     expect(await plans()).toEqual([]);
     // The next day it is used.
     await runTimingJob(env.DB, NOW + 86_400_000);
-    expect(await plans()).toMatchObject([{ days: 3, last_day: "2026-11-27", updated_day: "2026-11-28" }]);
+    expect(await plans()).toMatchObject([{ days: 7, last_day: "2026-11-27", updated_day: "2026-11-28" }]);
   });
 
   it("uses only rows whose device clock was right (clock_ok = 1)", async () => {
-    await storeDays(ID, FIXED, WEEKDAYS.slice(0, 2));
-    await store(ID, signalChanges(FIXED, WEEKDAYS[2]!), { clockOk: false });
-    expect(await rows("SELECT clock_ok FROM reports ORDER BY clock_ok")).toEqual([
-      { clock_ok: 0 },
-      { clock_ok: 1 },
-      { clock_ok: 1 },
+    await storeDays(ID, FIXED, WEEKDAYS.slice(0, 6));
+    await store(ID, signalChanges(FIXED, WEEKDAYS[6]!), { clockOk: false });
+    expect(await rows("SELECT clock_ok, count(*) AS n FROM reports GROUP BY clock_ok ORDER BY clock_ok")).toEqual([
+      { clock_ok: 0, n: 1 },
+      { clock_ok: 1, n: 6 },
     ]);
     await runTimingJob(env.DB, NOW);
     expect(await plans()).toEqual([]);
   });
 
   it("uses no rows of schema 1 to 3", async () => {
-    await storeDays(ID, FIXED, WEEKDAYS.slice(0, 2));
-    const changes = signalChanges(FIXED, WEEKDAYS[2]!);
+    await storeDays(ID, FIXED, WEEKDAYS.slice(0, 6));
+    const changes = signalChanges(FIXED, WEEKDAYS[6]!);
     await storeReport(
       env.DB,
       {
@@ -594,7 +605,7 @@ describe("fitting", () => {
     // A later fit that publishes nothing removes the plan.
     await resetDatabase();
     await env.DB.prepare(stale).bind(ID).run();
-    await storeDays(ID, FIXED, WEEKDAYS.slice(0, 2));
+    await storeDays(ID, FIXED, WEEKDAYS.slice(0, 6));
     await runTimingJob(env.DB, NOW);
     expect(await plans()).toEqual([]);
   });
@@ -701,7 +712,7 @@ describe("the timing cron", () => {
 
   it("uses at most 26 D1 queries per run, within the Free plan's 50 per invocation, and counts its writes", async () => {
     expect(maxTimingQueries()).toBe(26);
-    for (let i = 0; i < DEFAULT_TIMING_LIMITS.maxIntersections + 2; i++) await storeDays(idOf(i), FIXED, WEEKDAYS.slice(0, 3));
+    for (let i = 0; i < DEFAULT_TIMING_LIMITS.maxIntersections + 2; i++) await storeDays(idOf(i), FIXED, WEEKDAYS);
     const { db, meter } = meteredDatabase();
     const result = await runTimingJob(db, NOW);
     expect(result).toMatchObject({ fitted: 12, planRows: 12, waiting: 2, backlog: false });
@@ -814,7 +825,7 @@ describe("scheduled() dispatch", () => {
     await store("0000FFFF", signalChanges(FIXED, "2026-08-04"), { received: Date.UTC(2026, 7, 4) });
     await runCron("30 18 * * *");
     expect(await plans()).toHaveLength(1);
-    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 5 }]);
+    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 8 }]);
     expect(await rows("SELECT count(*) AS n FROM transition_counts")).toEqual([{ n: 0 }]);
     expect(await rows("SELECT cron_last_success, timing_last_success FROM service_state")).toEqual([
       { cron_last_success: "", timing_last_success: "2026-11-27T18:30:00Z" },
@@ -827,7 +838,7 @@ describe("scheduled() dispatch", () => {
     await runCron("0 18 * * *", NOW - 1_800_000);
     expect(await rows("SELECT count(*) AS n FROM timing_plans")).toEqual([{ n: 0 }]);
     expect(await rows("SELECT count(*) AS n FROM timing_places")).toEqual([{ n: 0 }]);
-    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 4 }]);
+    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 7 }]);
     expect(await rows("SELECT timing_last_success FROM service_state")).toEqual([{ timing_last_success: null }]);
   });
 
@@ -836,7 +847,7 @@ describe("scheduled() dispatch", () => {
     await store("0000FFFF", signalChanges(FIXED, "2026-08-04"), { received: Date.UTC(2026, 7, 4) });
     for (const cron of ["", "0 0 * * *"]) await expect(runCron(cron)).rejects.toThrow("unknown cron trigger");
     expect(await rows("SELECT count(*) AS n FROM timing_plans")).toEqual([{ n: 0 }]);
-    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 5 }]);
+    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 8 }]);
     expect(await rows("SELECT count(*) AS n FROM service_state")).toEqual([{ n: 0 }]);
   });
 });

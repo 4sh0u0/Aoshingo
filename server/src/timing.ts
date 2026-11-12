@@ -177,7 +177,7 @@ export function phaseFit(
 }
 
 /** Publication thresholds (step 4 of "セル"). */
-const MIN_DAYS = 3;
+const MIN_DAYS = 7;
 const MIN_REPORTS = 2;
 const MIN_R_EVENTS = 0.9;
 const MAX_SPREAD_MS = 3000;

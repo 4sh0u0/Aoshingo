@@ -139,7 +139,9 @@ class ParsingTests(unittest.TestCase):
 
 
 class FitTests(unittest.TestCase):
-    DAYS = [(2026, 11, 10), (2026, 11, 11), (2026, 11, 12)]  # Tue, Wed, Thu
+    # Tue 10 November to Wed 18 November: seven weekdays, the fewest that pass by default.
+    DAYS = [(2026, 11, 10), (2026, 11, 11), (2026, 11, 12), (2026, 11, 13), (2026, 11, 16), (2026, 11, 17),
+            (2026, 11, 18)]
 
     def build(self, tmp: Path, days, offset, cycle, reference_midnight=False):
         paths = []
@@ -170,23 +172,24 @@ class FitTests(unittest.TestCase):
         self.assertTrue(cell.ok)
         self.assertEqual((cell.intersection, cell.slot, cell.day_type, cell.bin), (INTERSECTION, 1, 0, 20))
         self.assertEqual(cell.cycle_s, 120)
-        self.assertEqual(cell.days, 3)
-        self.assertEqual(cell.reports, 3)
+        self.assertEqual(cell.days, 7)
+        self.assertEqual(cell.reports, 7)
         self.assertEqual(cell.chosen, "epoch")
         phase = cell.fits["epoch"].phase_ms
         self.assertLess(abs(phase - 37_000), 300)
         self.assertLess(cell.fits["epoch"].spread_ms, 300)
         self.assertAlmostEqual(cell.green_ms, GREEN_S * 1000, delta=300)
         self.assertAlmostEqual(cell.blink_ms, BLINK_S * 1000, delta=300)
-        self.assertEqual(cell.last_day, dt.date(2026, 11, 12))
+        self.assertEqual(cell.last_day, dt.date(2026, 11, 18))
 
     def test_not_enough_days_or_files(self):
+        self.assertEqual(fp.MIN_DAYS, 7)
         with tempfile.TemporaryDirectory() as tmp:
-            paths = self.build(Path(tmp), self.DAYS[:2], offset=37, cycle=120)
+            paths = self.build(Path(tmp), self.DAYS[:6], offset=37, cycle=120)
             default = self.fit(paths)[0]
-            relaxed = self.fit(paths, min_days=2)[0]
+            relaxed = self.fit(paths, min_days=6)[0]
         self.assertFalse(default.ok)
-        self.assertTrue(any("日数" in r for r in default.reasons))
+        self.assertTrue(any("日数が 7 日未満（6 日）" in r for r in default.reasons))
         self.assertTrue(relaxed.ok)
 
     def test_variable_cycle_fails(self):
@@ -214,13 +217,13 @@ class FitTests(unittest.TestCase):
             # The holiday has a different phase; it must not influence the fit nor the day count.
             odd = self.build(Path(tmp) / ".", [holiday], offset=77, cycle=120)
             with_holiday = self.fit(normal + odd)
-            only_two_plus_holiday = self.fit(normal[:2] + odd)
+            only_six_plus_holiday = self.fit(normal[:6] + odd)
         self.assertEqual(len(with_holiday), 1)
-        self.assertEqual(with_holiday[0].days, 3)
+        self.assertEqual(with_holiday[0].days, 7)
         self.assertTrue(with_holiday[0].ok)
         self.assertLess(abs(with_holiday[0].fits["epoch"].phase_ms - 37_000), 300)
-        self.assertEqual(only_two_plus_holiday[0].days, 2)
-        self.assertFalse(only_two_plus_holiday[0].ok)
+        self.assertEqual(only_six_plus_holiday[0].days, 6)
+        self.assertFalse(only_six_plus_holiday[0].ok)
 
     def test_midnight_reference_is_chosen(self):
         # 110 s does not divide a day (86,400 mod 110 = 50), so the epoch phase moves day to day.
@@ -236,9 +239,27 @@ class FitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             cells = self.fit(self.build(Path(tmp), self.DAYS, offset=37, cycle=120))
         text = fp.format_table(cells, by_day=True)
-        for day in ("2026-11-10", "2026-11-11", "2026-11-12"):
-            self.assertIn(day, text)
+        for y, m, d in self.DAYS:
+            self.assertIn(f"{y}-{m:02d}-{d:02d}", text)
         self.assertIn("OK", text)
+
+    def test_spreads_are_compared_rounded_to_whole_ms(self):
+        def fits(epoch_ms: float, midnight_ms: float) -> dict[str, fp.ReferenceFit]:
+            return {
+                name: fp.ReferenceFit(name, 1.0, 1.0, spread, 0, {})
+                for name, spread in (("epoch", epoch_ms), ("midnight", midnight_ms))
+            }
+
+        # Equal once rounded: epoch, although midnight is smaller before rounding.
+        self.assertEqual(fp.chosen_reference(fits(1000.4, 999.6)), "epoch")
+        self.assertEqual(fp.chosen_reference(fits(1000.0, 1000.0)), "epoch")
+        # Half rounds up, as Math.round on the server: 999.5 -> 1000, 999.4 -> 999.
+        self.assertEqual(fp.chosen_reference(fits(999.5, 999.4)), "midnight")
+        self.assertEqual(fp.chosen_reference(fits(1000.5, 1000.4)), "midnight")
+        self.assertEqual(fp.chosen_reference(fits(1000.4, 1000.5)), "epoch")
+        # A spread that cannot be computed (R_days = 0) never wins.
+        self.assertEqual(fp.chosen_reference(fits(float("inf"), float("inf"))), "epoch")
+        self.assertEqual(fp.chosen_reference(fits(float("inf"), 2000.0)), "midnight")
 
 
 class ReportTests(unittest.TestCase):

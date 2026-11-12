@@ -228,10 +228,10 @@ describe("GET /v1/plans", () => {
   });
 
   it("serves the plan fitted from reports sent through the API", async () => {
-    // A 120 s signal (green at Unix time ≡ 37.4 s mod 120 s) seen on three weekday mornings
-    // (Tuesday to Thursday, 07:00-07:10 JST), each sent a minute after the last change.
+    // A 120 s signal (green at Unix time ≡ 37.4 s mod 120 s) seen on seven weekday mornings
+    // (07:00-07:10 JST), each sent a minute after the last change.
     const id = "1234ABCD";
-    for (const day of [17, 18, 19]) {
+    for (const day of [10, 11, 12, 13, 16, 17, 18]) {
       const start = Date.UTC(2026, 10, day - 1, 22, 0); // 07:00 JST
       const transitions = [];
       for (let at = start + 37_400; at < start + 600_000; at += 120_000) {
@@ -269,7 +269,7 @@ describe("GET /v1/plans", () => {
           plans: [
             {
               slot: 1, dayType: 0, bin: 14, cycle: 120_000, reference: "epoch", phase: 37_400, spread: 0,
-              green: 30_000, blink: null, days: 3, reports: 3, lastDay: "2026-11-19",
+              green: 30_000, blink: null, days: 7, reports: 7, lastDay: "2026-11-18",
             },
           ],
         },
