@@ -6,16 +6,7 @@ import { runDailyJobs } from "../src/cron";
 import { encodeBase64 } from "../src/encoding";
 import { KEY_WRITE_COST } from "../src/keys";
 import type { Report } from "../src/report";
-import {
-  aggregateItems,
-  DAILY_FOLD_ITEMS,
-  foldItemBytes,
-  reportPayloads,
-  reportWriteCost,
-  rowStorageBytes,
-  storeReport,
-  utcDay,
-} from "../src/storage";
+import { reportPayloads, reportWriteCost, rowStorageBytes, storeReport, utcDay } from "../src/storage";
 import { buildAssertion } from "./helpers/appattest";
 import {
   APP_ID,
@@ -66,12 +57,9 @@ function reportWith(n: number, nowSeconds: number) {
   };
 }
 
-/**
- * The bytes the daily storage budget counts for the report's rows: the estimated size (payload,
- * other columns, index, page space), or the aggregate items' weight when that is more.
- */
-function storedBytes(body: ReturnType<typeof reportWith>, storageLimit = 3_000_000): number {
-  return reportWriteCost(reportPayloads(body as never), aggregateItems(body as never), storageLimit).storedBytes;
+/** The estimated bytes the report's rows take (payload, other columns, index, page space). */
+function storedBytes(body: ReturnType<typeof reportWith>): number {
+  return reportWriteCost(reportPayloads(body as never)).storedBytes;
 }
 
 async function databaseSize(): Promise<number> {
@@ -136,40 +124,6 @@ describe("daily write budget", () => {
     const { token } = await makeToken(limited);
     await expectOverCapacity(await limited.fetch(reportRequest(token, reportWith(3, limited.clock.seconds))));
     expect(await count("daily_usage")).toBe(0);
-  });
-
-  it("charges a row by its aggregate items when they weigh more than its size", async () => {
-    // 300 transitions: about 15 KB of payload, but 300 aggregate items at 100 bytes each.
-    const base = reportWith(1, context.clock.seconds);
-    const now = context.clock.seconds;
-    const body = {
-      ...base,
-      intersections: [
-        {
-          ...base.intersections[0]!,
-          observations: [],
-          transitions: Array.from({ length: 300 }, (_, i) => ({
-            t: now - 300 + i,
-            slot: 1,
-            from: i % 2 === 0 ? "Red" : "Green",
-            to: i % 2 === 0 ? "Green" : "Red",
-          })),
-        },
-      ],
-    };
-    const [payload] = reportPayloads(body as never);
-    expect(foldItemBytes(3_000_000)).toBe(100);
-    expect(rowStorageBytes(payload!.length)).toBeLessThan(300 * 100);
-    expect(storedBytes(body as never)).toBe(300 * 100);
-
-    const { token } = await makeToken(context);
-    expect((await context.fetch(reportRequest(token, body as never))).status).toBe(202);
-    expect((await usage(utcDay(context.clock.ms)))?.stored_bytes).toBe(300 * 100);
-  });
-
-  it("admits at most DAILY_FOLD_ITEMS aggregate items a day, so one cron run folds the day", () => {
-    expect(foldItemBytes(3_000_000) * DAILY_FOLD_ITEMS).toBeGreaterThanOrEqual(3_000_000);
-    expect(foldItemBytes(1_000_001) * DAILY_FOLD_ITEMS).toBeGreaterThanOrEqual(1_000_001);
   });
 
   it("limits the estimated bytes stored per day", async () => {

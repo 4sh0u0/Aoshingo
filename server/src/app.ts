@@ -24,7 +24,7 @@ import {
 import { errorResponse, HttpError, isJsonContentType, json, parseJson, readBodyLimited } from "./http";
 import { findKey, insertKey, KEY_REFRESH_COST, KEY_WRITE_COST, updateCounter } from "./keys";
 import { MAX_REPORT_BYTES, validateReport } from "./report";
-import { aggregateItems, reportPayloads, reportWriteCost, storeReport, utcDay } from "./storage";
+import { reportPayloads, reportWriteCost, storeReport, utcDay } from "./storage";
 import { issueToken, verifyToken } from "./token";
 
 /** Attest/token request bodies are small; anything bigger is not a genuine client. */
@@ -239,8 +239,7 @@ export function createApp(options: AppOptions = {}): App {
 
     const { intersections } = result.report;
     const payloads = reportPayloads(result.report);
-    const cost = reportWriteCost(payloads, aggregateItems(result.report), limits.storedBytesPerDay);
-    await reserveWrites(env.DB, limits, utcDay(nowMs), cost);
+    await reserveWrites(env.DB, limits, utcDay(nowMs), reportWriteCost(payloads));
     await storeReport(env.DB, result.report, nowMs, payloads);
     return json(202, {
       accepted: {
