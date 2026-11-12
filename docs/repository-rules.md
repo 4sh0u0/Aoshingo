@@ -1,6 +1,6 @@
 # リポジトリのルール
 
-`main` ブランチとリリースのタグを、GitHub の Rulesets（ルールセット）で守っています。定義は [`.github/rulesets/`](../.github/rulesets/) の JSON で、[`Tools/github/apply-rulesets.sh`](../Tools/github/apply-rulesets.sh) で GitHub に反映します。
+`main` ブランチとリリースのタグを、GitHub の Rulesets（ルールセット）で守っています。定義は [`.github/rulesets/`](../.github/rulesets/) の JSON で、[`Tools/github/apply-rulesets.sh`](../Tools/github/apply-rulesets.sh) で GitHub に反映します。Pull Request に付けるラベルとマイルストーンの決まりは、[後半](#ラベルとマイルストーン) にまとめています。
 
 ## ルールの一覧
 
@@ -65,3 +65,44 @@ Tools/github/apply-rulesets.sh .github/rulesets/release-tags.json   # 有効に�
 ```
 
 TestFlight にアップロード済みのビルドのタグは直さず、次の build 番号で新しいタグを打ってください。
+
+## ラベルとマイルストーン
+
+Pull Request には、種類と領域のラベルと、その変更が出るバージョンのマイルストーンを付けます。ラベルの定義は [`.github/labels.json`](../.github/labels.json) で、[`Tools/github/apply-labels.sh`](../Tools/github/apply-labels.sh) で GitHub に反映します。
+
+### ラベル
+
+| 分け方 | ラベル | 付け方 |
+| --- | --- | --- |
+| 種類 | `type: feature`、`type: fix`、`type: docs`、`type: chore` | 1 つだけ |
+| 領域 | `area: app`、`area: server`、`area: website`、`area: ci` | 変えたところすべて。文書だけのときは付けない |
+| 話題 | `privacy`、`accessibility`、`channel: testflight`、`dependencies` | 当てはまるときだけ |
+
+- 種類は、バージョン番号の決まり（[リリースとバージョン番号](release.md)）に合わせています。前のリリースのあとアプリ（`area: app`）に入った PR に `type: feature` があれば Y を、`type: fix` だけなら Z を上げます。`type: docs` と `type: chore` だけなら、アプリを出し直す必要はありません。大きな作り直しで X を上げるかは、ラベルでは決めず、そのつど決めます。
+- `privacy` は、集めるデータ、送る内容、プライバシーポリシー、プライバシーマニフェストのどれかが変わる PR に付けます。App Store Connect のプライバシーの回答を見直す目印です。
+- `channel: testflight` は、TestFlight 版（拡張収集）でしか動かない機能の PR に付けます。App Store 版の GitHub Release のノートには載りません（[`.github/release.yml`](../.github/release.yml)）。
+- Dependabot の PR には `type: chore`、`area: ci`、`dependencies` が自動で付きます（[`.github/dependabot.yml`](../.github/dependabot.yml)）。
+- issue の整理に使う `duplicate`、`good first issue`、`help wanted`、`invalid`、`question`、`wontfix` は、GitHub の既定のままです。
+
+### マイルストーン
+
+- マイルストーンの名前は、アプリのバージョン（`0.2.0`、`1.0.0` など）です。PR には、マージしたときの `main` の `MARKETING_VERSION`、つまりその変更が最初に出るバージョンを付けます。`release/X.Y` の枝への PR には、その枝のバージョンを付けます。
+- `MARKETING_VERSION` を上げる PR を出すときに、次のバージョンのマイルストーンを作ります。App Store で公開したら（0.y.z の間は、次のバージョンに上げたら）、そのマイルストーンを閉じます。
+
+```bash
+gh api repos/4sh0u0/Aoshingo/milestones -f title=1.1.0 -f description="…"   # 作る
+gh api -X PATCH repos/4sh0u0/Aoshingo/milestones/<番号> -f state=closed       # 閉じる
+```
+
+- 導入した 2026-11-12 には、`v0.1.0-tf.2`（`25cf40d`）までにマージした #1–#12 を `0.1.0` に、それより後の PR を `0.2.0` にしました。
+
+### ラベルの反映のしかた
+
+```bash
+Tools/github/apply-labels.sh --dry-run   # GitHub との差分を見るだけ
+Tools/github/apply-labels.sh             # 作成、更新、名前の変更
+```
+
+- ルールセットと同じく、JSON を変えるときは先に PR で `main` に入れてから反映します。
+- ラベルは `name` で対応づけます。名前を変えるときは、古い名前を `aliases` に残してから反映してください。GitHub のラベルの名前が変わるだけなので、付いている issue と PR からは外れません。
+- ファイルにないラベルは消さずに、最後に一覧で知らせます。消すときは GitHub の画面で消してください。

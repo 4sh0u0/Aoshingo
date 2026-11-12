@@ -1,0 +1,96 @@
+[
+  {
+    "name": "type: feature",
+    "color": "0e8a16",
+    "description": "機能の追加や改善。アプリに入るものは、次のリリースでバージョンの Y を上げる",
+    "aliases": ["enhancement"]
+  },
+  {
+    "name": "type: fix",
+    "color": "d73a4a",
+    "description": "不具合の修正。アプリに入るものは、次のリリースでバージョンの Z を上げる",
+    "aliases": ["bug"]
+  },
+  {
+    "name": "type: docs",
+    "color": "0075ca",
+    "description": "文書だけの変更。バージョンは上げない",
+    "aliases": ["documentation"]
+  },
+  {
+    "name": "type: chore",
+    "color": "6e7781",
+    "description": "CI、依存関係、リポジトリの設定、識別子の変更など。バージョンは上げない"
+  },
+  {
+    "name": "area: app",
+    "color": "c5def5",
+    "description": "iOS アプリ（App/、Packages/、Config/）"
+  },
+  {
+    "name": "area: server",
+    "color": "c5def5",
+    "description": "実測データを受け取る Worker（server/）"
+  },
+  {
+    "name": "area: website",
+    "color": "c5def5",
+    "description": "公式サイトとお問い合わせの Worker（site/）"
+  },
+  {
+    "name": "area: ci",
+    "color": "c5def5",
+    "description": "CI、GitHub の設定、リリースの道具（.github/、Tools/github/、Tools/release/）",
+    "aliases": ["github_actions"]
+  },
+  {
+    "name": "privacy",
+    "color": "5319e7",
+    "description": "集めるデータ、プライバシーポリシー、プライバシーマニフェストに関わる"
+  },
+  {
+    "name": "accessibility",
+    "color": "f143ab",
+    "description": "障害のある人の使いやすさに関わる（VoiceOver、文字の大きさ、色覚など）"
+  },
+  {
+    "name": "channel: testflight",
+    "color": "fbca04",
+    "description": "TestFlight 版（拡張収集）だけの機能。App Store 版のリリースノートには載せない"
+  },
+  {
+    "name": "dependencies",
+    "color": "0366d6",
+    "description": "依存関係の更新（Dependabot）"
+  },
+  {
+    "name": "duplicate",
+    "color": "cfd3d7",
+    "description": "This issue or pull request already exists"
+  },
+  {
+    "name": "good first issue",
+    "color": "7057ff",
+    "description": "Good for newcomers"
+  },
+  {
+    "name": "help wanted",
+    "color": "008672",
+    "description": "Extra attention is needed"
+  },
+  {
+    "name": "invalid",
+    "color": "e4e669",
+    "description": "This doesn't seem right"
+  },
+  {
+    "name": "question",
+    "color": "d876e3",
+    "description": "Further information is requested"
+  },
+  {
+    "name": "wontfix",
+    "color": "ffffff",
+    "description": "This will not be worked on"
+  }
+]

@@ -6,6 +6,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # The labels in .github/labels.json, instead of Dependabot's own "github_actions".
+    labels:
+      - "type: chore"
+      - "area: ci"
+      - "dependencies"
     groups:
       actions:
         patterns:
