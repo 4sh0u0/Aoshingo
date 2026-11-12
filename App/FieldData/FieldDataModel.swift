@@ -67,11 +67,11 @@ final class FieldDataModel {
         }
         hasUploader = uploader != nil
         timing = TimingModel(uploader: uploader)
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         pipeline = FieldDataPipeline(
             store: FileReportStore(directory: directory),
             uploader: uploader,
-            client: FieldReport.clientString(version: version),
+            // aoshingo-ios/1.1.0, 1.1.0-tf or 1.1.0-dev: the channel, never the build number.
+            client: FieldReport.clientString(version: AppVersion.reportVersion),
             stateStore: stateStore
         )
     }

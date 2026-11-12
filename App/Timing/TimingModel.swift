@@ -10,8 +10,9 @@ import UIKit
 
 /// The signal timing plans and what the 「推定」 screen shows (docs/timing-estimation.md).
 ///
-/// - The 「推定」 screen exists only in TestFlight and development builds (`isFeatureAvailable`): App
-///   Store builds never show it, never download plans and keep no cache of them.
+/// - The 「推定」 screen exists only in TestFlight and development builds (`AppChannel`,
+///   `isFeatureAvailable`): App Store builds never show it, never download plans and keep no cache of
+///   them.
 /// - Plans are downloaded only while the user contributes field data (the server gives them only to
 ///   holders of an upload token), only while the app is in the foreground, and only when the last
 ///   download is 12 hours old or more. They are kept in a cache that is not used once it is more
@@ -89,8 +90,8 @@ final class TimingModel {
     private(set) var plans: TimingPlans?
     private(set) var fetchedAt: Date?
     private(set) var isContributing = false
-    /// Whether this build may show the 「推定」 screen: TestFlight and development builds only. `false`
-    /// until the distribution channel is known, and when it cannot be told.
+    /// Whether this build may show the 「推定」 screen: TestFlight and development builds only
+    /// (`AppChannel`). `false` until the distribution channel is known, and when it cannot be told.
     private(set) var isFeatureAvailable = false
     /// Whether the 「推定」 screen is offered: the user contributes and this build may show it.
     var showsEstimates: Bool { isContributing && isFeatureAvailable }
@@ -174,31 +175,38 @@ final class TimingModel {
 
     /// Finds out once whether this build may show the 「推定」 screen (App Review 5.1.1: a feature
     /// only for contributors is kept out of App Store builds). Checked only for contributors, when
-    /// they opt in or the app becomes active. Debug builds may; other builds may
-    /// when StoreKit says they come from TestFlight (`.sandbox`) or Xcode (`.xcode`). When StoreKit
-    /// cannot tell (no network at the first launch, for example), the screen stays hidden and the
-    /// check is tried again the next time the app becomes active. An App Store build deletes any plans
-    /// cached by an earlier TestFlight install.
+    /// they opt in or the app becomes active. The channel is fixed when the app is compiled
+    /// (`AppChannel`, docs/release.md): development builds may, App Store builds may not and delete
+    /// any plans cached by an earlier TestFlight install. A TestFlight build may only while StoreKit
+    /// says it runs from TestFlight (`.sandbox`) or Xcode (`.xcode`), so that it behaves as an App
+    /// Store build if it is ever released by mistake. When StoreKit cannot tell (no network at the
+    /// first launch, for example), the screen stays hidden and the check is tried again the next time
+    /// the app becomes active.
     func checkDistributionChannel() {
         guard !channelChecked, channelTask == nil else { return }
-        #if DEBUG
-        channelChecked = true
-        isFeatureAvailable = true
-        loadCacheAndRefresh()
-        #else
-        channelTask = Task { [weak self] in
-            let environment: AppStore.Environment?
-            do {
-                switch try await AppTransaction.shared {
-                case .verified(let transaction), .unverified(let transaction, _):
-                    environment = transaction.environment
+        switch AppChannel.current {
+        case .development:
+            channelChecked = true
+            isFeatureAvailable = true
+            loadCacheAndRefresh()
+        case .appStore:
+            channelChecked = true
+            isFeatureAvailable = false
+            clearPlans()
+        case .testFlight:
+            channelTask = Task { [weak self] in
+                let environment: AppStore.Environment?
+                do {
+                    switch try await AppTransaction.shared {
+                    case .verified(let transaction), .unverified(let transaction, _):
+                        environment = transaction.environment
+                    }
+                } catch {
+                    environment = nil
                 }
-            } catch {
-                environment = nil
+                self?.finishChannelCheck(environment)
             }
-            self?.finishChannelCheck(environment)
         }
-        #endif
     }
 
     private func finishChannelCheck(_ environment: AppStore.Environment?) {

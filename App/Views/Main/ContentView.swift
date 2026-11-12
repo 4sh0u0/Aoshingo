@@ -108,7 +108,7 @@ struct ContentView: View {
             }
         }
         // The signal timing estimates are only for users who contribute field data, and only in
-        // TestFlight and development builds (TimingModel.isFeatureAvailable).
+        // TestFlight and development builds (AppChannel, TimingModel.isFeatureAvailable).
         if model.timing.showsEstimates {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("推定", systemImage: "clock") { showingEstimates = true }

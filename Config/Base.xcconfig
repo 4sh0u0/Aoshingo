@@ -3,13 +3,23 @@
 // Identity of the app. Override any of these in Config/Local.xcconfig (not committed),
 // for example DEVELOPMENT_TEAM, without touching the project file.
 
-MARKETING_VERSION = 0.1.0
-CURRENT_PROJECT_VERSION = 1
+// The version of the next App Store release (docs/release.md): three numbers, no suffix.
+MARKETING_VERSION = 0.2.0
+// The App Store Connect build number. Tools/release/release.sh sets it for every upload from the
+// Git tags; 0 here marks a build that was not made by that script.
+CURRENT_PROJECT_VERSION = 0
 PRODUCT_BUNDLE_IDENTIFIER = es.4sh.aoshingo
 DEVELOPMENT_TEAM =
 
 // Host name of the field-data Worker, without "https:" (xcconfig treats two slashes as a comment),
 // for example aoshingo-reports.example.workers.dev. Empty = this build never uploads.
 AOSHINGO_REPORT_HOST =
+
+// Distribution channel (docs/release.md): appstore, testflight or development. Debug builds are
+// development and Release builds appstore unless this is set, here, in Local.xcconfig or on the
+// xcodebuild command line; the TestFlight build is made with AOSHINGO_CHANNEL=testflight.
+AOSHINGO_CHANNEL = $(AOSHINGO_DEFAULT_CHANNEL_$(CONFIGURATION))
+AOSHINGO_DEFAULT_CHANNEL_Debug = development
+AOSHINGO_DEFAULT_CHANNEL_Release = appstore
 
 #include? "Local.xcconfig"

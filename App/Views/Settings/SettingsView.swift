@@ -80,7 +80,15 @@ struct SettingsView: View {
                 }
 
                 Section("情報") {
-                    LabeledContent("バージョン", value: Self.version)
+                    LabeledContent("バージョン", value: AppVersion.display)
+                    switch AppChannel.current {
+                    case .appStore:
+                        EmptyView()
+                    case .testFlight:
+                        LabeledContent("配信", value: String(localized: "TestFlight 版（拡張収集）"))
+                    case .development:
+                        LabeledContent("配信", value: String(localized: "開発用ビルド"))
+                    }
                     NavigationLink("謝辞・ライセンス") { AcknowledgementsView() }
                     Link("ソースコード（GitHub）", destination: AppLinks.repository)
                     Link("プライバシーポリシー", destination: AppLinks.privacyPolicy)
@@ -97,12 +105,6 @@ struct SettingsView: View {
                 }
             }
         }
-    }
-
-    private static var version: String {
-        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        return "\(short) (\(build))"
     }
 }
 

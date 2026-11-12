@@ -161,6 +161,16 @@
         }
       }
     },
+    "TestFlight 版（拡張収集）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight (extended collection)"
+          }
+        }
+      }
+    },
     "Type %lld が短すぎます（%lld / %lld バイト）": {
       "localizations": {
         "en": {
@@ -2301,6 +2311,16 @@
         }
       }
     },
+    "配信": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribution"
+          }
+        }
+      }
+    },
     "長く 1 回": {
       "localizations": {
         "en": {
@@ -2317,6 +2337,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Close"
+          }
+        }
+      }
+    },
+    "開発用ビルド": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Development build"
           }
         }
       }
