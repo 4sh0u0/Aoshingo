@@ -7,6 +7,7 @@ import {
   createContext,
   exampleReport,
   exampleReport2,
+  exampleReport3,
   makeToken,
   reportRequest,
   resetDatabase,
@@ -110,8 +111,9 @@ const ACCEPTED: [string, Mutation][] = [
 const REJECTED: [string, Mutation][] = [
   // schema
   ["schema 0", (r) => set(r as never, "schema", 0)],
-  ["schema 3", (r) => set(r as never, "schema", 3)],
+  ["schema 4", (r) => set(r as never, "schema", 4)],
   ["a schema 1 body declared as schema 2 (no emitterInfo for its emitter)", (r) => set(r as never, "schema", 2)],
+  ["a schema 1 body declared as schema 3 (no emitterInfo for its emitter)", (r) => set(r as never, "schema", 3)],
   ["schema \"1\"", (r) => set(r as never, "schema", "1")],
   ["schema missing", (r) => set(r as never, "schema", undefined)],
   // client
@@ -211,7 +213,7 @@ const REJECTED: [string, Mutation][] = [
   ["an unexpected intersection field", (r) => set(intersection(r) as never, "location", [35.68, 139.76])],
   ["an unexpected observation field", (r) => set(observation(r), "deviceModel", "iPhone")],
   ["an unexpected transition field", (r) => set(transition(r), "note", "x")],
-  // fields that schema 2 added, even when null or empty
+  // fields that schema 2 and 3 added, even when null or empty
   ...(
     [
       ["emitterInfo", [{ txPower: null, connectable: null }]],
@@ -225,7 +227,7 @@ const REJECTED: [string, Mutation][] = [
     `schema 1 with intersection.${key} = ${JSON.stringify(value)}`,
     (r) => set(intersection(r) as never, key, value),
   ]),
-  ...(["emitter", "distance", "accuracy", "course", "speed", "nearby"] as const).flatMap((key): [string, Mutation][] => [
+  ...(["emitter", "distance", "accuracy", "course", "speed", "nearby", "activity"] as const).flatMap((key): [string, Mutation][] => [
     [`schema 1 with observation.${key} = 0`, (r) => set(observation(r), key, 0)],
     [`schema 1 with observation.${key} = null`, (r) => set(observation(r), key, null)],
   ]),
@@ -277,11 +279,20 @@ type Report2 = ReturnType<typeof exampleReport2>;
 type Mutation2 = (report: Report2, now: number) => void;
 type Item = Record<string, unknown>;
 
-function mutated2(mutation: Mutation2): Report2 {
-  const report = exampleReport2(context.clock.seconds);
+/** The example body of a schema that has schema 2's fields. */
+type Base2 = (nowSeconds: number) => Report2;
+
+function mutated2(mutation: Mutation2, base: Base2 = exampleReport2): Report2 {
+  const report = base(context.clock.seconds);
   mutation(report, context.clock.seconds);
   return report;
 }
+
+/** Schema 3 is schema 2 plus observations[].activity, so schema 2's rules hold for both. */
+const LATER_SCHEMAS: [string, Base2][] = [
+  ["schema 2", exampleReport2],
+  ["schema 3", exampleReport3],
+];
 
 const at = (r: Report2) => r.intersections[0]! as unknown as Item;
 const first = (r: Report2, key: string) => (at(r)[key] as Item[])[0]!;
@@ -489,9 +500,9 @@ const REJECTED_2: [string, Mutation2][] = [
   ["an unexpected label field", setFirst("labels", "note", "crossing 1")],
 ];
 
-describe("schema 2 validation table", () => {
+describe.each(LATER_SCHEMAS)("%s validation table (schema 2 rules)", (_schema, base) => {
   it.each(ACCEPTED_2)("accepts %s", async (_name, mutation) => {
-    const report = mutated2(mutation);
+    const report = mutated2(mutation, base);
     const response = await submit(report);
     expect(response.status, JSON.stringify(await response.clone().json())).toBe(202);
     const intersections = report.intersections;
@@ -506,7 +517,7 @@ describe("schema 2 validation table", () => {
   });
 
   it.each(REJECTED_2)("rejects %s", async (_name, mutation) => {
-    const report = mutated2(mutation);
+    const report = mutated2(mutation, base);
     expect(validateReport(JSON.parse(JSON.stringify(report)), context.clock.seconds).ok).toBe(false);
     const response = await submit(report);
     expect(response.status).toBe(400);
@@ -515,14 +526,64 @@ describe("schema 2 validation table", () => {
   });
 
   it("normalises -0 to 0", () => {
-    const text = JSON.stringify(exampleReport2(context.clock.seconds))
+    const text = JSON.stringify(base(context.clock.seconds))
       .replace('"bearing":3', '"bearing":-0')
       .replace('"distance":20', '"distance":-0');
     const result = validateReport(JSON.parse(text), context.clock.seconds);
     expect(result.ok).toBe(true);
-    const observation = result.ok && result.report.schema === 2 ? result.report.intersections[0]!.observations[0]! : null;
+    const observation = result.ok && result.report.schema !== 1 ? result.report.intersections[0]!.observations[0]! : null;
     expect(Object.is(observation?.bearing, 0)).toBe(true);
     expect(Object.is(observation?.distance, 0)).toBe(true);
+  });
+});
+
+const ACTIVITIES = ["stationary", "walking", "running", "cycling", "automotive"];
+
+/** Each entry: [description, mutation of the schema 3 example]. All of these must be accepted. */
+const ACCEPTED_3: [string, Mutation2][] = [
+  ["the schema 3 contract example", () => {}],
+  ...ACTIVITIES.map((value): [string, Mutation2] => [`activity ${value}`, setFirst("observations", "activity", value)]),
+  ["activity null", setFirst("observations", "activity", null)],
+  ["activity absent (treated as null)", setFirst("observations", "activity", undefined)],
+];
+
+/** Each entry: [description, mutation of the schema 3 example]. All of these must be rejected. */
+const REJECTED_3: [string, Mutation2][] = [
+  ["activity unknown", setFirst("observations", "activity", "unknown")],
+  ["activity capitalised", setFirst("observations", "activity", "Walking")],
+  ["activity of another kind", setFirst("observations", "activity", "flying")],
+  ["activity empty", setFirst("observations", "activity", "")],
+  ["activity as a number", setFirst("observations", "activity", 1)],
+  ["activity true", setFirst("observations", "activity", true)],
+  ["activity as a list", setFirst("observations", "activity", ["walking"])],
+  ["activity as an object", setFirst("observations", "activity", { type: "walking", confidence: 2 })],
+  ["an unexpected observation field", setFirst("observations", "confidence", 2)],
+  ["activity on a transition", setFirst("transitions", "activity", "walking")],
+  ["activity on a label", setFirst("labels", "activity", "walking")],
+];
+
+describe("schema 3 validation table (activity)", () => {
+  it.each(ACCEPTED_3)("accepts %s", async (_name, mutation) => {
+    const response = await submit(mutated2(mutation, exampleReport3));
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(202);
+    expect(await reportCount()).toBe(1);
+  });
+
+  it.each(REJECTED_3)("rejects %s", async (_name, mutation) => {
+    const report = mutated2(mutation, exampleReport3);
+    expect(validateReport(JSON.parse(JSON.stringify(report)), context.clock.seconds).ok).toBe(false);
+    const response = await submit(report);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_report" });
+    expect(await reportCount()).toBe(0);
+  });
+
+  it.each(["walking", null])("rejects a schema 2 observation with activity %s", async (activity) => {
+    const report = mutated2(setFirst("observations", "activity", activity));
+    expect(report.schema).toBe(2);
+    expect(validateReport(JSON.parse(JSON.stringify(report)), context.clock.seconds).ok).toBe(false);
+    expect((await submit(report)).status).toBe(400);
+    expect(await reportCount()).toBe(0);
   });
 });
 
@@ -619,6 +680,48 @@ describe("schema 2 storage", () => {
   it("weighs a schema 1 row by its observations and transitions", async () => {
     expect((await submit(exampleReport(context.clock.seconds))).status).toBe(202);
     expect(await env.DB.prepare("SELECT aggregate_items FROM reports").first("aggregate_items")).toBe(2);
+  });
+});
+
+describe("schema 3 storage", () => {
+  it("stores the activity with every observation, null when unknown, and weighs the row like schema 2", async () => {
+    const report = mutated2((r, now) => {
+      r.intersections.push({
+        id: "0000FFFF",
+        serviceUUIDs: [],
+        emitters: 0,
+        observations: [{ t: now - 1, raw: rawWithId("0000FFFF") }],
+        transitions: [],
+      } as never);
+    }, exampleReport3);
+    expect((await submit(report)).status).toBe(202);
+
+    const { results } = await env.DB.prepare(
+      "SELECT intersection_id, schema, client, aggregate_items, payload FROM reports ORDER BY intersection_id",
+    ).all<{ intersection_id: string; schema: number; client: string; aggregate_items: number; payload: string }>();
+    expect(results.map(({ payload: _payload, ...row }) => row)).toEqual([
+      { intersection_id: "0000FFFF", schema: 3, client: "aoshingo-ios/0.2.0", aggregate_items: 2 },
+      { intersection_id: "1234ABCD", schema: 3, client: "aoshingo-ios/0.2.0", aggregate_items: 7 },
+    ]);
+    const [bare, example] = results.map((row) => JSON.parse(row.payload));
+    expect(bare.observations[0]).toEqual({
+      t: context.clock.seconds - 1,
+      raw: rawWithId("0000FFFF"),
+      rssi: null,
+      bearing: null,
+      heading: null,
+      emitter: null,
+      distance: null,
+      accuracy: null,
+      course: null,
+      speed: null,
+      nearby: null,
+      activity: null,
+    });
+    const { id: _id, ...expected } = report.intersections[0]!;
+    // The example spells out every field, in the stored order.
+    expect(results[1]!.payload).toBe(JSON.stringify(expected));
+    expect(example.observations[0].activity).toBe("walking");
   });
 });
 

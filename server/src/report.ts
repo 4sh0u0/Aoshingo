@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Validation of POST /v1/reports bodies (docs/field-data-api.md, "POST /v1/reports"). Schema 1
-// and schema 2 bodies are accepted; a schema 1 body must not carry any field that schema 2 added.
-// The validated report is rebuilt from known fields only, so nothing unexpected can reach storage.
+// Validation of POST /v1/reports bodies (docs/field-data-api.md, "POST /v1/reports"). Schema 1,
+// 2 and 3 bodies are accepted; a body must not carry any field that a later schema added. Schema 3
+// is schema 2 plus observations[].activity. The validated report is rebuilt from known fields only,
+// so nothing unexpected can reach storage.
 
 export const MAX_REPORT_BYTES = 256 * 1024;
 
@@ -46,6 +47,8 @@ const ACCURACY_BUCKETS: readonly number[] = [5, 10, 20, 30];
 /** Lower bounds of the number of other Bluetooth devices seen in the last 30 seconds. */
 const NEARBY_BUCKETS: readonly number[] = [0, 1, 5, 10, 20, 50, 100];
 const LABEL_KINDS = new Set(["crosswalk", "button"]);
+/** Schema 3: how the user was moving, from iOS's motion activity classifier. */
+const ACTIVITIES = new Set(["stationary", "walking", "running", "cycling", "automotive"]);
 /** Longest `held`, `cycle` and `steps[].held` (ms); the app sends null beyond an hour. */
 const MAX_DURATION_MS = 3_600_000;
 
@@ -81,6 +84,12 @@ export interface Schema2Observation extends Observation {
   course: number | null;
   speed: number | null;
   nearby: number | null;
+}
+
+export type Activity = "stationary" | "walking" | "running" | "cycling" | "automotive";
+
+export interface Schema3Observation extends Schema2Observation {
+  activity: Activity | null;
 }
 
 export interface Schema2Transition extends Transition {
@@ -143,6 +152,11 @@ export interface Schema2Intersection extends IntersectionReport {
   labels: Label[];
 }
 
+/** Schema 3 changes only the observations. */
+export interface Schema3Intersection extends Schema2Intersection {
+  observations: Schema3Observation[];
+}
+
 export interface Schema1Report {
   schema: 1;
   client: string | null;
@@ -155,7 +169,13 @@ export interface Schema2Report {
   intersections: Schema2Intersection[];
 }
 
-export type Report = Schema1Report | Schema2Report;
+export interface Schema3Report {
+  schema: 3;
+  client: string | null;
+  intersections: Schema3Intersection[];
+}
+
+export type Report = Schema1Report | Schema2Report | Schema3Report;
 
 export type ValidationResult = { ok: true; report: Report } | { ok: false; reason: string };
 
@@ -270,6 +290,7 @@ function optionalArray(object: JsonObject, key: string, max: number, where: stri
 
 const OBSERVATION_KEYS = ["t", "raw", "rssi", "bearing", "heading"];
 const SCHEMA2_OBSERVATION_KEYS = [...OBSERVATION_KEYS, "emitter", "distance", "accuracy", "course", "speed", "nearby"];
+const SCHEMA3_OBSERVATION_KEYS = [...SCHEMA2_OBSERVATION_KEYS, "activity"];
 const TRANSITION_KEYS = ["t", "slot", "from", "to"];
 const SCHEMA2_TRANSITION_KEYS = [...TRANSITION_KEYS, "emitter", "gap", "held", "cycle"];
 const INTERSECTION_KEYS = ["id", "serviceUUIDs", "emitters", "observations", "transitions"];
@@ -300,14 +321,14 @@ function schema1Observation(value: unknown, intersectionId: string, nowSeconds: 
   return observation(objectWithKeys(value, OBSERVATION_KEYS, "observation"), intersectionId, nowSeconds);
 }
 
-function schema2Observation(
-  value: unknown,
+/** The fields of a schema 2 observation, from an object whose keys were already checked. */
+function schema2ObservationFields(
+  object: JsonObject,
   intersectionId: string,
   emitters: number,
   nowSeconds: number,
 ): Schema2Observation {
   const where = "observation";
-  const object = objectWithKeys(value, SCHEMA2_OBSERVATION_KEYS, where);
   return {
     ...observation(object, intersectionId, nowSeconds),
     emitter: nullableEmitter(object, emitters, where),
@@ -316,6 +337,34 @@ function schema2Observation(
     course: nullableInteger(object, "course", 0, 7, where),
     speed: nullableInteger(object, "speed", 0, 2, where),
     nearby: nullableBucket(object, "nearby", NEARBY_BUCKETS, where),
+  };
+}
+
+function schema2Observation(
+  value: unknown,
+  intersectionId: string,
+  emitters: number,
+  nowSeconds: number,
+): Schema2Observation {
+  const object = objectWithKeys(value, SCHEMA2_OBSERVATION_KEYS, "observation");
+  return schema2ObservationFields(object, intersectionId, emitters, nowSeconds);
+}
+
+function schema3Observation(
+  value: unknown,
+  intersectionId: string,
+  emitters: number,
+  nowSeconds: number,
+): Schema3Observation {
+  const where = "observation";
+  const object = objectWithKeys(value, SCHEMA3_OBSERVATION_KEYS, where);
+  const activity = object.activity;
+  if (activity !== undefined && activity !== null && (typeof activity !== "string" || !ACTIVITIES.has(activity))) {
+    invalid(`${where}.activity`);
+  }
+  return {
+    ...schema2ObservationFields(object, intersectionId, emitters, nowSeconds),
+    activity: (activity ?? null) as Activity | null,
   };
 }
 
@@ -441,7 +490,14 @@ function schema1Intersection(value: unknown, nowSeconds: number): IntersectionRe
   };
 }
 
-function schema2Intersection(value: unknown, nowSeconds: number): Schema2Intersection {
+type ObservationParser<O> = (value: unknown, intersectionId: string, emitters: number, nowSeconds: number) => O;
+
+/** A schema 2 or 3 intersection; they differ only in their observations. */
+function laterIntersection<O extends Schema2Observation>(
+  value: unknown,
+  nowSeconds: number,
+  parseObservation: ObservationParser<O>,
+): Schema2Intersection & { observations: O[] } {
   const where = "intersection";
   const object = objectWithKeys(value, SCHEMA2_INTERSECTION_KEYS, where);
   const { id, serviceUUIDs, emitters } = intersectionHeader(object);
@@ -465,7 +521,7 @@ function schema2Intersection(value: unknown, nowSeconds: number): Schema2Interse
     serviceUUIDs,
     emitters,
     emitterInfo: info.map(emitterInfo),
-    observations: observations.map((item) => schema2Observation(item, id, emitters, nowSeconds)),
+    observations: observations.map((item) => parseObservation(item, id, emitters, nowSeconds)),
     transitions: transitions.map((item) => schema2Transition(item, emitters, nowSeconds)),
     steps: steps.map((item) => step(item, emitters, nowSeconds)),
     packets: validatedPackets,
@@ -479,7 +535,7 @@ export function validateReport(body: unknown, nowSeconds: number): ValidationRes
     if (!isObject(body)) invalid("body is not an object");
     checkKeys(body, ["schema", "client", "intersections"], "report");
     const schema = body.schema;
-    if (schema !== 1 && schema !== 2) invalid("schema");
+    if (schema !== 1 && schema !== 2 && schema !== 3) invalid("schema");
 
     let client: string | null = null;
     if (body.client !== undefined && body.client !== null) {
@@ -493,10 +549,22 @@ export function validateReport(body: unknown, nowSeconds: number): ValidationRes
     if (!Array.isArray(intersections) || intersections.length < 1 || intersections.length > 50) {
       invalid("intersections");
     }
-    const report: Report =
-      schema === 1
-        ? { schema, client, intersections: intersections.map((item) => schema1Intersection(item, nowSeconds)) }
-        : { schema, client, intersections: intersections.map((item) => schema2Intersection(item, nowSeconds)) };
+    let report: Report;
+    if (schema === 1) {
+      report = { schema, client, intersections: intersections.map((item) => schema1Intersection(item, nowSeconds)) };
+    } else if (schema === 2) {
+      report = {
+        schema,
+        client,
+        intersections: intersections.map((item) => laterIntersection(item, nowSeconds, schema2Observation)),
+      };
+    } else {
+      report = {
+        schema,
+        client,
+        intersections: intersections.map((item) => laterIntersection(item, nowSeconds, schema3Observation)),
+      };
+    }
     const ids = report.intersections.map((item) => item.id);
     if (new Set(ids).size !== ids.length) invalid("duplicate intersection id");
 
