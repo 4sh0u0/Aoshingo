@@ -17,6 +17,7 @@ import {
   jstDay,
   maxTimingQueries,
   phaseFit,
+  PLAN_KEEP_DAYS,
   runTimingJob,
   timeBin,
   TIMING_CRON,
@@ -26,6 +27,8 @@ import { createContext, meteredDatabase, resetDatabase, type TestContext } from 
 // Friday 2026-11-27 18:30 UTC = Saturday 2026-11-28 03:30 JST, when the timing cron runs.
 const NOW = Date.UTC(2026, 10, 27, 18, 30);
 const TODAY = "2026-11-27";
+// 21 days before TODAY: plans whose last day is before this are deleted.
+const KEEP_FROM = "2026-11-06";
 // Seven weekdays (JST), Thursday 2026-11-12 to Friday 2026-11-20, no holidays: the fewest that
 // pass the publication threshold.
 const WEEKDAYS = ["2026-11-12", "2026-11-13", "2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20"];
@@ -181,8 +184,7 @@ async function storeDays(id: string, signal: Signal, dates: string[], options: S
 async function plans(id = ID): Promise<Record<string, unknown>[]> {
   return (
     await env.DB.prepare(
-      `SELECT slot, day_type, bin, cycle_ms, reference, phase_ms, spread_ms, green_ms, blink_ms, days, reports,
-              last_day, updated_day
+      `SELECT slot, day_type, bin, cycle_ms, reference, phase_ms, spread_ms, green_ms, blink_ms, last_day, updated_day
          FROM timing_plans WHERE intersection_id = ?1 ORDER BY slot, day_type, bin`,
     )
       .bind(id)
@@ -294,9 +296,10 @@ describe("phaseFit", () => {
 
 describe("fitting", () => {
   it("publishes a fixed-time signal seen on seven weekdays", async () => {
+    expect(dayDate(dayNumber(TODAY) - PLAN_KEEP_DAYS)).toBe(KEEP_FROM);
     await storeDays(ID, FIXED, WEEKDAYS);
     const result = await runTimingJob(env.DB, NOW);
-    expect(result).toMatchObject({ fitted: 1, planRows: 1, backlog: false, waiting: 0 });
+    expect(result).toMatchObject({ fitted: 1, planRows: 1, expired: 0, backlog: false, waiting: 0 });
     expect(await plans()).toEqual([
       {
         slot: 1,
@@ -309,8 +312,6 @@ describe("fitting", () => {
         spread_ms: 0,
         green_ms: 24_000,
         blink_ms: 6_000,
-        days: 7,
-        reports: 7,
         last_day: "2026-11-20",
         updated_day: TODAY,
       },
@@ -325,7 +326,7 @@ describe("fitting", () => {
     });
     await runTimingJob(env.DB, NOW);
     const [plan] = await plans();
-    expect(plan).toMatchObject({ cycle_ms: 120_000, reference: "epoch", days: 7 });
+    expect(plan).toMatchObject({ cycle_ms: 120_000, reference: "epoch" });
     expect(Math.abs((plan!.phase_ms as number) - 37_400)).toBeLessThanOrEqual(100);
     expect(plan!.spread_ms as number).toBeLessThan(300);
   });
@@ -336,7 +337,7 @@ describe("fitting", () => {
     await storeDays(ID, signal, WEEKDAYS);
     await runTimingJob(env.DB, NOW);
     expect(await plans()).toMatchObject([
-      { cycle_ms: 97_000, reference: "midnight", phase_ms: 12_300, spread_ms: 0, days: 7, reports: 7 },
+      { cycle_ms: 97_000, reference: "midnight", phase_ms: 12_300, spread_ms: 0 },
     ]);
   });
 
@@ -361,7 +362,7 @@ describe("fitting", () => {
       await store(ID, changes);
     }
     await runTimingJob(env.DB, NOW);
-    expect(await plans()).toMatchObject([{ phase_ms: 37_500, spread_ms: 0, days: 7 }]);
+    expect(await plans()).toMatchObject([{ phase_ms: 37_500, spread_ms: 0 }]);
   });
 
   it("places each green start by its own JST time, at day and bin boundaries", async () => {
@@ -381,8 +382,8 @@ describe("fitting", () => {
     await runTimingJob(env.DB, NOW);
     const late = jst("2026-11-20", 23, 59, 59, 900);
     expect(await plans()).toMatchObject([
-      { slot: 1, day_type: 0, bin: 47, phase_ms: late % 120_000, days: 7, last_day: "2026-11-20" },
-      { slot: 2, day_type: 1, bin: 0, phase_ms: (late + 100) % 120_000, days: 7, last_day: "2026-11-21" },
+      { slot: 1, day_type: 0, bin: 47, phase_ms: late % 120_000, last_day: "2026-11-20" },
+      { slot: 2, day_type: 1, bin: 0, phase_ms: (late + 100) % 120_000, last_day: "2026-11-21" },
     ]);
   });
 
@@ -411,7 +412,7 @@ describe("fitting", () => {
     expect(await plans()).toEqual([]);
     await storeDays(ID, FIXED, ["2026-11-25"]);
     await runTimingJob(env.DB, NOW + 86_400_000);
-    expect(await plans()).toMatchObject([{ days: 7, reports: 7, last_day: "2026-11-25" }]);
+    expect(await plans()).toMatchObject([{ last_day: "2026-11-25" }]);
   });
 
   it("publishes nothing for a signal whose cycle varies", async () => {
@@ -469,7 +470,7 @@ describe("fitting", () => {
     // The seventh day, received before the next run.
     await storeDays(ID, FIXED, WEEKDAYS.slice(6));
     await runTimingJob(env.DB, NOW + 86_400_000);
-    expect(await plans()).toMatchObject([{ days: 7 }]);
+    expect(await plans()).toHaveLength(1);
   });
 
   it("needs green starts in 2 report rows", async () => {
@@ -497,7 +498,7 @@ describe("fitting", () => {
     await resetDatabase();
     await store7(2_000);
     await runTimingJob(env.DB, NOW);
-    expect(await plans()).toMatchObject([{ phase_ms: FIXED.phase, days: 7 }]);
+    expect(await plans()).toMatchObject([{ phase_ms: FIXED.phase }]);
     const spread = (await plans())[0]!.spread_ms as number;
     expect(Math.abs(spread - spreadOf(2))).toBeLessThanOrEqual(1);
   });
@@ -546,7 +547,7 @@ describe("fitting", () => {
     expect(await plans()).toEqual([]);
     // The next day it is used.
     await runTimingJob(env.DB, NOW + 86_400_000);
-    expect(await plans()).toMatchObject([{ days: 7, last_day: "2026-11-27", updated_day: "2026-11-28" }]);
+    expect(await plans()).toMatchObject([{ last_day: "2026-11-27", updated_day: "2026-11-28" }]);
   });
 
   it("uses only rows whose device clock was right (clock_ok = 1)", async () => {
@@ -590,7 +591,7 @@ describe("fitting", () => {
   });
 
   it("replaces an intersection's plans, removing cells that no longer pass", async () => {
-    const stale = `INSERT INTO timing_plans VALUES (?1, 2, 1, 30, 90000, 'epoch', 0, 0, NULL, NULL, 3, 3, '2026-10-01', '2026-10-02')`;
+    const stale = `INSERT INTO timing_plans VALUES (?1, 2, 1, 30, 90000, 'epoch', 0, 0, NULL, NULL, '2026-11-21', '2026-11-22')`;
     await env.DB.prepare(stale).bind(ID).run();
     await env.DB.prepare(stale).bind("0000FFFF").run();
     await storeDays(ID, FIXED, WEEKDAYS);
@@ -660,44 +661,59 @@ describe("timing_places", () => {
 /** An intersection ID for test number `i`. */
 const idOf = (i: number) => (0x50000000 + i).toString(16).toUpperCase();
 
+/** Each place's updated_day, by intersection. */
+async function days(): Promise<Record<string, unknown>> {
+  return Object.fromEntries(
+    (await rows("SELECT intersection_id, updated_day FROM timing_places")).map((row) => [row.intersection_id, row.updated_day]),
+  );
+}
+
 describe("the timing cron", () => {
-  it("fits never-fitted intersections first, then those fitted longest ago, and skips today's", async () => {
-    const ids = ["A0000000", "B0000000", "C0000000", "D0000000", "E0000000"];
+  it("fits intersections with new rows first, never-fitted ones first, then those fitted longest ago", async () => {
+    // One row each, received on 2026-11-11.
+    const ids = ["A0000000", "B0000000", "C0000000", "D0000000", "E0000000", "G0000000"];
     for (const id of ids) await storeDays(id, FIXED, WEEKDAYS.slice(0, 1));
+    expect(await rows("SELECT DISTINCT received_day FROM reports")).toEqual([{ received_day: "2026-11-11" }]);
+    // G has a row received after its last fit (on 2026-11-20, which used the rows received before).
+    await store("G0000000", signalChanges(FIXED, WEEKDAYS[6]!), { received: Date.UTC(2026, 10, 20, 12) });
     const fitted = env.DB.prepare("INSERT INTO timing_places VALUES (?1, NULL, NULL, ?2)");
     await env.DB.batch([
       fitted.bind("A0000000", "2026-11-25"),
-      fitted.bind("B0000000", "2026-11-20"),
+      fitted.bind("B0000000", "2026-11-12"),
       fitted.bind("D0000000", TODAY),
-      // Fitted before, but without rows now: not a candidate.
-      fitted.bind("F0000000", "2026-01-01"),
+      fitted.bind("G0000000", "2026-11-20"),
     ]);
     // Only rows with clock_ok = 0, or received today: not candidates.
     await store("10000000", signalChanges(FIXED, WEEKDAYS[0]!), { clockOk: false });
     await store("20000000", signalChanges(FIXED, WEEKDAYS[0]!), { received: NOW - 60_000 });
 
+    // New rows: C and E (never fitted), then G. Then B and A, fitted longest ago first. D was fitted today.
     const limits = { ...DEFAULT_TIMING_LIMITS, maxIntersections: 2 };
-    expect(await runTimingJob(env.DB, NOW, limits)).toMatchObject({ fitted: 2, waiting: 2, backlog: false });
-    const days = async () =>
-      Object.fromEntries(
-        (await rows("SELECT intersection_id, updated_day FROM timing_places")).map((row) => [row.intersection_id, row.updated_day]),
-      );
-    // C and E were never fitted.
+    expect(await runTimingJob(env.DB, NOW, limits)).toMatchObject({ fitted: 2, waiting: 1, backlog: false });
     expect(await days()).toEqual({
       A0000000: "2026-11-25",
-      B0000000: "2026-11-20",
+      B0000000: "2026-11-12",
       C0000000: TODAY,
       D0000000: TODAY,
       E0000000: TODAY,
-      F0000000: "2026-01-01",
+      G0000000: "2026-11-20",
     });
     expect(await runTimingJob(env.DB, NOW, limits)).toMatchObject({ fitted: 2, waiting: 0 });
+    expect(await days()).toMatchObject({ A0000000: "2026-11-25", B0000000: TODAY, G0000000: TODAY });
+    expect(await runTimingJob(env.DB, NOW, limits)).toMatchObject({ fitted: 1, waiting: 0 });
     expect((await days()).A0000000).toBe(TODAY);
-    expect((await days()).B0000000).toBe(TODAY);
     // Nothing is left for today.
     expect(await runTimingJob(env.DB, NOW, limits)).toMatchObject({ fitted: 0, waiting: 0 });
     expect(Object.keys(await days())).not.toContain("10000000");
     expect(Object.keys(await days())).not.toContain("20000000");
+  });
+
+  it("fits only intersections with a row received in the last 21 days", async () => {
+    // Received on 2026-11-05 and 2026-11-06 (UTC): KEEP_FROM is 2026-11-06.
+    await store("A0000000", signalChanges(FIXED, "2026-11-05"), { received: Date.UTC(2026, 10, 5, 12) });
+    await store("B0000000", signalChanges(FIXED, "2026-11-06"), { received: Date.UTC(2026, 10, 6, 12) });
+    expect(await runTimingJob(env.DB, NOW)).toMatchObject({ fitted: 1 });
+    expect(Object.keys(await days())).toEqual(["B0000000"]);
   });
 
   it("starts no new intersection once it wrote more plan rows than the limit, and flags a backlog", async () => {
@@ -710,8 +726,8 @@ describe("the timing cron", () => {
     expect(await rows("SELECT count(*) AS n FROM timing_plans")).toEqual([{ n: 3 }]);
   });
 
-  it("uses at most 26 D1 queries per run, within the Free plan's 50 per invocation, and counts its writes", async () => {
-    expect(maxTimingQueries()).toBe(26);
+  it("uses at most 28 D1 queries per run, within the Free plan's 50 per invocation, and counts its writes", async () => {
+    expect(maxTimingQueries()).toBe(28);
     for (let i = 0; i < DEFAULT_TIMING_LIMITS.maxIntersections + 2; i++) await storeDays(idOf(i), FIXED, WEEKDAYS);
     const { db, meter } = meteredDatabase();
     const result = await runTimingJob(db, NOW);
@@ -719,8 +735,16 @@ describe("the timing cron", () => {
     expect(meter.queries).toBe(maxTimingQueries());
     expect(meter.queries).toBeLessThanOrEqual(50);
     expect(result.rowsWritten).toBe(meter.rowsWritten);
-    // 12 plan rows, 12 places and the record.
-    expect(result.rowsWritten).toBe(12 + 12 + 1);
+    // 12 plan rows, 12 places, one snapshot chunk and the record.
+    expect(result.rowsWritten).toBe(12 + 12 + 1 + 1);
+
+    // The next day: two never-fitted intersections and ten of the others are refitted (one plan row
+    // deleted and one inserted each), the old chunk is replaced.
+    const next = meteredDatabase();
+    const again = await runTimingJob(next.db, NOW + 86_400_000);
+    expect(again).toMatchObject({ fitted: 12, planRows: 12, planRowsWritten: 2 + 10 * 2, waiting: 0 });
+    expect(again.rowsWritten).toBe(next.meter.rowsWritten);
+    expect(again.rowsWritten).toBe(22 + 12 + 2 + 1);
   });
 
   it("records what the last successful run did in service_state, without touching the daily cron's columns", async () => {
@@ -730,6 +754,7 @@ describe("the timing cron", () => {
     ).run();
     await storeDays(ID, FIXED, WEEKDAYS);
     await storeDays("0000FFFF", FIXED, WEEKDAYS.slice(0, 1));
+    await env.DB.prepare(`INSERT INTO timing_plans VALUES ('ABCDEF01', 1, 0, 14, 90000, 'epoch', 0, 0, NULL, NULL, '2026-11-05', '2026-11-06')`).run();
     const result = await runTimingJob(env.DB, NOW);
     expect(await rows("SELECT * FROM service_state")).toEqual([
       {
@@ -743,6 +768,7 @@ describe("the timing cron", () => {
         timing_last_success: "2026-11-27T18:30:00Z",
         timing_fitted: 2,
         timing_plan_rows: 1,
+        timing_expired: 1,
         timing_backlog: 0,
         timing_waiting: 0,
         timing_rows_written: result.rowsWritten,
@@ -764,9 +790,11 @@ describe("the timing cron", () => {
         timing_last_success: "2026-11-27T18:30:00Z",
         timing_fitted: 0,
         timing_plan_rows: 0,
+        timing_expired: 0,
         timing_backlog: 0,
         timing_waiting: 0,
-        timing_rows_written: 1,
+        // The empty snapshot chunk and the record.
+        timing_rows_written: 2,
       },
     ]);
     // The daily cron then overwrites its own columns.
@@ -776,7 +804,7 @@ describe("the timing cron", () => {
     ]);
   });
 
-  it("fits the other intersections when one fails, then ends with its error and records nothing", async () => {
+  it("fits the other intersections when one fails, rebuilds the snapshot, then ends with its error and records nothing", async () => {
     await runTimingJob(env.DB, NOW - 86_400_000);
     for (const id of ["A0000000", "B0000000", "C0000000"]) await storeDays(id, FIXED, WEEKDAYS);
     const failing = new Proxy(env.DB, {
@@ -808,12 +836,138 @@ describe("the timing cron", () => {
       { intersection_id: "A0000000" },
       { intersection_id: "C0000000" },
     ]);
+    expect(await snapshotIds()).toEqual(["A0000000", "C0000000"]);
     expect(await rows("SELECT timing_last_success FROM service_state")).toEqual([
       { timing_last_success: "2026-11-26T18:30:00Z" },
     ]);
     // The failed intersection is still never fitted, so the next run takes it first.
     expect(await runTimingJob(env.DB, NOW)).toMatchObject({ fitted: 1 });
     expect(await plans("B0000000")).toHaveLength(1);
+  });
+});
+
+/** The intersection IDs in the snapshot, in chunk order. */
+async function snapshotIds(): Promise<string[]> {
+  const chunks = await rows("SELECT body FROM timing_snapshot ORDER BY chunk");
+  return chunks.flatMap((row) => (JSON.parse(`[${row.body as string}]`) as { id: string }[]).map((item) => item.id));
+}
+
+/** Inserts a plan of intersection `id` whose last day is `lastDay`. */
+async function insertPlan(id: string, lastDay: string, bin = 14): Promise<void> {
+  await env.DB.prepare(`INSERT INTO timing_plans VALUES (?1, 1, 0, ?2, 120000, 'epoch', 37400, 0, NULL, NULL, ?3, ?3)`)
+    .bind(id, bin, lastDay)
+    .run();
+}
+
+describe("retention", () => {
+  it("deletes the plans whose last day is more than 21 days before the run's UTC day", async () => {
+    await insertPlan("A0000000", "2026-11-05");
+    await insertPlan("A0000000", KEEP_FROM, 15);
+    await insertPlan("B0000000", "2026-10-01");
+    const result = await runTimingJob(env.DB, NOW);
+    expect(result).toMatchObject({ expired: 2, planRowsWritten: 2, backlog: false });
+    expect(await rows("SELECT intersection_id, bin, last_day FROM timing_plans")).toEqual([
+      { intersection_id: "A0000000", bin: 15, last_day: KEEP_FROM },
+    ]);
+    expect(await snapshotIds()).toEqual(["A0000000"]);
+    // The next day the other one goes too.
+    expect(await runTimingJob(env.DB, NOW + 86_400_000)).toMatchObject({ expired: 1 });
+    expect(await rows("SELECT count(*) AS n FROM timing_plans")).toEqual([{ n: 0 }]);
+    expect(await rows("SELECT chunk, body, generated FROM timing_snapshot")).toEqual([
+      { chunk: 0, body: "", generated: "2026-11-28" },
+    ]);
+  });
+
+  it("counts expired rows against the plan row limit, before fitting", async () => {
+    for (const bin of [1, 2, 3]) await insertPlan("A0000000", "2026-11-01", bin);
+    await storeDays(ID, FIXED, WEEKDAYS);
+    const limits = { ...DEFAULT_TIMING_LIMITS, maxPlanRowsWritten: 2 };
+    // Two expired rows reach the limit without passing it: one intersection is still fitted.
+    expect(await runTimingJob(env.DB, NOW, limits)).toMatchObject({ expired: 2, fitted: 1, planRowsWritten: 3, backlog: true });
+    expect(await runTimingJob(env.DB, NOW, limits)).toMatchObject({ expired: 1, fitted: 0, backlog: false });
+    expect(await rows("SELECT intersection_id FROM timing_plans")).toEqual([{ intersection_id: ID }]);
+  });
+
+  it("does not store cells whose last day is more than 21 days ago", async () => {
+    // Seven weekdays in October in bin 14 (07:00), and seven in November in bin 15 (07:30).
+    const october = ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-13", "2026-10-14"];
+    await storeDays(ID, FIXED, october);
+    await storeDays(ID, FIXED, WEEKDAYS, { fromMinute: 7 * 60 + 30, toMinute: 8 * 60 });
+    expect(await runTimingJob(env.DB, NOW)).toMatchObject({ fitted: 1, planRows: 1, expired: 0 });
+    expect(await plans()).toMatchObject([{ bin: 15, last_day: "2026-11-20" }]);
+
+    // Fitted on 2026-10-20, the October cell is stored, and deleted 21 days after its last day,
+    // together with the place: the intersection has no row received since then either.
+    await resetDatabase();
+    await storeDays(ID, FIXED, october);
+    await runTimingJob(env.DB, Date.UTC(2026, 9, 20, 18, 30));
+    expect(await plans()).toMatchObject([{ bin: 14, last_day: "2026-10-14", updated_day: "2026-10-20" }]);
+    expect(await runTimingJob(env.DB, Date.UTC(2026, 10, 4, 18, 30))).toMatchObject({ expired: 0, fitted: 0 });
+    expect(await plans()).toHaveLength(1);
+    expect(await runTimingJob(env.DB, Date.UTC(2026, 10, 5, 18, 30))).toMatchObject({ expired: 1, fitted: 0 });
+    expect(await plans()).toEqual([]);
+    expect(await rows("SELECT count(*) AS n FROM timing_places")).toEqual([{ n: 0 }]);
+  });
+
+  it("deletes the places of intersections without plans and without rows received in the last 21 days", async () => {
+    const place = env.DB.prepare("INSERT INTO timing_places VALUES (?1, 'CE01NAME', NULL, '2026-11-01')");
+    await env.DB.batch(["A0000000", "B0000000", "C0000000", "D0000000"].map((id) => place.bind(id)));
+    // A: no plans, no rows. B: a plan. C: no plans, a row received on KEEP_FROM. D: no plans, a row
+    // received the day before KEEP_FROM.
+    await insertPlan("B0000000", "2026-11-20");
+    await store("C0000000", [], { received: Date.UTC(2026, 10, 6, 23), observations: [] });
+    await store("D0000000", [], { received: Date.UTC(2026, 10, 5, 23), observations: [] });
+    await runTimingJob(env.DB, NOW);
+    expect(Object.keys(await days()).sort()).toEqual(["B0000000", "C0000000"]);
+    // Within the limit per run.
+    await resetDatabase();
+    await env.DB.batch([0, 1, 2].map((i) => place.bind(idOf(i))));
+    await runTimingJob(env.DB, NOW, { ...DEFAULT_TIMING_LIMITS, maxPlaceDeletes: 2 });
+    expect(Object.keys(await days())).toHaveLength(1);
+    await runTimingJob(env.DB, NOW);
+    expect(Object.keys(await days())).toHaveLength(0);
+  });
+});
+
+describe("timing_snapshot", () => {
+  it("holds the response's intersections, without days, reports or dates, and the day it was built", async () => {
+    await env.DB.prepare("INSERT INTO timing_places VALUES (?1, 'CE01AA', 'CE01BB', '2026-11-20')").bind(ID).run();
+    await insertPlan(ID, "2026-11-20", 15);
+    await insertPlan(ID, "2026-11-19", 14);
+    await insertPlan("0000FFFF", "2026-11-18", 47);
+    await runTimingJob(env.DB, NOW);
+    const plan = (bin: number) => ({
+      slot: 1, dayType: 0, bin, cycle: 120_000, reference: "epoch", phase: 37_400, spread: 0, green: null, blink: null,
+    });
+    expect(await rows("SELECT * FROM timing_snapshot")).toEqual([
+      {
+        chunk: 0,
+        body: [
+          JSON.stringify({ id: "0000FFFF", name: null, position: null, plans: [plan(47)] }),
+          JSON.stringify({ id: ID, name: "CE01AA", position: "CE01BB", plans: [plan(14), plan(15)] }),
+        ].join(","),
+        generated: TODAY,
+      },
+    ]);
+  });
+
+  it("cuts the intersections into chunks at every multiple of the chunk size", async () => {
+    const ids = Array.from({ length: 7 }, (_, i) => idOf(i));
+    for (const id of ids) await insertPlan(id, "2026-11-20");
+    await runTimingJob(env.DB, NOW);
+    const [whole] = await rows("SELECT body FROM timing_snapshot");
+    const items = (JSON.parse(`[${whole!.body as string}]`) as unknown[]).map((item) => JSON.stringify(item));
+    expect(items).toHaveLength(7);
+    const size = items[0]!.length + 1;
+    // A chunk every 3.5 objects (with their commas): objects 0 to 3 start before 3.5 x size, objects
+    // 4 to 6 before 7 x size.
+    await runTimingJob(env.DB, NOW + 86_400_000, { ...DEFAULT_TIMING_LIMITS, snapshotChunkBytes: Math.floor(3.5 * size) });
+    const chunks = await rows("SELECT chunk, body, generated FROM timing_snapshot ORDER BY chunk");
+    expect(chunks).toEqual([
+      { chunk: 0, body: items.slice(0, 4).join(","), generated: "2026-11-28" },
+      { chunk: 1, body: items.slice(4, 7).join(","), generated: "2026-11-28" },
+    ]);
+    expect(await snapshotIds()).toEqual(ids);
   });
 });
 
@@ -827,6 +981,7 @@ describe("scheduled() dispatch", () => {
     expect(await plans()).toHaveLength(1);
     expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 8 }]);
     expect(await rows("SELECT count(*) AS n FROM transition_counts")).toEqual([{ n: 0 }]);
+    expect(await snapshotIds()).toEqual([ID]);
     expect(await rows("SELECT cron_last_success, timing_last_success FROM service_state")).toEqual([
       { cron_last_success: "", timing_last_success: "2026-11-27T18:30:00Z" },
     ]);
@@ -838,6 +993,7 @@ describe("scheduled() dispatch", () => {
     await runCron("0 18 * * *", NOW - 1_800_000);
     expect(await rows("SELECT count(*) AS n FROM timing_plans")).toEqual([{ n: 0 }]);
     expect(await rows("SELECT count(*) AS n FROM timing_places")).toEqual([{ n: 0 }]);
+    expect(await rows("SELECT count(*) AS n FROM timing_snapshot")).toEqual([{ n: 0 }]);
     expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 7 }]);
     expect(await rows("SELECT timing_last_success FROM service_state")).toEqual([{ timing_last_success: null }]);
   });

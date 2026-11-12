@@ -31,10 +31,6 @@ import { issueToken, verifyToken, type TokenClaims } from "./token";
 /** Attest/token request bodies are small; anything bigger is not a genuine client. */
 const MAX_AUTH_BODY_BYTES = 64 * 1024;
 
-const INTERSECTION_ID_PATTERN = /^[0-9A-F]{8}$/;
-/** Most intersection IDs in the `ids` query of GET /v1/plans. */
-const MAX_PLAN_IDS = 50;
-
 export interface AppOptions {
   /**
    * Test-only: DER of the root that attestation chains must end in. Production never sets this
@@ -262,23 +258,15 @@ export function createApp(options: AppOptions = {}): App {
     });
   };
 
-  /** The `ids` query of GET /v1/plans: null when absent, else 1-50 intersection IDs. */
-  function planIds(url: URL): string[] | null {
-    const values = url.searchParams.getAll("ids");
-    if (values.length === 0) return null;
-    const ids = values.length === 1 ? values[0]!.split(",") : [];
-    if (ids.length < 1 || ids.length > MAX_PLAN_IDS || !ids.every((id) => INTERSECTION_ID_PATTERN.test(id))) {
-      throw new HttpError(400, "bad_request");
-    }
-    return [...new Set(ids)];
-  }
-
-  // Timing plans for apps that hold an upload token. Read-only: no D1 write, so no budget.
+  // Timing plans for apps that hold an upload token, from the snapshot the timing cron built: one
+  // read per chunk, no D1 write, so no budget. It takes no query: the app always fetches every
+  // intersection, so that the server never learns which ones a user cares about, and any query
+  // (such as `ids`) is refused rather than ignored.
   const plans: Handler = async (request, env, nowMs) => {
     const claims = await authorizeUpload(request, env, Math.floor(nowMs / 1000));
     await rateLimit(env.REPORTS_RATE_LIMITER, `plans:${encodeBase64Url(claims.id)}`);
-    const ids = planIds(new URL(request.url));
-    return jsonText(200, await plansBody(env.DB, ids), { "cache-control": "private, max-age=3600" });
+    if (new URL(request.url).search !== "") throw new HttpError(400, "bad_request");
+    return jsonText(200, await plansBody(env.DB), { "cache-control": "private, max-age=3600" });
   };
 
   const routes: Record<string, Route> = {

@@ -1,24 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Timing plans (docs/timing-estimation.md): the JST calendar, the fitting cron (30 18 * * * UTC =
-// 03:30 JST) and the data that GET /v1/plans serves.
+// 03:30 JST) and the snapshot that GET /v1/plans serves.
 //
-// The cron fits the cells (intersection x slot x day type x half-hour bin) of up to 12 intersections
-// per run from report rows with clock_ok = 1 received before the run's UTC day, never-fitted
-// intersections first, then those fitted longest ago. The heavy part runs in D1: one query per
-// intersection extracts its transitions with json_each, places them in the calendar, finds each
-// cell's cycle and sums the unit vectors of the green starts' phases per JST day. The Worker only
-// turns those sums into plans, so it parses no payload and stays far below the Free plan's 10 ms
-// of CPU per invocation. Each intersection's plans are then replaced in one batch (one
-// transaction), together with its name and position (timing_places). A failure of one intersection
-// does not stop the others; like the daily cron (src/cron.ts), a run with a failure records
-// nothing in service_state and ends with that failure's error.
+// Each run, in this order:
+// 1. deletes the plans whose last day is more than PLAN_KEEP_DAYS (21) days before the run's UTC
+//    day. With the app's 7 days of cache, a plan is used at most 28 days after its last data.
+// 2. fits the cells (intersection x slot x day type x half-hour bin) of up to 12 intersections from
+//    report rows with clock_ok = 1 received before the run's UTC day. Candidates are intersections
+//    with such a row received in the last 21 days that were not fitted today: those with rows
+//    received since their last fit (or never fitted) first, so that new data is not starved, then
+//    those fitted longest ago. The heavy part runs in D1: one query per intersection extracts its
+//    transitions with json_each, places them in the calendar, finds each cell's cycle and sums the
+//    unit vectors of the green starts' phases per JST day. The Worker only turns those sums into
+//    plans, so it parses no payload and stays far below the Free plan's 10 ms of CPU per
+//    invocation. Each intersection's plans are then replaced in one batch (one transaction),
+//    together with its name and position (timing_places). Cells whose last day is already past the
+//    21 days are not stored.
+// 3. deletes the timing_places rows of intersections with no plans and no clock_ok = 1 row received
+//    in the last 21 days, and rebuilds timing_snapshot in SQL (one batch), so that GET /v1/plans
+//    reads a few rows instead of every plan.
+// A failure of one step or intersection does not stop the others (the snapshot is always rebuilt);
+// like the daily cron (src/cron.ts), a run with a failure records nothing in service_state and ends
+// with that failure's error.
 //
-// Free plan limits per run: D1 queries 1 (candidates) + 2 per intersection (the fit query and one
-// batch) x 12 + 1 (record) = 26 of 50. No new intersection is started once the run has written more
-// than 4,000 plan rows (deleted and inserted); one intersection has at most 6 x 3 x 48 = 864 cells,
-// so a run writes at most 4,000 + 2 x 864 plan rows, 12 timing_places rows and the record: 5,741
-// rows. Its reads go through the partial index reports_for_timing (migration 0005).
+// Free plan limits per run: D1 queries 1 (expiry) + 1 (candidates) + 2 per intersection (the fit
+// query and one batch) x 12 + 1 (places and snapshot) + 1 (record) = 28 of 50. Expired and fitted
+// plan rows share one limit: the expiry deletes at most 4,000 rows, and no new intersection is
+// started once the run has written more than 4,000 plan rows (deleted and inserted); one
+// intersection has at most 6 x 3 x 48 = 864 cells, so a run writes at most 4,000 + 2 x 864 plan
+// rows. Add 12 timing_places upserts, at most 100 timing_places deletions, the snapshot (its old
+// and new chunks, at most 15 + 15 when plans fill the 21 days with the most rows a run can insert)
+// and the record: 5,871 rows. Its reads of reports go through the partial index reports_for_timing
+// (migration 0005).
 
 import { utcDay } from "./storage";
 
@@ -28,6 +42,13 @@ const BIN_MS = 30 * 60_000;
 
 /** The cron expression of the fitting cron, as declared in cloudflare.config.ts and wrangler.jsonc. */
 export const TIMING_CRON = "30 18 * * *";
+
+/**
+ * A plan is deleted (and a cell not stored) once its last day is before the run's UTC day minus
+ * this many days; an intersection's place is deleted once it has no plans and no row received
+ * since that day.
+ */
+export const PLAN_KEEP_DAYS = 21;
 
 // ---------------------------------------------------------------------------------------------
 // Calendar ("暦：日の種類と時間帯")
@@ -97,7 +118,7 @@ export function isExcludedDay(day: number): boolean {
 // ---------------------------------------------------------------------------------------------
 // Fitting ("当てはめ")
 
-/** One published cell, with the field names of GET /v1/plans. */
+/** One published cell, with the field names of GET /v1/plans and nothing else. */
 export interface Plan {
   slot: number;
   dayType: DayType;
@@ -111,8 +132,10 @@ export interface Plan {
   spread: number;
   green: number | null;
   blink: number | null;
-  days: number;
-  reports: number;
+}
+
+/** A plan as stored: with its last day, which only serves to delete it and is never served. */
+interface StoredPlan extends Plan {
   /** YYYY-MM-DD (JST). */
   lastDay: string;
 }
@@ -183,10 +206,11 @@ const MIN_R_EVENTS = 0.9;
 const MAX_SPREAD_MS = 3000;
 
 /**
- * Chooses the reference and decides whether the cell is published (steps 3 to 6). The reference
+ * Chooses the reference and decides whether the cell is published (steps 3 to 5). The reference
  * with the smaller spread wins, epoch on a tie. Spreads are compared at the whole milliseconds in
  * which they are published: when the cycle divides a day, both references give the same spread up
- * to rounding errors, and those must not decide.
+ * to rounding errors, and those must not decide. The day and report counts are only checked here,
+ * never stored or served.
  */
 export function planOf(cell: CellSums): Plan | null {
   const epoch = phaseFit(cell.cycle, cell.days, cell.events, [cell.ex, cell.ey], [cell.edx, cell.edy]);
@@ -211,9 +235,6 @@ export function planOf(cell: CellSums): Plan | null {
     spread: Math.round(fit.spread),
     green: cell.green,
     blink: cell.blink,
-    days: cell.days,
-    reports: cell.reports,
-    lastDay: dayDate(cell.last_day),
   };
 }
 
@@ -321,22 +342,21 @@ export async function cellSums(db: D1Database, intersectionId: string, today: st
 
 const DELETE_PLANS_SQL = "DELETE FROM timing_plans WHERE intersection_id = ?1";
 
-// ?2 is a JSON array of Plan objects.
+// ?2 is a JSON array of StoredPlan objects.
 const INSERT_PLANS_SQL = `
 INSERT INTO timing_plans
        (intersection_id, slot, day_type, bin, cycle_ms, reference, phase_ms, spread_ms, green_ms, blink_ms,
-        days, reports, last_day, updated_day)
+        last_day, updated_day)
 SELECT ?1,
        json_extract(p.value, '$.slot'), json_extract(p.value, '$.dayType'), json_extract(p.value, '$.bin'),
        json_extract(p.value, '$.cycle'), json_extract(p.value, '$.reference'), json_extract(p.value, '$.phase'),
        json_extract(p.value, '$.spread'), json_extract(p.value, '$.green'), json_extract(p.value, '$.blink'),
-       json_extract(p.value, '$.days'), json_extract(p.value, '$.reports'), json_extract(p.value, '$.lastDay'),
-       ?3
+       json_extract(p.value, '$.lastDay'), ?3
   FROM json_each(?2) AS p`;
 
 // The latest name (message type 0) and position (type 1) by observation time among the rows the
 // fit used: payload byte 2, i.e. hex characters 9-10 (1-based) of raw. A type that none of them
-// carries keeps the value of an earlier fit, since the plans outlive the rows too.
+// carries keeps the value of an earlier fit, whose rows may have been folded since.
 const UPSERT_PLACE_SQL = `
 WITH packets AS (
   SELECT substr(json_extract(o.value, '$.raw'), 9, 2) AS type,
@@ -358,19 +378,30 @@ SELECT ?1,
        updated_day = excluded.updated_day`;
 
 export interface FitResult {
-  plans: Plan[];
+  /** Plans stored. */
+  plans: number;
   /** Rows deleted from and inserted into timing_plans, as D1 reports them. */
   planRowsWritten: number;
   /** All rows the batch wrote. */
   rowsWritten: number;
 }
 
-/** Fits one intersection and replaces its plans and place in one batch (transaction). */
-export async function fitIntersection(db: D1Database, intersectionId: string, today: string): Promise<FitResult> {
-  const plans: Plan[] = [];
+/**
+ * Fits one intersection from its rows received before `today` and replaces its plans and place in
+ * one batch (transaction). Cells whose last day is before `keepFrom` (YYYY-MM-DD) are not stored.
+ */
+export async function fitIntersection(
+  db: D1Database,
+  intersectionId: string,
+  today: string,
+  keepFrom: string,
+): Promise<FitResult> {
+  const firstKept = dayNumber(keepFrom);
+  const plans: StoredPlan[] = [];
   for (const cell of await cellSums(db, intersectionId, today)) {
+    if (cell.last_day < firstKept) continue;
     const plan = planOf(cell);
-    if (plan !== null) plans.push(plan);
+    if (plan !== null) plans.push({ ...plan, lastDay: dayDate(cell.last_day) });
   }
   const written = await db.batch([
     db.prepare(DELETE_PLANS_SQL).bind(intersectionId),
@@ -378,7 +409,7 @@ export async function fitIntersection(db: D1Database, intersectionId: string, to
     db.prepare(UPSERT_PLACE_SQL).bind(intersectionId, today),
   ]);
   const rows = written.map((item) => item.meta.rows_written ?? 0);
-  return { plans, planRowsWritten: rows[0]! + rows[1]!, rowsWritten: rows.reduce((sum, n) => sum + n, 0) };
+  return { plans: plans.length, planRowsWritten: rows[0]! + rows[1]!, rowsWritten: rows.reduce((sum, n) => sum + n, 0) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -387,39 +418,125 @@ export async function fitIntersection(db: D1Database, intersectionId: string, to
 export interface TimingLimits {
   /** Intersections per run. */
   maxIntersections: number;
-  /** No new intersection is started once the run has written more plan rows than this. */
+  /**
+   * Expired plan rows deleted per run; and no new intersection is started once the run has written
+   * more plan rows than this (expired and fitted together).
+   */
   maxPlanRowsWritten: number;
+  /** timing_places rows deleted per run. */
+  maxPlaceDeletes: number;
+  /** A new snapshot chunk starts at every multiple of this many bytes of the response. */
+  snapshotChunkBytes: number;
 }
 
-export const DEFAULT_TIMING_LIMITS: TimingLimits = { maxIntersections: 12, maxPlanRowsWritten: 4000 };
+export const DEFAULT_TIMING_LIMITS: TimingLimits = {
+  maxIntersections: 12,
+  maxPlanRowsWritten: 4000,
+  maxPlaceDeletes: 100,
+  snapshotChunkBytes: 1_000_000,
+};
 
 /** D1 queries one run makes at most (the Free plan allows 50 per invocation). */
 export function maxTimingQueries(limits: TimingLimits = DEFAULT_TIMING_LIMITS): number {
-  return 1 + 2 * limits.maxIntersections + 1;
+  return 1 + 1 + 2 * limits.maxIntersections + 1 + 1;
 }
 
-// Intersections with rows to fit that were not fitted today: never fitted first, then those fitted
-// longest ago. `waiting` counts all of them, also those beyond the limit. Reads only the partial
-// index reports_for_timing (and timing_places).
+// Plans whose last day (JST) is before ?1, at most ?2 rows. Reads the whole table once, which has
+// no index on last_day: an index would cost a write for every plan row stored.
+const EXPIRE_PLANS_SQL = `
+DELETE FROM timing_plans
+ WHERE (intersection_id, slot, day_type, bin) IN
+       (SELECT intersection_id, slot, day_type, bin FROM timing_plans WHERE last_day < ?1 LIMIT ?2)`;
+
+// Intersections with rows to fit received from ?2 to the day before ?1 that were not fitted on ?1:
+// first those with rows received on or after the day of their last fit (that fit used the rows
+// received before it) or never fitted, then the others; within each, never fitted first, then
+// those fitted longest ago. `fresh` is 1 for the first kind, and `fresh_total` counts them all,
+// also those beyond the limit ?3. Reads only the partial index reports_for_timing (and
+// timing_places); it is named, since the range on received_day would otherwise lead SQLite to the
+// index on received_day alone and to every report row in the range, payloads included.
 const CANDIDATES_SQL = `
-SELECT c.intersection_id AS id, count(*) OVER () AS waiting
-  FROM (SELECT DISTINCT intersection_id FROM reports WHERE clock_ok = 1 AND received_day < ?1) AS c
-  LEFT JOIN timing_places AS p ON p.intersection_id = c.intersection_id
- WHERE p.updated_day IS NULL OR p.updated_day < ?1
- ORDER BY p.updated_day IS NOT NULL, p.updated_day, c.intersection_id
- LIMIT ?2`;
+WITH recent AS (
+  SELECT intersection_id, max(received_day) AS received
+    FROM reports INDEXED BY reports_for_timing
+   WHERE clock_ok = 1 AND received_day >= ?2 AND received_day < ?1
+   GROUP BY intersection_id
+), ranked AS (
+  SELECT r.intersection_id AS id, p.updated_day,
+         (p.updated_day IS NULL OR r.received >= p.updated_day) AS fresh
+    FROM recent AS r
+    LEFT JOIN timing_places AS p ON p.intersection_id = r.intersection_id
+   WHERE p.updated_day IS NULL OR p.updated_day < ?1
+)
+SELECT id, fresh, sum(fresh) OVER () AS fresh_total
+  FROM ranked
+ ORDER BY fresh DESC, updated_day IS NOT NULL, updated_day, id
+ LIMIT ?3`;
+
+// Places of intersections that have no plans and no clock_ok = 1 row received on or after ?1, at
+// most ?2. Such an intersection is no candidate either, so the next run does not create its row
+// again; one that still has recent rows keeps its row, which records when it was fitted.
+const DELETE_PLACES_SQL = `
+DELETE FROM timing_places
+ WHERE intersection_id IN
+       (SELECT p.intersection_id
+          FROM timing_places AS p
+         WHERE NOT EXISTS (SELECT 1 FROM timing_plans AS t WHERE t.intersection_id = p.intersection_id)
+           AND NOT EXISTS (SELECT 1 FROM reports AS r
+                            WHERE r.intersection_id = p.intersection_id AND r.clock_ok = 1 AND r.received_day >= ?1)
+         LIMIT ?2)`;
+
+const DELETE_SNAPSHOT_SQL = "DELETE FROM timing_snapshot";
+
+// The body of GET /v1/plans, built by D1 so that neither the cron nor a request handles every plan
+// row in the Worker (the Free plan allows 10 ms of CPU per invocation). One object per
+// intersection with at least one plan, by id, with its plans by slot, dayType and bin. The objects
+// are cut into chunks at every multiple of ?2 characters of the joined text (each object starts in
+// the chunk of its offset), so that a chunk holds at most ?2 characters plus one object (at most
+// 864 plans, about 110 kB) and stays far below D1's 2 MB per value. The JSON is ASCII only (hex,
+// digits and the field names), so characters are bytes. ?2 is cast because D1 binds JavaScript
+// numbers as REAL, which would make the division fractional. With no plans, chunk 0 has an empty
+// body, so that `generated` (?1) can always be read.
+const BUILD_SNAPSHOT_SQL = `
+WITH items AS (
+  SELECT p.intersection_id AS id,
+         json_object(
+           'id', p.intersection_id,
+           'name', s.name_raw,
+           'position', s.position_raw,
+           'plans', json_group_array(json_object(
+             'slot', p.slot, 'dayType', p.day_type, 'bin', p.bin,
+             'cycle', p.cycle_ms, 'reference', p.reference, 'phase', p.phase_ms, 'spread', p.spread_ms,
+             'green', p.green_ms, 'blink', p.blink_ms
+           ) ORDER BY p.slot, p.day_type, p.bin)
+         ) AS item
+    FROM timing_plans AS p
+    LEFT JOIN timing_places AS s ON s.intersection_id = p.intersection_id
+   GROUP BY p.intersection_id
+), placed AS (
+  SELECT id, item,
+         (sum(length(item) + 1) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) - length(item) - 1)
+           / CAST(?2 AS INTEGER) AS chunk
+    FROM items
+)
+INSERT INTO timing_snapshot (chunk, body, generated)
+SELECT chunk, group_concat(item, ',' ORDER BY id), ?1 FROM placed GROUP BY chunk
+ UNION ALL
+SELECT 0, '', ?1 WHERE NOT EXISTS (SELECT 1 FROM timing_plans)`;
 
 // Only the timing columns. Before the daily cron's first record the row does not exist; it is
 // then created with an empty cron_last_success and zero counts, which that cron overwrites.
 const RECORD_SQL = `
 INSERT INTO service_state
        (id, cron_last_success, folded_reports, backlog, deleted_keys, rows_written, database_bytes,
-        timing_last_success, timing_fitted, timing_plan_rows, timing_backlog, timing_waiting, timing_rows_written)
-VALUES (1, '', 0, 0, 0, 0, NULL, ?1, ?2, ?3, ?4, ?5, ?6)
+        timing_last_success, timing_fitted, timing_plan_rows, timing_expired, timing_backlog, timing_waiting,
+        timing_rows_written)
+VALUES (1, '', 0, 0, 0, 0, NULL, ?1, ?2, ?3, ?4, ?5, ?6, ?7)
     ON CONFLICT (id) DO UPDATE
    SET timing_last_success = excluded.timing_last_success,
        timing_fitted = excluded.timing_fitted,
        timing_plan_rows = excluded.timing_plan_rows,
+       timing_expired = excluded.timing_expired,
        timing_backlog = excluded.timing_backlog,
        timing_waiting = excluded.timing_waiting,
        timing_rows_written = excluded.timing_rows_written`;
@@ -429,45 +546,87 @@ export interface TimingResult {
   fitted: number;
   /** Plan rows stored. */
   planRows: number;
-  /** Rows deleted from and inserted into timing_plans. */
+  /** Plan rows deleted because their last day was more than PLAN_KEEP_DAYS days ago. */
+  expired: number;
+  /** Rows deleted from and inserted into timing_plans (expired and fitted). */
   planRowsWritten: number;
-  /** True when the run stopped at maxPlanRowsWritten with intersections left. */
+  /** True when the run stopped at maxPlanRowsWritten with expired rows or intersections left. */
   backlog: boolean;
-  /** Intersections with rows to fit that this run did not fit (beyond the limits, or failed). */
+  /** Intersections with rows received since their last fit that this run did not fit. */
   waiting: number;
-  /** Every row the run wrote, the record included. */
+  /** Every row the run wrote, the snapshot and the record included. */
   rowsWritten: number;
 }
 
-/** Runs the fitting cron as of `nowMs`: rows received before its UTC day are used. */
+/**
+ * Runs the fitting cron as of `nowMs`: deletes expired plans, fits from the rows received before
+ * its UTC day, deletes unused places and rebuilds the snapshot.
+ */
 export async function runTimingJob(
   db: D1Database,
   nowMs: number,
   limits: TimingLimits = DEFAULT_TIMING_LIMITS,
 ): Promise<TimingResult> {
   const today = utcDay(nowMs);
-  const { results: candidates } = await db
-    .prepare(CANDIDATES_SQL)
-    .bind(today, limits.maxIntersections)
-    .all<{ id: string; waiting: number }>();
-  const result: TimingResult = { fitted: 0, planRows: 0, planRowsWritten: 0, backlog: false, waiting: 0, rowsWritten: 0 };
+  const keepFrom = utcDay(nowMs - PLAN_KEEP_DAYS * DAY_MS);
+  const result: TimingResult = {
+    fitted: 0,
+    planRows: 0,
+    expired: 0,
+    planRowsWritten: 0,
+    backlog: false,
+    waiting: 0,
+    rowsWritten: 0,
+  };
   const errors: unknown[] = [];
-  for (const { id } of candidates) {
-    if (result.planRowsWritten > limits.maxPlanRowsWritten) {
-      result.backlog = true;
-      break;
-    }
+  async function attempt(job: () => Promise<void>): Promise<void> {
     try {
-      const fit = await fitIntersection(db, id, today);
-      result.fitted += 1;
-      result.planRows += fit.plans.length;
-      result.planRowsWritten += fit.planRowsWritten;
-      result.rowsWritten += fit.rowsWritten;
+      await job();
     } catch (error) {
       errors.push(error);
     }
   }
-  result.waiting = (candidates[0]?.waiting ?? 0) - result.fitted;
+
+  await attempt(async () => {
+    const { meta } = await db.prepare(EXPIRE_PLANS_SQL).bind(keepFrom, limits.maxPlanRowsWritten).run();
+    result.expired = meta.changes ?? 0;
+    result.planRowsWritten += meta.rows_written ?? 0;
+    result.rowsWritten += meta.rows_written ?? 0;
+    if (result.expired >= limits.maxPlanRowsWritten) result.backlog = true;
+  });
+
+  await attempt(async () => {
+    const { results: candidates } = await db
+      .prepare(CANDIDATES_SQL)
+      .bind(today, keepFrom, limits.maxIntersections)
+      .all<{ id: string; fresh: number; fresh_total: number }>();
+    let freshFitted = 0;
+    for (const { id, fresh } of candidates) {
+      if (result.planRowsWritten > limits.maxPlanRowsWritten) {
+        result.backlog = true;
+        break;
+      }
+      await attempt(async () => {
+        const fit = await fitIntersection(db, id, today, keepFrom);
+        result.fitted += 1;
+        freshFitted += fresh;
+        result.planRows += fit.plans;
+        result.planRowsWritten += fit.planRowsWritten;
+        result.rowsWritten += fit.rowsWritten;
+      });
+    }
+    result.waiting = (candidates[0]?.fresh_total ?? 0) - freshFitted;
+  });
+
+  // Always, so that the expiry reaches the snapshot even when a fit failed.
+  await attempt(async () => {
+    const written = await db.batch([
+      db.prepare(DELETE_PLACES_SQL).bind(keepFrom, limits.maxPlaceDeletes),
+      db.prepare(DELETE_SNAPSHOT_SQL),
+      db.prepare(BUILD_SNAPSHOT_SQL).bind(today, limits.snapshotChunkBytes),
+    ]);
+    result.rowsWritten += written.reduce((sum, item) => sum + (item.meta.rows_written ?? 0), 0);
+  });
   if (errors.length > 0) throw errors[0];
 
   // The record below writes one more row.
@@ -478,6 +637,7 @@ export async function runTimingJob(
       new Date(nowMs).toISOString().slice(0, 19) + "Z",
       result.fitted,
       result.planRows,
+      result.expired,
       result.backlog ? 1 : 0,
       result.waiting,
       result.rowsWritten,
@@ -489,33 +649,15 @@ export async function runTimingJob(
 // ---------------------------------------------------------------------------------------------
 // GET /v1/plans
 
-// The response's "intersections" array, built by D1 so that the Worker does not handle every plan
-// row (the Free plan allows 10 ms of CPU per request). Only intersections with at least one plan;
-// by id, and plans by slot, dayType and bin. ?1 is a JSON array of IDs, or NULL for all.
-const PLANS_SQL = `
-SELECT json_group_array(json(item) ORDER BY id) AS intersections
-  FROM (SELECT p.intersection_id AS id,
-               json_object(
-                 'id', p.intersection_id,
-                 'name', s.name_raw,
-                 'position', s.position_raw,
-                 'plans', json_group_array(json_object(
-                   'slot', p.slot, 'dayType', p.day_type, 'bin', p.bin,
-                   'cycle', p.cycle_ms, 'reference', p.reference, 'phase', p.phase_ms, 'spread', p.spread_ms,
-                   'green', p.green_ms, 'blink', p.blink_ms,
-                   'days', p.days, 'reports', p.reports, 'lastDay', p.last_day
-                 ) ORDER BY p.slot, p.day_type, p.bin)
-               ) AS item
-          FROM timing_plans AS p
-          LEFT JOIN timing_places AS s ON s.intersection_id = p.intersection_id
-         WHERE ?1 IS NULL OR p.intersection_id IN (SELECT value FROM json_each(?1))
-         GROUP BY p.intersection_id)`;
+const SNAPSHOT_SQL = "SELECT body, generated FROM timing_snapshot ORDER BY chunk";
 
-/** The body of GET /v1/plans for `ids` (null: every intersection), as JSON text. One read. */
-export async function plansBody(db: D1Database, ids: string[] | null): Promise<string> {
-  const row = await db
-    .prepare(PLANS_SQL)
-    .bind(ids === null ? null : JSON.stringify(ids))
-    .first<{ intersections: string }>();
-  return `{"intersections":${row?.intersections ?? "[]"}}`;
+/**
+ * The body of GET /v1/plans, as JSON text, from the snapshot of the last timing cron run: one read
+ * of a row per chunk. The chunks are joined as strings and never parsed.
+ */
+export async function plansBody(db: D1Database): Promise<string> {
+  const { results } = await db.prepare(SNAPSHOT_SQL).all<{ body: string; generated: string }>();
+  if (results.length === 0) return '{"generated":null,"intersections":[]}';
+  const bodies = results.map((row) => row.body).filter((body) => body !== "");
+  return `{"generated":${JSON.stringify(results[0]!.generated)},"intersections":[${bodies.join(",")}]}`;
 }
