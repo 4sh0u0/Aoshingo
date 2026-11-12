@@ -20,6 +20,7 @@ open Aoshingo.xcodeproj
   ```
 
 - `AOSHINGO_REPORT_HOST` が空のビルドは、実測データを端末内にためるだけで送信しません。
+- Debug ビルドは開発用、Release ビルドは App Store 版として動きます。`Config/Local.xcconfig` に `AOSHINGO_CHANNEL = appstore` などと書くと切り替えられます。TestFlight 版の作り方とバージョン番号の決め方は [リリースとバージョン番号](release.md) をご覧ください。
 - 解析ロジックは Swift Package（`Packages/AoshingoKit`）に分かれていて、macOS・Linux でテストできます。
 
   ```bash
@@ -36,8 +37,9 @@ open Aoshingo.xcodeproj
 | `server/` | 実測データを受け取る Cloudflare Worker（`main` へのマージで Cloudflare が自動デプロイ）。[`server/README.md`](../server/README.md) |
 | `site/` | 公式サイト（GitHub Pages）。[ウェブサイト](website.md) |
 | `Tools/AppIcon/` | ロゴ（原本は `App/Views/Brand/AoshingoLogo.swift`）から App アイコンと `docs/assets/brand/` のロゴ素材を書き出すツール（Mac）。[`Tools/AppIcon/README.md`](../Tools/AppIcon/README.md) |
+| `Tools/release/` | TestFlight 版と App Store 版をアーカイブしてアップロードし、署名付きタグを付けるスクリプト（Mac）。[リリースとバージョン番号](release.md) |
 | `Tools/timing/` | 実測データから信号の周期と位相を求め、推定が成り立つ交差点かを確かめるスクリプト（Python）。[`Tools/timing/README.md`](../Tools/timing/README.md)、取り決めは [信号の周期の推定](timing-estimation.md) |
-| `docs/` | 使い方、プライバシーポリシー、送信 API、現地確認の手順など |
+| `docs/` | 使い方、プライバシーポリシー、送信 API、現地確認の手順、リリースの手順など |
 
 ## 記録ファイルの共有
 

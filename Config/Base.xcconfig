@@ -3,8 +3,11 @@
 // Identity of the app. Override any of these in Config/Local.xcconfig (not committed),
 // for example DEVELOPMENT_TEAM, without touching the project file.
 
-MARKETING_VERSION = 0.1.0
-CURRENT_PROJECT_VERSION = 1
+// The version of the next App Store release (docs/release.md): three numbers, no suffix.
+MARKETING_VERSION = 0.2.0
+// The App Store Connect build number. Tools/release/release.sh sets it for every upload from the
+// Git tags; 0 here marks a build that was not made by that script.
+CURRENT_PROJECT_VERSION = 0
 PRODUCT_BUNDLE_IDENTIFIER = es.4sh.aoshingo
 DEVELOPMENT_TEAM =
 

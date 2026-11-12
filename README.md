@@ -84,6 +84,7 @@ swift test --package-path Packages/AoshingoKit
 | [プライバシーポリシー](docs/privacy.md) | 実測データの扱い |
 | [送信 API の仕様](docs/field-data-api.md) | アプリと受信サーバー（[`server/`](server/)）の通信 |
 | [信号の周期の推定](docs/timing-estimation.md) | 実測データから周期と位相を求める仕組み（試験中）と、検証用の [`Tools/timing/`](Tools/timing/) |
+| [リリースとバージョン番号](docs/release.md) | App Store 版と TestFlight 版（拡張収集）の区別、バージョン番号とタグの決まり、アップロードの手順 |
 | [ウェブサイト](docs/website.md) | 公式サイト（[`site/`](site/)）の構成と公開 |
 
 ## コントリビュート
