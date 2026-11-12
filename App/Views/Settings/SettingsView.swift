@@ -85,9 +85,9 @@ struct SettingsView: View {
                     case .appStore:
                         EmptyView()
                     case .testFlight:
-                        LabeledContent("配信", value: "TestFlight 版（拡張収集）")
+                        LabeledContent("配信", value: String(localized: "TestFlight 版（拡張収集）"))
                     case .development:
-                        LabeledContent("配信", value: "開発用ビルド")
+                        LabeledContent("配信", value: String(localized: "開発用ビルド"))
                     }
                     NavigationLink("謝辞・ライセンス") { AcknowledgementsView() }
                     Link("ソースコード（GitHub）", destination: AppLinks.repository)
