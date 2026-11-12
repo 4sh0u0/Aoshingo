@@ -29,12 +29,14 @@ public enum SignalCondition: Hashable, Sendable {
 /// Finds the signal changes of the displayed intersection that are spoken whether or not VoiceOver
 /// focus is on that signal.
 ///
-/// Only changes into a condition that `needsAttention` are reported; changes towards 青 are spoken
-/// only for the signal that VoiceOver is on (`SignalSlotView`), because nobody should start
-/// crossing because of a signal they have not chosen. Changes that arrive close together are
-/// collected and reported as one announcement (`flush`), so that one announcement does not cut
-/// off another, and the same announcement is not repeated within `repeatInterval` (for example
-/// when reception keeps dropping out at the edge of the range).
+/// Each slot has a `SignalWatch`. Usually only changes into a condition that `needsAttention` are
+/// reported; changes towards 青 are reported only for a slot the user has chosen
+/// (`.warningsAndGreen`), and otherwise spoken only for the signal that VoiceOver is on
+/// (`SignalSlotView`), because nobody should start crossing because of a signal they have not
+/// chosen. Changes that arrive close together are collected and reported as one announcement
+/// (`flush`), so that one announcement does not cut off another, and the same announcement is not
+/// repeated within `repeatInterval` (for example when reception keeps dropping out at the edge of
+/// the range).
 public struct SignalChangeMonitor: Sendable {
     /// How long to wait after the first change before speaking, so that slots that change in the
     /// next packets are spoken together.
@@ -58,6 +60,7 @@ public struct SignalChangeMonitor: Sendable {
     /// The last condition of each slot that was spoken or did not need to be spoken.
     private var baseline: [Int: SignalCondition] = [:]
     private var current: [Int: SignalCondition] = [:]
+    private var watches: [Int: SignalWatch] = [:]
     /// What was spoken within the last `repeatInterval`.
     private var recentlySpoken: [(changes: [Change], at: Date)] = []
 
@@ -66,14 +69,26 @@ public struct SignalChangeMonitor: Sendable {
     /// `true` while a change waits for `flush`.
     public var hasPendingChanges: Bool {
         current.contains { slot, condition in
-            condition.needsAttention && baseline[slot] != condition
+            isReported(condition, slot: slot) && baseline[slot] != condition
         }
+    }
+
+    private func isReported(_ condition: SignalCondition, slot: Int) -> Bool {
+        (watches[slot] ?? .warnings).reports(condition)
     }
 
     /// Records what the slots of the displayed intersection show now. A different intersection
     /// starts again without reporting anything: the switch itself is announced with its name.
-    /// - Parameter conditions: slot number (from 1) → condition, for the slots in use.
-    public mutating func update(intersectionID id: String, conditions: [Int: SignalCondition]) {
+    /// - Parameters:
+    ///   - conditions: slot number (from 1) → condition, for the slots in use.
+    ///   - watches: slot number → which of its changes are reported; `.warnings` for a slot that is
+    ///     not listed.
+    public mutating func update(
+        intersectionID id: String,
+        conditions: [Int: SignalCondition],
+        watches: [Int: SignalWatch] = [:]
+    ) {
+        self.watches = watches
         if id != intersectionID {
             intersectionID = id
             baseline = conditions
@@ -83,9 +98,11 @@ public struct SignalChangeMonitor: Sendable {
         }
         current = conditions
         for (slot, condition) in conditions {
-            // A slot heard for the first time, or a change towards a safer state, is taken as it
-            // is, so that the next change into a warning is compared with it.
-            if baseline[slot] == nil || !condition.needsAttention {
+            // A slot heard for the first time, or a change into a condition that is not reported
+            // (for example towards a safer state), is taken as it is, so that the next reported
+            // change is compared with it. This also keeps a change of the settings from announcing
+            // what a signal already shows.
+            if baseline[slot] == nil || !isReported(condition, slot: slot) {
                 baseline[slot] = condition
             }
         }
@@ -95,7 +112,7 @@ public struct SignalChangeMonitor: Sendable {
     /// the last flush, or when the same changes were spoken less than `repeatInterval` ago.
     public mutating func flush(at now: Date) -> [Change] {
         var grouped: [SignalCondition: [Int]] = [:]
-        for (slot, condition) in current where condition.needsAttention && baseline[slot] != condition {
+        for (slot, condition) in current where isReported(condition, slot: slot) && baseline[slot] != condition {
             grouped[condition, default: []].append(slot)
             baseline[slot] = condition
         }
