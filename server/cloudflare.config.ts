@@ -15,8 +15,12 @@ export default defineConfig({
     name: "aoshingo-reports",
     compatibilityDate: "2026-10-01",
     entrypoint: "src/index.ts",
+    // workers.dev stays on: builds made before the custom domain was added send to
+    // aoshingo-reports.harus-account.workers.dev.
     workersDev: true,
     previewUrls: false,
+    // Custom domain on the 4sh.es zone. Cloudflare creates the DNS record and the certificate.
+    domains: ["api.aoshingo.4sh.es"],
 
     // Privacy: no Workers Logs, invocation logs or traces. The code itself never logs.
     observability: {

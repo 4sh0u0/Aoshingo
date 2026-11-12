@@ -124,6 +124,17 @@ const CONFIG = {
 };
 ```
 
+## Worker のドメイン
+
+本番の Worker は `https://contact.aoshingo.4sh.es/v1/email` で受け付けます（`cloudflare.config.ts` の `domains`）。
+DNS レコードと証明書は、デプロイのときに Cloudflare が 4sh.es のゾーンに作ります。
+
+- `workers.dev`（`aoshingo-contact.harus-account.workers.dev`）も有効のままにしています。古い `contact.js` をキャッシュしているブラウザーのためです。
+- 独自ドメインへのリクエストには、4sh.es ゾーンの Bot Fight Mode がかかります（サブドメインごとの例外は作れません）。
+  ボタンを押したあと Worker への `POST` が `403` と `cf-mitigated: challenge` ヘッダーで断られるようなら、ゾーンの Bot Fight Mode を
+  オフにするか、`contact.js` の `endpoint` を workers.dev に戻してください。
+- フォークして自分の Worker を立てるときは、`domains` を自分のドメインに書き換えるか、消してください。
+
 ## サイトのドメインを変えるとき
 
 サイトは `https://aoshingo.4sh.es/` で公開しています（[docs/website.md](../../docs/website.md)）。ドメインを変えるときは、次をそろえて変えます。

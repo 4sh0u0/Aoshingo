@@ -45,6 +45,7 @@ interface Wrangler {
   compatibility_flags?: string[];
   workers_dev: boolean;
   preview_urls: boolean;
+  routes: { pattern: string; custom_domain: boolean }[];
   observability: unknown;
   d1_databases: { binding: string; database_name: string; database_id: string; migrations_dir: string }[];
   ratelimits: { name: string; namespace_id: string; simple: { limit: number; period: number } }[];
@@ -67,6 +68,7 @@ const worker = (deployConfig as unknown as {
     compatibilityFlags?: string[];
     workersDev: boolean;
     previewUrls: boolean;
+    domains: string[];
     observability: { enabled: boolean; logs: { enabled: boolean; invocationLogs: boolean }; traces: { enabled: boolean } };
     triggers: { type: string; schedule?: string }[];
     env: Record<string, Binding>;
@@ -86,6 +88,12 @@ describe("cloudflare.config.ts and wrangler.jsonc", () => {
     expect(wrangler.compatibility_flags ?? []).toEqual(worker.compatibilityFlags ?? []);
     expect(wrangler.workers_dev).toBe(worker.workersDev);
     expect(wrangler.preview_urls).toBe(worker.previewUrls);
+  });
+
+  it("serve the same custom domain, and keep workers.dev on for builds made before it", () => {
+    expect(worker.domains).toEqual(["api.aoshingo.4sh.es"]);
+    expect(wrangler.routes).toEqual(worker.domains.map((pattern) => ({ pattern, custom_domain: true })));
+    expect(worker.workersDev).toBe(true);
   });
 
   it("both turn off logs, invocation logs and traces", () => {
@@ -150,6 +158,7 @@ describe("cloudflare.config.ts and wrangler.jsonc", () => {
         "observability",
         "preview_urls",
         "ratelimits",
+        "routes",
         "triggers",
         "vars",
         "workers_dev",
