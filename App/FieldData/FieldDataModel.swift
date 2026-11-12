@@ -35,6 +35,7 @@ final class FieldDataModel {
     @ObservationIgnored private let pipeline: FieldDataPipeline
     @ObservationIgnored private let hasUploader: Bool
     @ObservationIgnored private let location = LocationProvider()
+    @ObservationIgnored private let activity = ActivityProvider()
     @ObservationIgnored private var uploadLoop: Task<Void, Never>?
     @ObservationIgnored private var emitterAliases = EmitterAliases()
 
@@ -80,6 +81,7 @@ final class FieldDataModel {
             uploadLoop?.cancel()
             uploadLoop = nil
             location.stop()
+            activity.stop()
             emitterAliases.reset()
         }
         await pipeline.setEnabled(enabled)
@@ -97,10 +99,12 @@ final class FieldDataModel {
     func setReceiving(_ receiving: Bool) {
         guard isEnabled, receiving else {
             location.stop()
+            activity.stop()
             Task { [pipeline] in await pipeline.receptionDidPause() }
             return
         }
         location.start()
+        activity.start()
         guard uploadLoop == nil else { return }
         uploadLoop = Task { [weak self] in
             while !Task.isCancelled {
@@ -117,6 +121,7 @@ final class FieldDataModel {
         let emitter = emitterAliases.alias(for: advertisement.peripheralID.uuidString)
         var context = location.context(at: advertisement.timestamp)
         context.nearbyDevices = advertisement.nearbyDevices
+        context.activity = activity.current
         Task {
             await pipeline.record(
                 packet,

@@ -3,12 +3,12 @@
 import Foundation
 import PICSKit
 
-/// Body of `POST /v1/reports` (schema 2). See docs/field-data-api.md.
+/// Body of `POST /v1/reports` (schema 3). See docs/field-data-api.md.
 ///
 /// Every nullable field is encoded as an explicit `null`. Decoding accepts missing keys as `null`
-/// (or an empty list), so a schema 1 body still decodes.
+/// (or an empty list), so schema 1 and 2 bodies still decode.
 public struct FieldReport: Sendable, Hashable, Codable {
-    public static let schemaVersion = 2
+    public static let schemaVersion = 3
 
     public var schema: Int
     public var client: String?
@@ -81,6 +81,17 @@ public struct FieldReport: Sendable, Hashable, Codable {
         }
     }
 
+    /// How the user was moving, as iOS's motion activity classifier (Motion & Fitness) judged it.
+    /// Tells pedestrians from people in a vehicle, also while they stand still.
+    public enum Activity: String, Sendable, Hashable, Codable, CaseIterable {
+        case stationary
+        case walking
+        case running
+        case cycling
+        /// In a car, bus or train; iOS keeps this while the vehicle waits at a red light.
+        case automotive
+    }
+
     /// What the advertisements of one transmitter said about it.
     public struct EmitterInfo: Sendable, Hashable, Codable {
         /// Advertised transmit power in dBm (−127…20).
@@ -124,6 +135,8 @@ public struct FieldReport: Sendable, Hashable, Codable {
         public var speed: Int?
         /// Other Bluetooth devices seen in the last 30 s: 0, 1, 5, 10, 20, 50 or 100 (lower bound).
         public var nearby: Int?
+        /// How the user was moving (schema 3).
+        public var activity: Activity?
 
         public init(
             t: Int,
@@ -136,7 +149,8 @@ public struct FieldReport: Sendable, Hashable, Codable {
             accuracy: Int? = nil,
             course: Int? = nil,
             speed: Int? = nil,
-            nearby: Int? = nil
+            nearby: Int? = nil,
+            activity: Activity? = nil
         ) {
             self.t = t
             self.raw = raw
@@ -149,10 +163,11 @@ public struct FieldReport: Sendable, Hashable, Codable {
             self.course = course
             self.speed = speed
             self.nearby = nearby
+            self.activity = activity
         }
 
         private enum CodingKeys: String, CodingKey {
-            case t, raw, rssi, bearing, heading, emitter, distance, accuracy, course, speed, nearby
+            case t, raw, rssi, bearing, heading, emitter, distance, accuracy, course, speed, nearby, activity
         }
 
         // The contract spells missing values as explicit `null`.
@@ -169,6 +184,7 @@ public struct FieldReport: Sendable, Hashable, Codable {
             try container.encode(course, forKey: .course)
             try container.encode(speed, forKey: .speed)
             try container.encode(nearby, forKey: .nearby)
+            try container.encode(activity, forKey: .activity)
         }
     }
 

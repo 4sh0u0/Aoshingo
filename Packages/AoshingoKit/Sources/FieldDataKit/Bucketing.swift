@@ -88,6 +88,27 @@ public enum Bucketing {
         return nearbyClasses.last { $0 <= count }
     }
 
+    /// The activity sent for one classification of iOS's motion activity classifier (`CMMotionActivity`),
+    /// or `nil` when iOS is unsure (`confident` is false for low confidence) or knows nothing (no flag set).
+    /// iOS may set several flags at once, for example `automotive` and `stationary` for a car waiting at a
+    /// red light. The vehicle wins, so the order is automotive, cycling, running, walking, stationary.
+    public static func activity(
+        automotive: Bool,
+        cycling: Bool,
+        running: Bool,
+        walking: Bool,
+        stationary: Bool,
+        confident: Bool
+    ) -> FieldReport.Activity? {
+        guard confident else { return nil }
+        if automotive { return .automotive }
+        if cycling { return .cycling }
+        if running { return .running }
+        if walking { return .walking }
+        if stationary { return .stationary }
+        return nil
+    }
+
     /// A duration (`gap`, `held`, `cycle`, step `held`) in milliseconds, rounded to the nearest 100 ms.
     /// `nil` when negative, non-finite or above one hour once rounded.
     public static func durationMilliseconds(_ interval: TimeInterval) -> Int? {

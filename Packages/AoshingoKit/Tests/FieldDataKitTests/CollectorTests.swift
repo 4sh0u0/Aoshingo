@@ -127,6 +127,32 @@ struct BucketingTests {
         }
     }
 
+    @Test("activity: unsure or unknown is nil, and a vehicle wins over standing still")
+    func activityClasses() {
+        func activity(
+            automotive: Bool = false, cycling: Bool = false, running: Bool = false,
+            walking: Bool = false, stationary: Bool = false, confident: Bool = true
+        ) -> FieldReport.Activity? {
+            Bucketing.activity(
+                automotive: automotive, cycling: cycling, running: running,
+                walking: walking, stationary: stationary, confident: confident
+            )
+        }
+        #expect(activity(walking: true) == .walking)
+        #expect(activity(running: true) == .running)
+        #expect(activity(cycling: true) == .cycling)
+        #expect(activity(automotive: true) == .automotive)
+        #expect(activity(stationary: true) == .stationary)
+        // A car waiting at a red light.
+        #expect(activity(automotive: true, stationary: true) == .automotive)
+        #expect(activity(cycling: true, stationary: true) == .cycling)
+        #expect(activity(walking: true, stationary: true) == .walking)
+        #expect(activity(running: true, walking: true) == .running)
+        #expect(activity() == nil)
+        #expect(activity(walking: true, confident: false) == nil)
+        #expect(FieldReport.Activity.allCases.map(\.rawValue) == ["stationary", "walking", "running", "cycling", "automotive"])
+    }
+
     @Test func nearbyClasses() {
         let cases: [(Int?, Int?)] = [
             (0, 0), (1, 1), (4, 1), (5, 5), (9, 5), (10, 10), (19, 10), (20, 20), (49, 20), (50, 50),
@@ -343,13 +369,13 @@ struct CollectorTests {
         #expect(try collector.requireReport(client: nil).intersections[0].transitions.isEmpty)
     }
 
-    @Test("report JSON follows the contract: schema 2, explicit nulls, uppercase raw hex starting with CE01")
+    @Test("report JSON follows the contract: schema 3, explicit nulls, uppercase raw hex starting with CE01")
     func json() throws {
         var collector = FieldCollector()
         try collector.feed(signalData([0x31]), at: 0, rssi: nil)
         let report = try collector.requireReport(client: "aoshingo-ios/0.1.0")
         let object = try #require(try JSONSerialization.jsonObject(with: report.encoded()) as? [String: Any])
-        #expect(object["schema"] as? Int == 2)
+        #expect(object["schema"] as? Int == 3)
         #expect(object["client"] as? String == "aoshingo-ios/0.1.0")
         let intersection = try #require((object["intersections"] as? [[String: Any]])?.first)
         #expect(intersection["id"] as? String == "00000001")
@@ -358,8 +384,8 @@ struct CollectorTests {
         #expect(observation["rssi"] is NSNull)
         #expect(observation["bearing"] is NSNull)
         #expect(observation["heading"] is NSNull)
-        #expect(Set(observation.keys) == ["t", "raw", "rssi", "bearing", "heading", "emitter", "distance", "accuracy", "course", "speed", "nearby"])
-        for key in ["emitter", "distance", "accuracy", "course", "speed", "nearby"] {
+        #expect(Set(observation.keys) == ["t", "raw", "rssi", "bearing", "heading", "emitter", "distance", "accuracy", "course", "speed", "nearby", "activity"])
+        for key in ["emitter", "distance", "accuracy", "course", "speed", "nearby", "activity"] {
             #expect(observation[key] is NSNull, "\(key)")
         }
     }
@@ -613,6 +639,28 @@ struct CollectorSchema2Tests {
         #expect(!json.contains("35.68"))
     }
 
+    @Test("observations carry the activity, also without a position; it is sent as its name")
+    func observationActivity() throws {
+        var collector = FieldCollector()
+        try collector.feed(positionData, at: 0)
+        let contexts: [ObservationContext] = [
+            .init(userLocation: near(latitude: 0.0005), horizontalAccuracy: 7, speed: 0, activity: .automotive),
+            .init(activity: .walking),
+            .init(userLocation: near(latitude: 0.0005), horizontalAccuracy: 45, activity: .cycling),
+            .init(),
+        ]
+        for (index, context) in contexts.enumerated() {
+            try collector.feed(signalData([0x31]), at: 1 + Double(index) * 5, context: context)
+        }
+        let report = try collector.requireReport(client: nil)
+        let observations = report.intersections[0].observations.dropFirst()
+        #expect(observations.map(\.activity) == [.automotive, .walking, .cycling, nil])
+        let object = try #require(try JSONSerialization.jsonObject(with: report.encoded()) as? [String: Any])
+        let encoded = try #require((object["intersections"] as? [[String: Any]])?.first?["observations"] as? [[String: Any]])
+        #expect(encoded.dropFirst().map { $0["activity"] as? String } == ["automotive", "walking", "cycling", nil])
+        #expect(try JSONDecoder().decode(FieldReport.self, from: report.encoded()) == report)
+    }
+
     @Test("labels: crosswalk needs a slot, at most 20 per intersection and report, with heading, bearing and distance")
     func labels() throws {
         var collector = FieldCollector()
@@ -664,7 +712,7 @@ struct CollectorSchema2Tests {
         #expect(known)
     }
 
-    @Test("schema 2 JSON: every nullable field is an explicit null and every list is present")
+    @Test("schema 3 JSON: every nullable field is an explicit null and every list is present")
     func json() throws {
         var collector = FieldCollector()
         try collector.feed(signalData([0x71]), at: 0, rssi: nil, emitter: "A")
@@ -673,7 +721,7 @@ struct CollectorSchema2Tests {
         collector.recordLabel(.button, slot: nil, intersectionID: "00000001", at: seconds(3), context: .init())
         let report = try collector.requireReport(client: "aoshingo-ios/0.2.0")
         let object = try #require(try JSONSerialization.jsonObject(with: report.encoded()) as? [String: Any])
-        #expect(object["schema"] as? Int == 2)
+        #expect(object["schema"] as? Int == 3)
         let intersection = try #require((object["intersections"] as? [[String: Any]])?.first)
         #expect(Set(intersection.keys) == ["id", "serviceUUIDs", "emitters", "emitterInfo", "observations", "transitions", "steps", "packets", "coverage", "labels"])
 
@@ -703,6 +751,7 @@ struct CollectorSchema2Tests {
         }
         let observation = try only("observations")
         #expect(observation["rssi"] is NSNull && observation["emitter"] as? Int == 0)
+        #expect(observation["activity"] is NSNull)
 
         #expect(try JSONDecoder().decode(FieldReport.self, from: report.encoded()) == report)
     }
