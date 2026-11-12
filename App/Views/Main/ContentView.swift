@@ -5,31 +5,71 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Main screen. On compact widths (iPhone, iPhone Duo outer screen) the signal view comes first;
-/// on regular widths (iPhone Duo inner screen, iPad) the intersection list and signals sit side by side.
+/// on regular widths (iPhone Duo inner screen, larger iPhones in landscape) the intersection list and
+/// signals sit side by side. In landscape the signal view splits into two panes (`DetailContainer`).
 /// Only standard containers and size classes are used, so the system adapts the layout and applies
 /// Liquid Glass to bars and controls on iOS 26 and later.
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @AppStorage(SettingsKey.colorMode) private var colorMode: SignalColorMode = .automatic
     @State private var preferredColumn: NavigationSplitViewColumn = .detail
+    /// `.all` where nothing hides the list: with this binding, `.automatic` would hide it on the
+    /// iPhone Duo inner screen, where the split view without a binding shows it.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showingSettings = false
     @State private var showingImporter = false
 
     private static let autoSelection = "auto"
 
+    /// Whether the list and the signals are shown side by side. The split view collapses into one
+    /// stack at compact width; there the start/stop control stays at the bottom of the screen, on
+    /// the list as on the signals. Side by side it belongs to the signal column, so that it does not
+    /// run across the list.
+    private var isSideBySide: Bool { horizontalSizeClass == .regular }
+
+    /// iPhone in landscape. The height is too short for the heading, the start/stop control and a
+    /// signal one above the other, so the signal view puts the heading and the control in a left pane
+    /// and the signals in a right pane, where nothing covers them. The list, when it is a screen of
+    /// its own, keeps the control at its bottom.
+    private var isLandscape: Bool { verticalSizeClass == .compact }
+
+    /// Larger iPhones in landscape could show the list beside the two panes, but that would leave
+    /// each of the three too narrow. The list starts hidden there and opens from the sidebar button.
+    private var hidesListByDefault: Bool { isLandscape && isSideBySide }
+
     var body: some View {
-        NavigationSplitView(preferredCompactColumn: $preferredColumn) {
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $preferredColumn) {
             IntersectionListView(selection: selection)
                 .navigationTitle("交差点")
+                .safeAreaInset(edge: .bottom) {
+                    if isLandscape && !isSideBySide { ReceiveControl() }
+                }
         } detail: {
             NavigationStack {
-                DetailContainer(colorMode: colorMode)
+                DetailContainer(colorMode: colorMode, showsPanes: isLandscape)
                     .navigationTitle("Aoshingo")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar { toolbar }
             }
+            .safeAreaInset(edge: .bottom) {
+                if isSideBySide && !isLandscape { ReceiveControl() }
+            }
         }
-        .safeAreaInset(edge: .bottom) { ReceiveControl() }
+        .safeAreaInset(edge: .bottom) {
+            if !isSideBySide && !isLandscape { ReceiveControl() }
+        }
+        .task(id: hidesListByDefault) {
+            if hidesListByDefault {
+                // After a rotation the split view expands and sets its own column visibility, which
+                // would override a value set in the same update; wait until it has settled.
+                try? await Task.sleep(for: .milliseconds(300))
+                columnVisibility = .detailOnly
+            } else {
+                columnVisibility = .all
+            }
+        }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
@@ -46,6 +86,9 @@ struct ContentView: View {
             set: { newValue in
                 model.selectedID = newValue == Self.autoSelection ? nil : newValue
                 preferredColumn = .detail
+                if hidesListByDefault {
+                    columnVisibility = .detailOnly
+                }
             }
         )
     }
@@ -112,35 +155,76 @@ extension View {
 private struct DetailContainer: View {
     @Environment(AppModel.self) private var model
     let colorMode: SignalColorMode
+    /// Two panes for landscape: the banners, the intersection's heading and the start/stop control
+    /// on the left, the signals and the rest on the right. Each pane scrolls on its own.
+    let showsPanes: Bool
     @State private var editedSlot: SlotEditTarget?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                banners
-                if let state = model.displayedIntersection {
-                    IntersectionDetailView(
-                        state: state,
-                        confirmed: model.confirmedSignals(for: state.id),
-                        source: model.source,
-                        isFollowingNearest: model.selectedID == nil,
-                        colorMode: colorMode,
-                        onEditSlot: { editedSlot = $0 }
-                    )
-                    // A different intersection is a different view: VoiceOver focus and view state
-                    // must not carry over from the previous intersection's signals.
-                    .id(state.id)
-                } else {
-                    EmptyStateView()
+        Group {
+            if showsPanes {
+                HStack(spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            banners
+                            if let state = model.displayedIntersection {
+                                detail(state, part: .heading)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .safeAreaInset(edge: .bottom) {
+                        ReceiveControl()
+                    }
+                    .containerRelativeFrame(.horizontal) { width, _ in width * 0.38 }
+                    Divider()
+                        .ignoresSafeArea(edges: .bottom)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            if let state = model.displayedIntersection {
+                                detail(state, part: .body)
+                            } else {
+                                EmptyStateView()
+                            }
+                        }
+                        .padding()
+                    }
+                }
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        banners
+                        if let state = model.displayedIntersection {
+                            detail(state, part: .whole)
+                        } else {
+                            EmptyStateView()
+                        }
+                    }
+                    .padding()
                 }
             }
-            .padding()
         }
         // Presented here, not in the detail view, so that a switch to another nearest
         // intersection does not close the settings while the user is typing a name.
         .sheet(item: $editedSlot) { target in
             SlotSettingsView(target: target)
         }
+    }
+
+    private func detail(_ state: IntersectionState, part: IntersectionDetailView.Part) -> some View {
+        IntersectionDetailView(
+            state: state,
+            confirmed: model.confirmedSignals(for: state.id),
+            source: model.source,
+            isFollowingNearest: model.selectedID == nil,
+            colorMode: colorMode,
+            part: part,
+            onEditSlot: { editedSlot = $0 }
+        )
+        // A different intersection is a different view: VoiceOver focus and view state
+        // must not carry over from the previous intersection's signals.
+        .id(state.id)
     }
 
     @ViewBuilder
