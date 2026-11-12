@@ -36,6 +36,7 @@ struct OnboardingView: View {
 /// What the app is and is not. Shown before anything else.
 struct SafetyNoticeView: View {
     let next: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ScrollView {
@@ -54,20 +55,47 @@ struct SafetyNoticeView: View {
                 NoticeRow(systemImage: "arrow.triangle.branch", text: "信号の番号がどの横断歩道かは、まだ確認できていません。")
                 NoticeRow(systemImage: "antenna.radiowaves.left.and.right", text: "受信専用です。信号機に何かを送信したり、操作したりすることはありません。")
                 NoticeRow(systemImage: "testtube.2", text: "これは開発中の試験版（pre-alpha）です。")
+                if dynamicTypeSize.isAccessibilitySize {
+                    confirmButton
+                        .padding(.top, 8)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
-        .safeAreaInset(edge: .bottom) {
-            Button(action: next) {
-                Text("確認しました")
-                    .frame(maxWidth: .infinity)
-            }
-            // Large text, like the receive control, so white on the accent color meets WCAG 3:1 in dark mode.
-            .font(.title3.weight(.semibold))
-            .controlSize(.large)
-            .prominentControlStyle()
-            .padding()
+        // At accessibility text sizes the button would take up much of a small screen, so it comes
+        // after the notices instead of staying at the bottom.
+        .modifier(PinnedBottomBar(isPinned: !dynamicTypeSize.isAccessibilitySize) {
+            confirmButton
+                .padding()
+        })
+    }
+
+    private var confirmButton: some View {
+        Button(action: next) {
+            Text("確認しました")
+                .frame(maxWidth: .infinity)
+        }
+        // Large text, like the receive control, so white on the accent color meets WCAG 3:1 in dark mode.
+        .font(.title3.weight(.semibold))
+        .controlSize(.large)
+        .prominentControlStyle()
+    }
+}
+
+/// Keeps `bar` at the bottom of the screen while `isPinned`; otherwise leaves it out, and the view
+/// shows it at the end of its scrolling content instead. The inset itself is left out, not given
+/// conditional content: with an `if` inside the inset, the consent buttons were stacked and cut off
+/// at the default text size, and the notice above them was truncated.
+private struct PinnedBottomBar<Bar: View>: ViewModifier {
+    let isPinned: Bool
+    @ViewBuilder let bar: () -> Bar
+
+    func body(content: Content) -> some View {
+        if isPinned {
+            content.safeAreaInset(edge: .bottom, content: bar)
+        } else {
+            content
         }
     }
 }
@@ -79,6 +107,7 @@ struct CollectionConsentView: View {
     /// The user had agreed to an older list of collected data.
     var isReview = false
     let decide: (CollectionConsent) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ScrollView {
@@ -95,24 +124,34 @@ struct CollectionConsentView: View {
                 Text("あとから設定画面でいつでも変更できます。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                if dynamicTypeSize.isAccessibilitySize {
+                    decision
+                        .padding(.top, 8)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
-        .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 12) {
-                if let unavailability {
-                    FieldDataUnavailableNotice(reason: unavailability)
-                        .font(.footnote)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                ViewThatFits {
-                    HStack(spacing: 12) { buttons }
-                    VStack(spacing: 12) { buttons }
-                }
+        // At accessibility text sizes the buttons, stacked, would cover most of a small screen and
+        // leave little room to read what is collected, so they come after the text instead.
+        .modifier(PinnedBottomBar(isPinned: !dynamicTypeSize.isAccessibilitySize) {
+            decision
+                .padding()
+                .background(.bar)
+        })
+    }
+
+    private var decision: some View {
+        VStack(spacing: 12) {
+            if let unavailability {
+                FieldDataUnavailableNotice(reason: unavailability)
+                    .font(.footnote)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding()
-            .background(.bar)
+            ViewThatFits {
+                HStack(spacing: 12) { buttons }
+                VStack(spacing: 12) { buttons }
+            }
         }
     }
 
