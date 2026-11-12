@@ -11,6 +11,7 @@ struct IntersectionDetailView: View {
     let source: AppModel.Source
     let isFollowingNearest: Bool
     let colorMode: SignalColorMode
+    var part: Part = .whole
     /// Opens the settings of one signal. The sheet is presented outside this view, so that it stays
     /// open when the displayed intersection changes.
     var onEditSlot: (SlotEditTarget) -> Void = { _ in }
@@ -19,6 +20,16 @@ struct IntersectionDetailView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(AppModel.self) private var model
     @State private var showsMutedSignals = false
+
+    /// What to show. In landscape the heading goes in a pane of its own, beside the rest.
+    enum Part {
+        /// Heading, signals and the sections below them.
+        case whole
+        /// Name, reception and which intersection is shown.
+        case heading
+        /// Signals and the sections below them; the intersection ID moves into its information.
+        case body
+    }
 
     /// The widest minimum tile width that still fits the narrowest layout: iPad Slide Over is 320 pt
     /// wide, 288 pt inside the padding.
@@ -38,30 +49,44 @@ struct IntersectionDetailView: View {
             let now = context.date
             let stale = source == .idle || state.isSignalStale(at: now)
             VStack(alignment: .leading, spacing: 16) {
-                header(now: now, stale: stale)
-                signals(stale: stale)
-                Text("番号は信号データ内の並び順で、どの横断歩道の信号かは分かりません。現地で確かめた信号には、各信号の設定ボタンから名前を付け、知らせ方や音を変えられます。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                IntersectionInfoSection(state: state, now: now)
-                FieldTestSection(state: state, source: source)
-                RawDataSection(state: state)
+                switch part {
+                case .whole:
+                    header(now: now, stale: stale)
+                    content(now: now, stale: stale)
+                case .heading:
+                    paneHeader(now: now, stale: stale)
+                case .body:
+                    content(now: now, stale: stale)
+                }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func content(now: Date, stale: Bool) -> some View {
+        signals(stale: stale)
+        Text("番号は信号データ内の並び順で、どの横断歩道の信号かは分かりません。現地で確かめた信号には、各信号の設定ボタンから名前を付け、知らせ方や音を変えられます。")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        IntersectionInfoSection(state: state, now: now, showsID: part == .body)
+        FieldTestSection(state: state, source: source)
+        RawDataSection(state: state)
+    }
+
+    private var nameText: Text {
+        if let name = state.identifier, !name.isEmpty {
+            Text(verbatim: name)
+        } else {
+            Text("名称未受信")
         }
     }
 
     @ViewBuilder
     private func header(now: Date, stale: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Group {
-                if let name = state.identifier, !name.isEmpty {
-                    Text(verbatim: name)
-                } else {
-                    Text("名称未受信")
-                }
-            }
-            .font(.title2.bold())
-            .accessibilityAddTraits(.isHeader)
+            nameText
+                .font(.title2.bold())
+                .accessibilityAddTraits(.isHeader)
             Text("交差点 ID \(state.id)")
                 .font(.subheadline.monospaced())
                 .foregroundStyle(.secondary)
@@ -71,6 +96,22 @@ struct IntersectionDetailView: View {
             freshness(now: now, stale: stale)
                 .font(.subheadline.weight(.semibold))
                 .padding(.top, 4)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The heading in the narrow left pane: the reception comes right under the name, where it is
+    /// seen with the signals, and the intersection ID is left to the information section.
+    private func paneHeader(now: Date, stale: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            nameText
+                .font(.title2.bold())
+                .accessibilityAddTraits(.isHeader)
+            freshness(now: now, stale: stale)
+                .font(.subheadline.weight(.semibold))
+            Text(isFollowingNearest ? "最も近い交差点を自動で表示中" : "選択した交差点を表示中")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
     }
@@ -153,10 +194,15 @@ struct IntersectionDetailView: View {
 private struct IntersectionInfoSection: View {
     let state: IntersectionState
     let now: Date
+    /// In landscape the heading leaves out the ID, so it is shown here.
+    var showsID = false
 
     var body: some View {
         GroupBox("交差点の情報") {
             VStack(alignment: .leading, spacing: 6) {
+                if showsID {
+                    LabeledContent("交差点 ID", value: state.id)
+                }
                 if let coordinate = state.coordinate {
                     LabeledContent("位置", value: String(format: "%.6f, %.6f", coordinate.latitude, coordinate.longitude))
                 } else {
