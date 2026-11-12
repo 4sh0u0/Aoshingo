@@ -31,7 +31,7 @@ open Aoshingo.xcodeproj
 | パス | 内容 |
 | --- | --- |
 | `App/` | iOS アプリ（SwiftUI） |
-| `Packages/AoshingoKit/Sources/PICSKit` | 高度化PICS の解析、交差点ごとの状態、安全側デバウンス、デモ、記録形式 |
+| `Packages/AoshingoKit/Sources/PICSKit` | 高度化PICS の解析、交差点ごとの状態、安全側デバウンス、読み上げる変化の判定、信号ごとの設定（名前・知らせ方・音・振動）、デモ、記録形式 |
 | `Packages/AoshingoKit/Sources/FieldDataKit` | 実測データの間引き・丸め、送信キュー、App Attest を使う送信クライアント |
 | `server/` | 実測データを受け取る Cloudflare Worker（`main` へのマージで Cloudflare が自動デプロイ）。[`server/README.md`](../server/README.md) |
 | `site/` | 公式サイト（GitHub Pages）。[ウェブサイト](website.md) |
