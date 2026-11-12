@@ -31,7 +31,8 @@ public enum SignalCondition: Hashable, Sendable {
 ///
 /// Each slot has a `SignalWatch`. Usually only changes into a condition that `needsAttention` are
 /// reported; changes towards 青 are reported only for a slot the user has chosen
-/// (`.warningsAndGreen`), and otherwise spoken only for the signal that VoiceOver is on
+/// (`.warningsAndGreen`) and only when the slot was seen changing into 青 from a confirmed state,
+/// and otherwise spoken only for the signal that VoiceOver is on
 /// (`SignalSlotView`), because nobody should start crossing because of a signal they have not
 /// chosen. Changes that arrive close together are collected and reported as one announcement
 /// (`flush`), so that one announcement does not cut off another, and the same announcement is not
@@ -77,6 +78,17 @@ public struct SignalChangeMonitor: Sendable {
         (watches[slot] ?? .warnings).reports(condition)
     }
 
+    /// `true` for 青 that was not seen changing from a confirmed state: right after 判定中 or 更新なし
+    /// (reception just started, the intersection changed, or reception dropped out) the green may
+    /// have started long ago and be about to end, so it must not be spoken as 「青に変わった」.
+    private func isUnconfirmedGreen(_ condition: SignalCondition, slot: Int) -> Bool {
+        guard condition == .state(.green) else { return false }
+        switch baseline[slot] {
+        case .state: return false
+        case .pending, .stale, nil: return true
+        }
+    }
+
     /// Records what the slots of the displayed intersection show now. A different intersection
     /// starts again without reporting anything: the switch itself is announced with its name.
     /// - Parameters:
@@ -101,8 +113,10 @@ public struct SignalChangeMonitor: Sendable {
             // A slot heard for the first time, or a change into a condition that is not reported
             // (for example towards a safer state), is taken as it is, so that the next reported
             // change is compared with it. This also keeps a change of the settings from announcing
-            // what a signal already shows.
-            if baseline[slot] == nil || !isReported(condition, slot: slot) {
+            // what a signal already shows. 青 not seen changing from a confirmed state is taken in
+            // the same way (`isUnconfirmedGreen`).
+            if baseline[slot] == nil || !isReported(condition, slot: slot)
+                || isUnconfirmedGreen(condition, slot: slot) {
                 baseline[slot] = condition
             }
         }

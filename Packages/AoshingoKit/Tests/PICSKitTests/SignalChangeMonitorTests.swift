@@ -116,7 +116,6 @@ private let red = SignalCondition.state(.red)
         var monitor = SignalChangeMonitor()
         let watches: [Int: SignalWatch] = [1: .warningsAndGreen, 2: .warnings]
         monitor.update(intersectionID: "A", conditions: [1: red, 2: red], watches: watches)
-        monitor.update(intersectionID: "A", conditions: [1: .pending, 2: .pending], watches: watches)
         #expect(!monitor.hasPendingChanges)
         monitor.update(intersectionID: "A", conditions: [1: green, 2: green], watches: watches)
         #expect(monitor.hasPendingChanges)
@@ -124,6 +123,51 @@ private let red = SignalCondition.state(.red)
 
         monitor.update(intersectionID: "A", conditions: [1: blink, 2: blink], watches: watches)
         #expect(monitor.flush(at: at(20)) == [.init(condition: blink, slots: [1, 2])])
+    }
+
+    /// When reception starts, the intersection changes or reception comes back, a signal that is
+    /// already 青 has not been seen changing, so 「青」 is not spoken even for a chosen slot.
+    @Test func greenNotSeenChangingIsNotSpoken() {
+        let watches: [Int: SignalWatch] = [1: .warningsAndGreen]
+
+        var monitor = SignalChangeMonitor()
+        monitor.update(intersectionID: "A", conditions: [1: .pending], watches: watches)
+        monitor.update(intersectionID: "A", conditions: [1: green], watches: watches)
+        #expect(!monitor.hasPendingChanges)
+        #expect(monitor.flush(at: at(1)).isEmpty)
+
+        monitor.update(intersectionID: "A", conditions: [1: red], watches: watches)
+        monitor.update(intersectionID: "B", conditions: [1: .pending], watches: watches)
+        monitor.update(intersectionID: "B", conditions: [1: green], watches: watches)
+        #expect(!monitor.hasPendingChanges)
+        #expect(monitor.flush(at: at(2)).isEmpty)
+
+        monitor.update(intersectionID: "B", conditions: [1: .stale], watches: watches)
+        #expect(monitor.flush(at: at(3)) == [.init(condition: .stale, slots: [1])])
+        monitor.update(intersectionID: "B", conditions: [1: .pending], watches: watches)
+        monitor.update(intersectionID: "B", conditions: [1: green], watches: watches)
+        #expect(!monitor.hasPendingChanges)
+        #expect(monitor.flush(at: at(4)).isEmpty)
+
+        // Seen changing from a confirmed state again: spoken.
+        monitor.update(intersectionID: "B", conditions: [1: blink], watches: watches)
+        #expect(monitor.flush(at: at(5)) == [.init(condition: blink, slots: [1])])
+        monitor.update(intersectionID: "B", conditions: [1: red], watches: watches)
+        #expect(monitor.flush(at: at(6)) == [.init(condition: red, slots: [1])])
+        monitor.update(intersectionID: "B", conditions: [1: green], watches: watches)
+        #expect(monitor.flush(at: at(7)) == [.init(condition: green, slots: [1])])
+    }
+
+    /// After 更新なし, the confirmed state that comes back is spoken if it needs attention.
+    @Test func aWarningAfterReceptionComesBackIsSpoken() {
+        let watches: [Int: SignalWatch] = [1: .warningsAndGreen]
+        var monitor = SignalChangeMonitor()
+        monitor.update(intersectionID: "A", conditions: [1: green], watches: watches)
+        monitor.update(intersectionID: "A", conditions: [1: .stale], watches: watches)
+        #expect(monitor.flush(at: at(1)) == [.init(condition: .stale, slots: [1])])
+        monitor.update(intersectionID: "A", conditions: [1: .pending], watches: watches)
+        monitor.update(intersectionID: "A", conditions: [1: red], watches: watches)
+        #expect(monitor.flush(at: at(2)) == [.init(condition: red, slots: [1])])
     }
 
     @Test func aSlotWatchedForNothingIsNeverSpoken() {
