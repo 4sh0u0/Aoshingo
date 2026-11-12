@@ -14,6 +14,10 @@ enum SettingsKey {
     static let collectionConsentReview = "collectionConsentReview"
     static let colorMode = "colorMode"
     static let keepScreenOn = "keepScreenOn"
+    /// Whether changes into 青点滅, 赤, 信号なし, 不明 and 更新なし are spoken for every signal of the
+    /// displayed intersection, and not only for the one VoiceOver is on.
+    static let announceSignalWarnings = "announceSignalWarnings"
+    static let announceSignalWarningsDefault = true
     static let recordingEnabled = "recordingEnabled"
 }
 

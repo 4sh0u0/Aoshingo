@@ -171,6 +171,16 @@
         }
       }
     },
+    "VoiceOver": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VoiceOver"
+          }
+        }
+      }
+    },
     "「残り目安」は 8 段階の目安で、秒数ではありません。": {
       "localizations": {
         "en": {
@@ -281,6 +291,16 @@
         }
       }
     },
+    "すべての信号の青点滅・赤を読み上げる": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Announce Flashing Green and Red for All Signals"
+          }
+        }
+      }
+    },
     "その他": {
       "localizations": {
         "en": {
@@ -327,6 +347,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Turning this off immediately deletes data that has not been sent yet."
+          }
+        }
+      }
+    },
+    "オンにすると、表示中の交差点のどの信号でも、青点滅・赤・信号なしに変わったときと受信が途切れたときに、VoiceOver のフォーカスの位置にかかわらず読み上げます。青に変わったことは、フォーカスしている信号だけ読み上げます。オフにすると、フォーカスしている信号の変化だけを読み上げます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When on, VoiceOver announces any signal of the shown intersection that changes to flashing green, red or no signal, and any break in reception, wherever the focus is. A change to green is announced only for the focused signal. When off, only changes of the focused signal are announced."
           }
         }
       }
@@ -601,6 +631,16 @@
         }
       }
     },
+    "信号データ受信中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Receiving signal data"
+          }
+        }
+      }
+    },
     "信号データ受信中 · %lld 秒前": {
       "localizations": {
         "en": {
@@ -637,6 +677,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stop"
+          }
+        }
+      }
+    },
+    "停止中 · 最終受信値": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped · last received value"
           }
         }
       }
@@ -1057,6 +1107,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "No Updates"
+          }
+        }
+      }
+    },
+    "更新なし · 信号データが 5 秒以上届いていません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No updates · no signal data for 5 s or more"
           }
         }
       }

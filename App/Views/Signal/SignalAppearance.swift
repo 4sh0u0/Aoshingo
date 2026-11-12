@@ -137,6 +137,19 @@ struct SignalAppearance: Equatable {
     }
 }
 
+extension SignalAppearance {
+    /// What VoiceOver says for a condition, for example 「赤。止まってください」. It is the same in
+    /// every colour mode.
+    static func accessibilityTitle(for condition: SignalCondition) -> String {
+        let appearance = switch condition {
+        case .pending: make(state: nil, stale: false, mode: .standard, differentiateWithoutColor: false)
+        case .stale: make(state: nil, stale: true, mode: .standard, differentiateWithoutColor: false)
+        case .state(let state): make(state: state, stale: false, mode: .standard, differentiateWithoutColor: false)
+        }
+        return appearance.accessibilityTitle
+    }
+}
+
 extension SignalColorMode {
     var title: LocalizedStringKey {
         switch self {
