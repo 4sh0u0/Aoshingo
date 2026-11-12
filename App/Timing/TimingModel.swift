@@ -260,15 +260,12 @@ final class TimingModel {
 
     // MARK: - Estimate screen
 
-    /// Starts location updates for the estimate screen, only if the user already allowed location
-    /// access (this screen never asks for it).
+    /// Starts location updates for the estimate screen. This screen never asks for location access:
+    /// `LocationProvider.start()` only asks iOS for positions once access is allowed, also when that
+    /// happens while the screen is open (the field-data prompt answered later, or a change in
+    /// Settings), so it is started whatever the authorization is now.
     func startLocationUpdates() {
-        switch location.authorization {
-        case .authorizedWhenInUse, .authorizedAlways:
-            location.start()
-        default:
-            break
-        }
+        location.start()
     }
 
     func stopLocationUpdates() {
