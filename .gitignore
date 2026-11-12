@@ -15,3 +15,6 @@ Packages/*/Package.resolved
 
 # Local overrides (team ID, report host)
 Config/Local.xcconfig
+
+# Python
+__pycache__/

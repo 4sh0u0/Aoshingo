@@ -83,6 +83,7 @@ swift test --package-path Packages/AoshingoKit
 | [現地確認の手順](docs/field-test.md) | 対応交差点での受信テストと、記録の共有 |
 | [プライバシーポリシー](docs/privacy.md) | 実測データの扱い |
 | [送信 API の仕様](docs/field-data-api.md) | アプリと受信サーバー（[`server/`](server/)）の通信 |
+| [信号の周期の推定](docs/timing-estimation.md) | 実測データから周期と位相を求める仕組み（試験中）と、検証用の [`Tools/timing/`](Tools/timing/) |
 | [ウェブサイト](docs/website.md) | 公式サイト（[`site/`](site/)）の構成と公開 |
 
 ## コントリビュート
