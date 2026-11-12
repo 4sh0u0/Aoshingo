@@ -40,21 +40,16 @@ private struct IntersectionRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Group {
-                    if let name = state.identifier, !name.isEmpty {
-                        Text(verbatim: name)
-                    } else {
-                        Text("名称未受信")
-                    }
+            // The badge goes under the name when both do not fit on one line, as with large text in
+            // the narrow list column, so that neither is broken up letter by letter.
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    name
+                    badge
                 }
-                .font(.headline)
-                if isNearest {
-                    Text("最寄り")
-                        .font(.caption.weight(.bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.tint.opacity(0.15), in: Capsule())
+                VStack(alignment: .leading, spacing: 2) {
+                    name
+                    badge
                 }
             }
             Text(verbatim: state.id)
@@ -70,5 +65,28 @@ private struct IntersectionRow: View {
             .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var name: some View {
+        Group {
+            if let name = state.identifier, !name.isEmpty {
+                Text(verbatim: name)
+            } else {
+                Text("名称未受信")
+            }
+        }
+        .font(.headline)
+    }
+
+    @ViewBuilder
+    private var badge: some View {
+        if isNearest {
+            Text("最寄り")
+                .font(.caption.weight(.bold))
+                .fixedSize()
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.tint.opacity(0.15), in: Capsule())
+        }
     }
 }
