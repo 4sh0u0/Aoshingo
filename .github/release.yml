@@ -1,0 +1,17 @@
+# Sections of the release notes that GitHub writes from the labels of the merged pull requests
+# (`gh release create vX.Y.Z --verify-tag --generate-notes`). Only App Store versions get a
+# GitHub Release, so pull requests for the TestFlight-only features are left out.
+changelog:
+  exclude:
+    labels:
+      - "channel: testflight"
+  categories:
+    - title: 新しい機能
+      labels:
+        - "type: feature"
+    - title: 不具合の修正
+      labels:
+        - "type: fix"
+    - title: その他
+      labels:
+        - "*"

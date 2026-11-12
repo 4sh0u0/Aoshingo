@@ -40,7 +40,7 @@ open Aoshingo.xcodeproj
 | `Tools/release/` | TestFlight 版と App Store 版をアーカイブしてアップロードし、署名付きタグを付けるスクリプト（Mac）。[リリースとバージョン番号](release.md) |
 | `Tools/timing/` | 実測データから信号の周期と位相を求め、推定が成り立つ交差点かを確かめるスクリプト（Python）。[`Tools/timing/README.md`](../Tools/timing/README.md)、取り決めは [信号の周期の推定](timing-estimation.md) |
 | `docs/` | 使い方、プライバシーポリシー、送信 API、現地確認の手順、リリースの手順など |
-| `.github/rulesets/`、`Tools/github/` | `main` とリリースのタグを守る GitHub のルールセットと、それを反映するスクリプト。[リポジトリのルール](repository-rules.md) |
+| `.github/rulesets/`、`.github/labels.json`、`Tools/github/` | `main` とリリースのタグを守る GitHub のルールセット、Pull Request のラベルの定義と、それらを反映するスクリプト。[リポジトリのルール](repository-rules.md) |
 
 ## 記録ファイルの共有
 

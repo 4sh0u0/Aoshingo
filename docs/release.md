@@ -15,7 +15,7 @@ Apple の決まりにより、次のようになっています。
 - TestFlight と App Store は、同じアプリの記録とバージョンの系列を共有します。
 - 審査を通ったバージョンには、それ以上ビルドを追加できません。
 
-`main` の `MARKETING_VERSION` は「次に App Store に出すバージョン」です。TestFlight 版はこのバージョンで何度もアップロードし、App Store で公開したら、次のバージョンに上げる Pull Request を出します。
+`main` の `MARKETING_VERSION` は「次に App Store に出すバージョン」です。TestFlight 版はこのバージョンで何度もアップロードし、App Store で公開したら、次のバージョンに上げる Pull Request を出します。次の Y と Z のどちらを上げるかは、その間にマージした Pull Request の種類のラベルで決めます。ラベルと、バージョンごとのマイルストーンの決まりは [リポジトリのルール](repository-rules.md#ラベルとマイルストーン) をご覧ください。
 
 ## 配信チャネル
 
@@ -67,7 +67,7 @@ Apple の決まりにより、次のようになっています。
 1. TestFlight 版で確かめたコミットで、`Tools/release/release.sh appstore` を実行します。タグは `vX.Y.Z` です。
 2. TestFlight（内部テスト）からこのビルドを入れて、App Store 版として動くこと（「推定」の画面がない、設定に「配信」の行がない）を確かめます。
 3. App Store Connect でバージョン X.Y.Z を作り、このビルドを選んで審査に出します。`-tf` のタグのビルドは選びません。
-4. 公開したら、GitHub Release を作り（`gh release create vX.Y.Z --verify-tag`）、`main` の `MARKETING_VERSION` を次のバージョンに上げます。
+4. 公開したら、GitHub Release を作り（`gh release create vX.Y.Z --verify-tag --generate-notes`）、`main` の `MARKETING_VERSION` を次のバージョンに上げます。ノートは前の Release からマージした Pull Request を、ラベルで「新しい機能」「不具合の修正」「その他」に分けて書かれます（`channel: testflight` の PR は載りません）。マイルストーン X.Y.Z は閉じて、次のバージョンのマイルストーンを作ります。
 
 ### 修正だけを急いで出すとき
 
