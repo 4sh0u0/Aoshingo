@@ -8,12 +8,10 @@ on:
       - "docs/**"
       - "**.md"
       - ".github/workflows/pages.yml"
+  # Every pull request runs this workflow, because the ruleset for main requires the「CI gate」
+  # check and a workflow skipped by a path filter never reports it (the merge would wait forever).
+  # The `changes` job skips the build jobs when only the paths ignored above changed.
   pull_request:
-    paths-ignore:
-      - "site/**"
-      - "docs/**"
-      - "**.md"
-      - ".github/workflows/pages.yml"
 
 permissions:
   contents: read
@@ -23,8 +21,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # Pushes to main are already filtered by `paths-ignore`.
+          if [ "$EVENT" != pull_request ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)')"
+          printf '%s\n' "$files"
+          # The same paths as `paths-ignore` above.
+          if grep -qvE '^(site|docs)/|\.md$|^\.github/workflows/pages\.yml$' <<<"$files"; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   package-linux:
     name: Swift package (Linux)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     container: swift:6.2-noble
     steps:
@@ -34,6 +63,8 @@ jobs:
 
   ios:
     name: iOS app (macOS)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -54,6 +85,8 @@ jobs:
 
   worker:
     name: Cloudflare Worker
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -72,3 +105,22 @@ jobs:
       # credentials or an upload.
       - name: Build with the deploy configuration (no upload)
         run: npx cf build
+
+  # The only check the ruleset for main requires. A job skipped by its `if:` counts as passed,
+  # so this job always runs and fails when any job above failed or was cancelled.
+  gate:
+    name: CI gate
+    needs: [changes, package-linux, ios, worker]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
