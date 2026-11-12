@@ -341,12 +341,12 @@
         }
       }
     },
-    "この信号を知らせるときに、読み上げの前に鳴らします。音か振動を選んだ信号は、設定の「すべての信号の青点滅・赤を読み上げる」がオフでも、青点滅・赤などに変わったことを知らせます。音は消音モードでも鳴ります。ほかの交差点で渡る信号にも同じ音を選んでおくと、自分が渡る信号を音で聞き分けられます。": {
+    "この信号を知らせるときに、読み上げの前に鳴らします。音か振動を選んだ信号は、設定の「すべての信号の青点滅・赤を読み上げる」がオフでも、青点滅・赤などに変わったことを知らせます。消音モードのときは音は鳴らず、振動だけになります。ほかの交差点で渡る信号にも同じ音を選んでおくと、自分が渡る信号を音で聞き分けられます。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Played before this signal is announced. A signal with a sound or vibration is announced when it changes to flashing green, red and the like, even when “Announce Flashing Green and Red for All Signals” is off in Settings. The sound plays even in silent mode. Choosing the same sound for the signals you cross at other intersections lets you recognize your signal by its sound."
+            "value": "Played before this signal is announced. A signal with a sound or vibration is announced when it changes to flashing green, red and the like, even when “Announce Flashing Green and Red for All Signals” is off in Settings. In silent mode the sound does not play; only the vibration does. Choosing the same sound for the signals you cross at other intersections lets you recognize your signal by its sound."
           }
         }
       }
