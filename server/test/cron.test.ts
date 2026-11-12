@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_CRON_LIMITS, maxCronQueries, runDailyJobs } from "../src/cron";
 import { encodeBase64 } from "../src/encoding";
 import { KEY_RETENTION_DAYS } from "../src/keys";
-import type { Report, Schema2Report } from "../src/report";
+import type { Report, Schema2Report, Schema3Report } from "../src/report";
 import { DEFAULT_FOLD_LIMITS, foldExpiredReports, storeReport, utcDay } from "../src/storage";
 import { buildAssertion } from "./helpers/appattest";
 import {
@@ -315,6 +315,38 @@ describe("scheduled retention job", () => {
     expect(result.rowsWritten).toBeGreaterThanOrEqual(16 + 4 + 2);
     expect(result.rowsWritten).toBeLessThanOrEqual(16 + 4 + 2 * 2);
     expect(meter.rowsWritten).toBe(result.rowsWritten);
+  });
+
+  it("folds schema 3 rows into the same aggregates as schema 2 rows and keeps nothing of the activity", async () => {
+    const expiredAt = Date.UTC(2026, 7, 9, 15, 10);
+    const schema2 = report2(expiredAt);
+    const activities = ["walking", "automotive", "stationary", null] as const;
+    const schema3: Schema3Report = {
+      ...schema2,
+      schema: 3,
+      intersections: schema2.intersections.map((intersection) => ({
+        ...intersection,
+        observations: intersection.observations.map((observation, i) => ({ ...observation, activity: activities[i % 4]! })),
+      })),
+    };
+    const tables = ["transition_counts", "observation_counts", "duration_counts", "range_counts", "crosswalk_labels"];
+    async function aggregates(): Promise<Record<string, string[]>> {
+      const entries = await Promise.all(
+        tables.map(async (table) => [table, (await rows(`SELECT * FROM ${table}`)).map((row) => JSON.stringify(row)).sort()]),
+      );
+      return Object.fromEntries(entries);
+    }
+
+    await storeReport(env.DB, schema2, expiredAt);
+    expect(await foldExpiredReports(env.DB, utcDay(NOW - 90 * DAY_MS))).toMatchObject({ folded: 1 });
+    const fromSchema2 = await aggregates();
+    expect(fromSchema2.range_counts!.length).toBeGreaterThan(0);
+
+    await resetDatabase();
+    await storeReport(env.DB, schema3, expiredAt);
+    expect(await foldExpiredReports(env.DB, utcDay(NOW - 90 * DAY_MS))).toMatchObject({ folded: 1 });
+    expect(await aggregates()).toEqual(fromSchema2);
+    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 0 }]);
   });
 
   it("computes the JST weekday and hour of each duration from its own timestamp", async () => {

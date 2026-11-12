@@ -14,8 +14,9 @@ export function utcDay(ms: number): string {
 
 /**
  * The JSON stored for each intersection, in report order. Schema 1 rows keep the shape they always
- * had. Schema 2 rows add the new lists, always written out (empty when the body left them out),
- * and their items carry every field, null when unknown.
+ * had. Schema 2 and 3 rows add the new lists, always written out (empty when the body left them
+ * out), and their items carry every field, null when unknown; schema 3 observations also carry
+ * `activity`. The cron does not aggregate `activity`, so it is deleted with the row.
  */
 export function reportPayloads(report: Report): string[] {
   if (report.schema === 1) {
@@ -46,7 +47,7 @@ export function reportPayloads(report: Report): string[] {
 /**
  * For each intersection, in report order, the most aggregate rows that folding its stored row can
  * add or update (reports.aggregate_items, which sizes the cron's chunks). A schema 1 observation
- * counts in observation_counts and a transition in transition_counts only. In schema 2 an
+ * counts in observation_counts and a transition in transition_counts only. In schema 2 and 3 an
  * observation can also count in range_counts, a transition in duration_counts twice (held and
  * cycle), and a step or label in one row at most (duration_counts, crosswalk_labels). packets and
  * coverage are not aggregated. A schema 2 row weighs at most 600 x 2 + 300 x 3 + 600 + 20 = 2,720.

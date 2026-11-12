@@ -13,7 +13,7 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
 | `POST /v1/challenge` | 有効期限 300 秒のチャレンジ（16 バイト乱数と期限に `TOKEN_SECRET` で HMAC 署名したもの）を発行します。保存しないので D1 には書き込みません。その日の書き込み上限で鍵をもう 1 つ登録できないとき（またはデータベースが上限の大きさを超えているとき）は、`503 over_capacity` を返します（D1 の読み取り 1 回だけで確かめます）。 |
 | `POST /v1/attest` | App Attest の attestation を Apple の手順どおりに検証し、公開鍵を登録してアップロード用トークンを返します。 |
 | `POST /v1/token` | 登録済みの鍵による assertion を検証し（署名・rpIdHash・カウンタの単調増加）、トークンを再発行します。 |
-| `POST /v1/reports` | `Authorization: Bearer <token>` 付きのレポート（最大 256 KiB、`schema` 1 または 2）を検証し、交差点ごとに 1 行として D1 に保存します。 |
+| `POST /v1/reports` | `Authorization: Bearer <token>` 付きのレポート（最大 256 KiB、`schema` 1〜3）を検証し、交差点ごとに 1 行として D1 に保存します。 |
 
 - App Attest の証明書チェーンは、ソースに埋め込んだ **Apple App Attestation Root CA**
   （SHA-256 フィンガープリント `1C:B9:82:3B:A2:8B:A6:AD:2D:33:A0:06:94:1D:E2:AE:4F:51:3E:F1:D4:E8:31:B9:F7:E0:FA:7B:62:42:C9:32`）
@@ -37,12 +37,12 @@ API の仕様（エンドポイント、検証ルール、エラーコード、�
 | --- | --- |
 | `daily_usage` | 日（UTC）ごとの書き込み行数と、保存したバイト数の見積もりだけ。1 週間で cron が削除します。 |
 | `attest_keys` | App Attest の鍵 ID・公開鍵・署名カウンタ・環境・登録日・最後に使われた日（どちらも UTC の日単位）。レポートとは一切結び付けません。最後に使われてから 30 日たつと cron が削除します。 |
-| `reports` | 1 レポート × 1 交差点 = 1 行。受信日（UTC、日単位）、schema、client、件数（observation、transition、`aggregate_items`）、payload（serviceUUIDs / emitters / observations / transitions の JSON。schema 2 では emitterInfo / steps / packets / coverage / labels も、項目ごとのフィールドをすべて書き出し、不明な値は null）。`aggregate_items` は、この行を畳み込むときに集計テーブルに足す行数の上限です（schema 1 は observation + transition、schema 2 は observation × 2 + transition × 3 + step + label）。主キーはランダムな整数（0 以上 2^53 未満）で、到着順を残しません。 |
+| `reports` | 1 レポート × 1 交差点 = 1 行。受信日（UTC、日単位）、schema、client、件数（observation、transition、`aggregate_items`）、payload（serviceUUIDs / emitters / observations / transitions の JSON。schema 2 と 3 では emitterInfo / steps / packets / coverage / labels も、項目ごとのフィールドをすべて書き出し、不明な値は null。schema 3 では observation に `activity` も入ります）。`aggregate_items` は、この行を畳み込むときに集計テーブルに足す行数の上限です（schema 1 は observation + transition、schema 2 と 3 は observation × 2 + transition × 3 + step + label）。主キーはランダムな整数（0 以上 2^53 未満）で、到着順を残しません。 |
 | `transition_counts` | 保持期間後も残る集計：交差点 × スロット × 遷移元 × 遷移先 × 時刻（JST の時）ごとの件数。 |
 | `observation_counts` | 保持期間後も残る集計：交差点 × メッセージ種別（raw から取得）× RSSI × 方位 × 端末の向きごとの件数。不明値は RSSI = 1、方位・向き = -1 で表します。 |
 | `duration_counts` | 保持期間後も残る集計（schema 2）：交差点 × 種類（`held`・`cycle`・`step`）× スロット × 状態 × 残り目安 × 曜日（JST、0 = 日曜）× 時刻（JST の時）× 続いた秒数（ミリ秒を秒に四捨五入）ごとの件数。`held` は transition の `held`（状態は `from`）、`cycle` は `cycle`（状態は `to`）、`step` は `steps[].held`（残り目安は `from`、不明なら 0）から数えます。`held` と `cycle` の残り目安は 0 です。 |
 | `range_counts` | 保持期間後も残る集計（schema 2）：交差点 × RSSI × 距離 × 方位ごとの、距離のある observation の件数。不明値は `observation_counts` と同じです。 |
-| `crosswalk_labels` | 保持期間後も残る集計（schema 2）：交差点 × スロット × 方位 × 端末の向き × 距離ごとの `crosswalk` の印の件数。不明値は -1 です。`packets`、`coverage`、`button` の印は集計せずに削除します。 |
+| `crosswalk_labels` | 保持期間後も残る集計（schema 2）：交差点 × スロット × 方位 × 端末の向き × 距離ごとの `crosswalk` の印の件数。不明値は -1 です。`packets`、`coverage`、`button` の印、observation の `activity`（schema 3）は集計せずに削除します。 |
 | `service_state` | 最後に成功した cron の実行結果（時刻、畳み込んだ行数、削除した鍵の数、書き込んだ行数、データベースの大きさ）。1 行だけで、個人に関わる情報は含みません。 |
 
 スキーマは [`migrations/`](migrations/) にあります（`0003` で `challenges` テーブルを削除し、`reports` を作り直しました。
@@ -119,8 +119,9 @@ Workers Builds は CI の結果を見ません。CI が通らない変更を `ma
 `0004` はテーブルと既定値付きの列を足すだけなので、古いコードもそのまま動きます。それまでに保存した行と古いコードが
 保存した行は `aggregate_items` が 0 になりますが、cron は少なくとも observation + transition の件数（schema 1 の行では正確な値）で数えます。
 既存の行は書き換えないので、`reports` が大きくても書き込み行数を使いません。
-古いコードは schema 2 を `400 invalid_report` で断り、アプリはそのレポートを捨てるので、schema 2 を送るアプリは
-このサーバーをデプロイしてから公開してください。
+古いコードは知らない schema（schema 2 を受け付ける前のコードなら schema 2、その次のコードなら schema 3）を
+`400 invalid_report` で断り、アプリはそのレポートを捨てるので、新しい schema を送るアプリは
+それを受け付けるサーバーをデプロイしてから公開してください。schema 3 にはマイグレーションがありません。
 
 ### 初回の設定（リポジトリ所有者が 1 回だけ）
 

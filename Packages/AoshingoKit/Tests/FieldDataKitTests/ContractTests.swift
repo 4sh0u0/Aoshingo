@@ -8,19 +8,20 @@ import PICSKit
 private let now = Date(timeIntervalSince1970: 1_794_290_000)
 private let t0 = 1_794_290_000
 
-/// A port of the schema 2 rules of `POST /v1/reports` (docs/field-data-api.md, server/src/report.ts),
+/// A port of the schema 3 rules of `POST /v1/reports` (docs/field-data-api.md, server/src/report.ts),
 /// used to check what `ReportContract` produces.
 private enum ServerRules {
     static let states: Set<String> = ["NoSignal", "Red", "BlinkGreen", "Green", "None", "Unknown"]
     static let distances: Set<Int> = [0, 10, 20, 40, 80, 160]
     static let accuracies: Set<Int> = [5, 10, 20, 30]
     static let nearbyCounts: Set<Int> = [0, 1, 5, 10, 20, 50, 100]
+    static let activities: Set<String> = ["stationary", "walking", "running", "cycling", "automotive"]
 
     static func violation(_ body: Data, nowSeconds: Int) -> String? {
         guard body.count <= 256 * 1024 else { return "too_large" }
         guard let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return "body" }
         guard Set(object.keys).isSubset(of: ["schema", "client", "intersections"]) else { return "report keys" }
-        guard object["schema"] as? Int == 2 else { return "schema" }
+        guard object["schema"] as? Int == 3 else { return "schema" }
         if let client = object["client"], !(client is NSNull) {
             guard let client = client as? String, client.count <= 40,
                   client.range(of: "^aoshingo-[a-z]+/[0-9A-Za-z.+-]+$", options: .regularExpression) != nil
@@ -68,7 +69,7 @@ private enum ServerRules {
             if let connectable = entry["connectable"], !(connectable is NSNull), connectable as? Bool == nil { return "connectable" }
         }
         for observation in observations {
-            guard Set(observation.keys).isSubset(of: ["t", "raw", "rssi", "bearing", "heading", "emitter", "distance", "accuracy", "course", "speed", "nearby"]) else {
+            guard Set(observation.keys).isSubset(of: ["t", "raw", "rssi", "bearing", "heading", "emitter", "distance", "accuracy", "course", "speed", "nearby", "activity"]) else {
                 return "observation keys"
             }
             guard let t = observation["t"] as? Int, times.contains(t) else { return "observation.t" }
@@ -87,6 +88,9 @@ private enum ServerRules {
             if let problem = nullable(observation["course"], 0...7, "course") { return problem }
             if let problem = nullable(observation["speed"], 0...2, "speed") { return problem }
             if let problem = member(observation["nearby"], nearbyCounts, "nearby") { return problem }
+            if let activity = observation["activity"], !(activity is NSNull) {
+                guard let activity = activity as? String, activities.contains(activity) else { return "activity" }
+            }
         }
         for transition in transitions {
             guard Set(transition.keys).isSubset(of: ["t", "slot", "from", "to", "emitter", "gap", "held", "cycle"]) else { return "transition keys" }
@@ -327,11 +331,11 @@ private func label(_ kind: FieldReport.Label.Kind = .button, t: Int = t0, slot: 
 
 @Suite("Report contract, schema 2")
 struct ContractSchema2Tests {
-    @Test("schema 2 fields: invalid values become null and invalid entries are dropped")
+    @Test("schema 2 and 3 fields: invalid values become null and invalid entries are dropped")
     func sanitizing() throws {
         let valid = FieldReport.Observation(
             t: t0, raw: signalRaw(1), rssi: -70, bearing: 3, heading: nil,
-            emitter: 1, distance: 20, accuracy: 10, course: 3, speed: 2, nearby: 50
+            emitter: 1, distance: 20, accuracy: 10, course: 3, speed: 2, nearby: 50, activity: .automotive
         )
         let invalid = FieldReport.Observation(
             t: t0, raw: signalRaw(1), rssi: -70, bearing: 3, heading: nil,

@@ -22,6 +22,9 @@ public struct ObservationContext: Sendable, Hashable {
     public var speed: Double?
     /// Distinct non-PICS Bluetooth devices seen in the last 30 s.
     public var nearbyDevices: Int?
+    /// How the user is moving, from iOS's motion activity classifier (`Bucketing.activity`), or `nil`
+    /// when unknown. Independent of the position, so it is sent even without a usable fix.
+    public var activity: FieldReport.Activity?
 
     public init(
         userLocation: Coordinate? = nil,
@@ -29,7 +32,8 @@ public struct ObservationContext: Sendable, Hashable {
         horizontalAccuracy: Double? = nil,
         course: Double? = nil,
         speed: Double? = nil,
-        nearbyDevices: Int? = nil
+        nearbyDevices: Int? = nil,
+        activity: FieldReport.Activity? = nil
     ) {
         self.userLocation = userLocation
         self.trueHeading = trueHeading
@@ -37,6 +41,7 @@ public struct ObservationContext: Sendable, Hashable {
         self.course = course
         self.speed = speed
         self.nearbyDevices = nearbyDevices
+        self.activity = activity
     }
 
     /// `userLocation` unless its stated accuracy is invalid or worse than 30 m.
@@ -260,7 +265,8 @@ public struct FieldCollector: Sendable {
             accuracy: location == nil ? nil : Bucketing.accuracy(context.horizontalAccuracy),
             course: (speed ?? 0) >= 0.5 ? Bucketing.sector(degrees: context.course) : nil,
             speed: Bucketing.speed(speed),
-            nearby: Bucketing.nearby(context.nearbyDevices)
+            nearby: Bucketing.nearby(context.nearbyDevices),
+            activity: context.activity
         ))
     }
 

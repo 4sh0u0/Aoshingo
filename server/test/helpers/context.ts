@@ -181,7 +181,10 @@ export function exampleReport(nowSeconds: number) {
   };
 }
 
-/** The schema 2 example report from docs/field-data-api.md, with times moved to `nowSeconds`. */
+/**
+ * A schema 2 report: the example from docs/field-data-api.md without schema 3's
+ * observations[].activity, with times moved to `nowSeconds`.
+ */
 export function exampleReport2(nowSeconds: number) {
   return {
     schema: 2,
@@ -216,6 +219,19 @@ export function exampleReport2(nowSeconds: number) {
         labels: [{ t: nowSeconds - 140, kind: "crosswalk", slot: 1, heading: 2, bearing: 5, distance: 10 }],
       },
     ],
+  };
+}
+
+/** The schema 3 example report from docs/field-data-api.md, with times moved to `nowSeconds`. */
+export function exampleReport3(nowSeconds: number) {
+  const report = exampleReport2(nowSeconds);
+  return {
+    ...report,
+    schema: 3,
+    intersections: report.intersections.map((intersection) => ({
+      ...intersection,
+      observations: intersection.observations.map((observation) => ({ ...observation, activity: "walking" })),
+    })),
   };
 }
 

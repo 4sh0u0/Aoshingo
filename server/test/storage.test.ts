@@ -77,7 +77,7 @@ describe("aggregateItems", () => {
   const raw = "CE010000022A00001234ABCD311384848484";
 
   /** A validated report with one intersection of the given sizes. */
-  function sized(schema: 1 | 2, counts: { observations: number; transitions: number; steps?: number; labels?: number }) {
+  function sized(schema: 1 | 2 | 3, counts: { observations: number; transitions: number; steps?: number; labels?: number }) {
     const intersection: Record<string, unknown> = {
       id: "1234ABCD",
       serviceUUIDs: [],
@@ -85,7 +85,7 @@ describe("aggregateItems", () => {
       observations: Array(counts.observations).fill({ t: now, raw }),
       transitions: Array(counts.transitions).fill({ t: now, slot: 1, from: "Red", to: "Green" }),
     };
-    if (schema === 2) {
+    if (schema !== 1) {
       intersection.steps = Array(counts.steps ?? 0).fill({ t: now, slot: 1, state: "Red", from: 2, to: 1 });
       intersection.labels = Array(counts.labels ?? 0).fill({ t: now, kind: "button" });
     }
@@ -105,6 +105,12 @@ describe("aggregateItems", () => {
       2 * 3 + 3 * 2 + 4 + 5,
     ]);
     expect(aggregateItems(sized(2, { observations: 0, transitions: 0, steps: 1 }))).toEqual([1]);
+  });
+
+  it("counts a schema 3 row like a schema 2 row (the activity is not aggregated)", () => {
+    expect(aggregateItems(sized(3, { observations: 3, transitions: 2, steps: 4, labels: 5 }))).toEqual([
+      2 * 3 + 3 * 2 + 4 + 5,
+    ]);
   });
 
   it("keeps the largest row within one chunk", () => {

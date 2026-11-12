@@ -54,6 +54,24 @@
           }
         }
       }
+    },
+    "NSMotionUsageDescription": {
+      "comment": "Privacy - Motion Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only if you share field data, motion activity is used to tell whether you are walking, cycling, in a vehicle or standing still. Only that category is sent."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "new",
+            "value": "実測データの提供に協力している場合だけ、歩いているか、自転車や車に乗っているか、止まっているかを見分けるために使います。送信するのはその区分だけです。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

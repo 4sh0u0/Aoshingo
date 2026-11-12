@@ -29,8 +29,8 @@ enum CollectionConsent: String, CaseIterable, Sendable {
 
     /// Version of what is collected (`CollectionDetails`). Raise it whenever more data is sent; users
     /// who agreed to an older version are asked again, and nothing is collected until they answer.
-    /// 1 = report schema 1 (0.1.0), 2 = report schema 2.
-    static let currentVersion = 2
+    /// 1 = report schema 1 (0.1.0), 2 = report schema 2, 3 = report schema 3 (motion activity).
+    static let currentVersion = 3
 }
 
 /// How signal colours are drawn. Shapes and text are always shown in every mode.

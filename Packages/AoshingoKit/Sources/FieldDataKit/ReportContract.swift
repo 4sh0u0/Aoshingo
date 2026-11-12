@@ -6,7 +6,7 @@ import PICSKit
 /// The server's rules for `POST /v1/reports` (docs/field-data-api.md, server/src/report.ts).
 ///
 /// The server rejects a whole report for a single bad value, and a rejected report is dropped, so
-/// reports are brought into line before they are queued (schema 2):
+/// reports are brought into line before they are queued (schema 3):
 ///
 /// - Invalid observations, transitions, steps, packet statistics, coverage periods and labels are
 ///   dropped; invalid optional values become `null`, including emitter numbers outside
