@@ -128,7 +128,7 @@ struct FieldDataSettingsView: View {
                 if let reason = field.unavailability {
                     FieldDataUnavailableNotice(reason: reason)
                 } else {
-                    Text("オフにすると、まだ送信していないデータはすぐに削除されます。")
+                    Text("オフにすると、まだ送信していないデータと、受け取った時刻表はすぐに削除されます。")
                 }
             }
 

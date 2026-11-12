@@ -240,7 +240,7 @@ struct CollectorTests {
         #expect(report.intersections[0].observations.count == 4)
     }
 
-    @Test("transitions are recorded per slot with second resolution and survive a window boundary")
+    @Test("transitions are recorded per slot to 0.1 s (t and ms) and survive a window boundary")
     func transitions() throws {
         var collector = FieldCollector()
         try collector.feed(signalData([0x31, 0x13]), at: 0.4)
@@ -248,14 +248,17 @@ struct CollectorTests {
         try collector.feed(signalData([0x32, 0x11]), at: 2.2)
         let first = try collector.requireReport(client: "aoshingo-ios/0.1.0")
         let expectedTransitions: [FieldReport.Transition] = [
-            .init(t: 1_794_290_001, slot: 1, from: .red, to: .green, gap: 1300),
-            .init(t: 1_794_290_002, slot: 1, from: .green, to: .blinkGreen, gap: 500, held: 500),
-            .init(t: 1_794_290_002, slot: 2, from: .green, to: .red, gap: 500),
+            .init(t: 1_794_290_001, ms: 700, slot: 1, from: .red, to: .green, gap: 1300),
+            .init(t: 1_794_290_002, ms: 200, slot: 1, from: .green, to: .blinkGreen, gap: 500, held: 500),
+            .init(t: 1_794_290_002, ms: 200, slot: 2, from: .green, to: .red, gap: 500),
         ]
         #expect(first.intersections[0].transitions == expectedTransitions)
         try collector.feed(signalData([0x31, 0x11]), at: 3.0)
         let second = try collector.requireReport(client: nil)
-        #expect(second.intersections[0].transitions == [.init(t: 1_794_290_003, slot: 1, from: .blinkGreen, to: .red, gap: 800, held: 800)])
+        let expectedSecond: [FieldReport.Transition] = [
+            .init(t: 1_794_290_003, ms: 0, slot: 1, from: .blinkGreen, to: .red, gap: 800, held: 800),
+        ]
+        #expect(second.intersections[0].transitions == expectedSecond)
     }
 
     @Test("bearing comes from the Type 1 position; RSSI and heading are bucketed; location is never included")
@@ -331,7 +334,7 @@ struct CollectorTests {
         try collector.feed(signalData([0x33]), at: 1800 + FieldCollector.maxTransitionGap + 0.5 + FieldCollector.maxTransitionGap)
         let report = try collector.requireReport(client: nil)
         let expectedTransitions: [FieldReport.Transition] = [
-            .init(t: 1_794_290_000 + 1800 + 10, slot: 1, from: .red, to: .green, gap: 5000),
+            .init(t: 1_794_290_000 + 1800 + 10, ms: 500, slot: 1, from: .red, to: .green, gap: 5000),
         ]
         #expect(report.intersections[0].transitions == expectedTransitions)
     }
@@ -345,7 +348,10 @@ struct CollectorTests {
         try collector.feed(signalData([0x31]), at: 2)
         let report = try collector.requireReport(client: nil)
         #expect(report.intersections[0].observations.count == 3)
-        #expect(report.intersections[0].transitions == [.init(t: 1_794_290_002, slot: 1, from: .green, to: .red, gap: 1000)])
+        let expectedTransitions: [FieldReport.Transition] = [
+            .init(t: 1_794_290_002, ms: 0, slot: 1, from: .green, to: .red, gap: 1000),
+        ]
+        #expect(report.intersections[0].transitions == expectedTransitions)
     }
 
     @Test("packets the server would refuse as raw are ignored: unknown types and odd lengths")
@@ -369,13 +375,14 @@ struct CollectorTests {
         #expect(try collector.requireReport(client: nil).intersections[0].transitions.isEmpty)
     }
 
-    @Test("report JSON follows the contract: schema 3, explicit nulls, uppercase raw hex starting with CE01")
+    @Test("report JSON follows the contract: schema 4, explicit nulls, uppercase raw hex starting with CE01")
     func json() throws {
         var collector = FieldCollector()
         try collector.feed(signalData([0x31]), at: 0, rssi: nil)
         let report = try collector.requireReport(client: "aoshingo-ios/0.1.0")
         let object = try #require(try JSONSerialization.jsonObject(with: report.encoded()) as? [String: Any])
-        #expect(object["schema"] as? Int == 3)
+        #expect(object["schema"] as? Int == 4)
+        #expect(object["sentAt"] == nil) // added by the uploader at each attempt, never queued
         #expect(object["client"] as? String == "aoshingo-ios/0.1.0")
         let intersection = try #require((object["intersections"] as? [[String: Any]])?.first)
         #expect(intersection["id"] as? String == "00000001")
@@ -516,10 +523,10 @@ struct CollectorSchema2Tests {
             try collector.feed(signalData(states), at: time, emitter: emitter)
         }
         let expectedTransitions: [FieldReport.Transition] = [
-            .init(t: t0 + 2, slot: 1, from: .red, to: .green, emitter: 1, gap: 300),
-            .init(t: t0 + 20, slot: 1, from: .green, to: .blinkGreen, emitter: 0, gap: 4000, held: 17_700),
-            .init(t: t0 + 25, slot: 1, from: .blinkGreen, to: .red, emitter: 0, gap: 1400, held: 5400),
-            .init(t: t0 + 40, slot: 1, from: .red, to: .green, emitter: 1, gap: 3000, held: 14_600, cycle: 37_700),
+            .init(t: t0 + 2, ms: 300, slot: 1, from: .red, to: .green, emitter: 1, gap: 300),
+            .init(t: t0 + 20, ms: 0, slot: 1, from: .green, to: .blinkGreen, emitter: 0, gap: 4000, held: 17_700),
+            .init(t: t0 + 25, ms: 400, slot: 1, from: .blinkGreen, to: .red, emitter: 0, gap: 1400, held: 5400),
+            .init(t: t0 + 40, ms: 0, slot: 1, from: .red, to: .green, emitter: 1, gap: 3000, held: 14_600, cycle: 37_700),
         ]
         #expect(try collector.requireReport(client: nil).intersections[0].transitions == expectedTransitions)
     }
@@ -531,7 +538,7 @@ struct CollectorSchema2Tests {
         try collector.feed(signalData(red), at: 0)
         try collector.feed(signalData(green), at: 1)
         let expectedTransitions: [FieldReport.Transition] = [
-            .init(t: t0 + 1, slot: 1, from: .red, to: .green, gap: 1000),
+            .init(t: t0 + 1, ms: 0, slot: 1, from: .red, to: .green, gap: 1000),
         ]
         #expect(try collector.requireReport(client: nil).intersections[0].transitions == expectedTransitions)
         for (time, states) in [(3.0, green), (4, blink), (5, red), (6, green)] {
@@ -546,13 +553,13 @@ struct CollectorSchema2Tests {
             try collector.feed(signalData(states), at: time)
         }
         let expectedTransitions2: [FieldReport.Transition] = [
-            .init(t: t0 + 4, slot: 1, from: .green, to: .blinkGreen, gap: 1000, held: 3000),
-            .init(t: t0 + 5, slot: 1, from: .blinkGreen, to: .red, gap: 1000, held: 1000),
-            .init(t: t0 + 6, slot: 1, from: .red, to: .green, gap: 1000, held: 1000, cycle: 5000),
-            .init(t: t0 + 13, slot: 1, from: .green, to: .blinkGreen, gap: 1000),
-            .init(t: t0 + 14, slot: 1, from: .blinkGreen, to: .green, gap: 1000, held: 1000),
-            .init(t: t0 + 16, slot: 1, from: .red, to: .green, gap: 1000),
-            .init(t: t0 + 17, slot: 1, from: .green, to: .red, gap: 1000, held: 1000),
+            .init(t: t0 + 4, ms: 0, slot: 1, from: .green, to: .blinkGreen, gap: 1000, held: 3000),
+            .init(t: t0 + 5, ms: 0, slot: 1, from: .blinkGreen, to: .red, gap: 1000, held: 1000),
+            .init(t: t0 + 6, ms: 0, slot: 1, from: .red, to: .green, gap: 1000, held: 1000, cycle: 5000),
+            .init(t: t0 + 13, ms: 0, slot: 1, from: .green, to: .blinkGreen, gap: 1000),
+            .init(t: t0 + 14, ms: 0, slot: 1, from: .blinkGreen, to: .green, gap: 1000, held: 1000),
+            .init(t: t0 + 16, ms: 0, slot: 1, from: .red, to: .green, gap: 1000),
+            .init(t: t0 + 17, ms: 0, slot: 1, from: .green, to: .red, gap: 1000, held: 1000),
         ]
         #expect(try collector.requireReport(client: nil).intersections[0].transitions == expectedTransitions2)
     }
@@ -579,23 +586,23 @@ struct CollectorSchema2Tests {
         }
         let intersection = try collector.requireReport(client: nil).intersections[0]
         let expectedSteps: [FieldReport.Step] = [
-            .init(t: t0 + 4, slot: 1, state: .green, from: 8, to: 7, emitter: 0, held: 3200),
-            .init(t: t0 + 8, slot: 1, state: .green, from: 7, to: 6, emitter: 0, held: 3800),
-            .init(t: t0 + 16, slot: 1, state: .green, from: 5, to: 4, emitter: 0, held: nil),
-            .init(t: t0 + 19, slot: 1, state: .blinkGreen, from: 4, to: 3, emitter: 0, held: 1500),
-            .init(t: t0 + 20, slot: 1, state: .blinkGreen, from: 3, to: nil, emitter: 0, held: 1000),
+            .init(t: t0 + 4, ms: 200, slot: 1, state: .green, from: 8, to: 7, emitter: 0, held: 3200),
+            .init(t: t0 + 8, ms: 0, slot: 1, state: .green, from: 7, to: 6, emitter: 0, held: 3800),
+            .init(t: t0 + 16, ms: 0, slot: 1, state: .green, from: 5, to: 4, emitter: 0, held: nil),
+            .init(t: t0 + 19, ms: 500, slot: 1, state: .blinkGreen, from: 4, to: 3, emitter: 0, held: 1500),
+            .init(t: t0 + 20, ms: 500, slot: 1, state: .blinkGreen, from: 3, to: nil, emitter: 0, held: 1000),
         ]
         #expect(intersection.steps == expectedSteps)
         let expectedTransitions: [FieldReport.Transition] = [
-            .init(t: t0 + 1, slot: 1, from: .red, to: .green, emitter: 0, gap: 1000),
-            .init(t: t0 + 18, slot: 1, from: .green, to: .blinkGreen, emitter: 0, gap: 2000),
+            .init(t: t0 + 1, ms: 0, slot: 1, from: .red, to: .green, emitter: 0, gap: 1000),
+            .init(t: t0 + 18, ms: 0, slot: 1, from: .green, to: .blinkGreen, emitter: 0, gap: 2000),
         ]
         #expect(intersection.transitions == expectedTransitions)
 
         // The timer survives the report window.
         try collector.feed(signalData([0x12, 0x84]), at: 22, emitter: "A")
         let expectedSteps2: [FieldReport.Step] = [
-            .init(t: t0 + 22, slot: 1, state: .blinkGreen, from: nil, to: 2, emitter: 0, held: 1500),
+            .init(t: t0 + 22, ms: 0, slot: 1, state: .blinkGreen, from: nil, to: 2, emitter: 0, held: 1500),
         ]
         #expect(try collector.requireReport(client: nil).intersections[0].steps == expectedSteps2)
     }
@@ -712,7 +719,7 @@ struct CollectorSchema2Tests {
         #expect(known)
     }
 
-    @Test("schema 3 JSON: every nullable field is an explicit null and every list is present")
+    @Test("schema 4 JSON: every nullable field is an explicit null and every list is present")
     func json() throws {
         var collector = FieldCollector()
         try collector.feed(signalData([0x71]), at: 0, rssi: nil, emitter: "A")
@@ -721,7 +728,7 @@ struct CollectorSchema2Tests {
         collector.recordLabel(.button, slot: nil, intersectionID: "00000001", at: seconds(3), context: .init())
         let report = try collector.requireReport(client: "aoshingo-ios/0.2.0")
         let object = try #require(try JSONSerialization.jsonObject(with: report.encoded()) as? [String: Any])
-        #expect(object["schema"] as? Int == 3)
+        #expect(object["schema"] as? Int == 4)
         let intersection = try #require((object["intersections"] as? [[String: Any]])?.first)
         #expect(Set(intersection.keys) == ["id", "serviceUUIDs", "emitters", "emitterInfo", "observations", "transitions", "steps", "packets", "coverage", "labels"])
 
@@ -732,11 +739,13 @@ struct CollectorSchema2Tests {
         #expect(Set(info.keys) == ["txPower", "connectable"])
         #expect(info["txPower"] is NSNull && info["connectable"] is NSNull)
         let transition = try only("transitions")
-        #expect(Set(transition.keys) == ["t", "slot", "from", "to", "emitter", "gap", "held", "cycle"])
+        #expect(Set(transition.keys) == ["t", "ms", "slot", "from", "to", "emitter", "gap", "held", "cycle"])
+        #expect(transition["ms"] as? Int == 0)
         #expect(transition["emitter"] as? Int == 0 && transition["gap"] as? Int == 1000)
         #expect(transition["held"] is NSNull && transition["cycle"] is NSNull)
         let step = try only("steps")
-        #expect(Set(step.keys) == ["t", "slot", "state", "from", "to", "emitter", "held"])
+        #expect(Set(step.keys) == ["t", "ms", "slot", "state", "from", "to", "emitter", "held"])
+        #expect(step["ms"] as? Int == 0)
         #expect(step["state"] as? String == "Green" && step["from"] as? Int == 8 && step["to"] as? Int == 7 && step["held"] as? Int == 1000)
         let packets = try only("packets")
         #expect(Set(packets.keys) == ["emitter", "type", "count", "minInterval", "medianInterval"])

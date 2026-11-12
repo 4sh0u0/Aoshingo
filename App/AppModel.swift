@@ -59,6 +59,8 @@ final class AppModel {
     }
 
     let field = FieldDataModel()
+    /// The signal timing plans and the estimates of the 「推定」 screen (contributors only).
+    var timing: TimingModel { field.timing }
     /// Names, notification settings, sounds and vibrations the user set for each signal.
     let slotPreferences = SlotPreferenceStore()
     let cuePlayer = SignalCuePlayer()
@@ -187,6 +189,7 @@ final class AppModel {
         followTask?.cancel()
         followTask = nil
         stopSignalChangeAnnouncements()
+        timing.receptionDidStop()
         if isRecording { setRecording(false) }
         source = .idle
         updateIdleTimer()
@@ -224,6 +227,7 @@ final class AppModel {
     // MARK: - Scene phase
 
     func sceneDidEnterBackground() {
+        timing.sceneDidEnterBackground()
         guard source == .live else { return }
         missedWhileInBackground = true
         field.sceneDidEnterBackground()
@@ -232,6 +236,7 @@ final class AppModel {
     func sceneDidBecomeActive() {
         if source == .live { scanner.start() }
         updateIdleTimer()
+        timing.refreshIfNeeded()
     }
 
     func dismissBackgroundNotice() {
@@ -348,6 +353,10 @@ final class AppModel {
             Task { [recorder] in await recorder.append(advertisement) }
         }
         field.record(packet, advertisement: advertisement)
+        // Live packets only: a change from Red to Green is checked against the timing plans.
+        if let signals = packet.signals {
+            timing.recordLiveSignals(intersectionID: id, signals: signals, at: advertisement.timestamp)
+        }
     }
 
     /// Updates the followed intersection and, while following automatically, tells VoiceOver users

@@ -8,8 +8,8 @@ import PICSKit
 private let now = Date(timeIntervalSince1970: 1_794_290_000)
 private let t0 = 1_794_290_000
 
-/// A port of the schema 3 rules of `POST /v1/reports` (docs/field-data-api.md, server/src/report.ts),
-/// used to check what `ReportContract` produces.
+/// A port of the schema 4 rules of `POST /v1/reports` (docs/field-data-api.md, server/src/report.ts),
+/// used to check what `ReportContract` produces once `ReportUploader` has added `sentAt`.
 private enum ServerRules {
     static let states: Set<String> = ["NoSignal", "Red", "BlinkGreen", "Green", "None", "Unknown"]
     static let distances: Set<Int> = [0, 10, 20, 40, 80, 160]
@@ -20,8 +20,9 @@ private enum ServerRules {
     static func violation(_ body: Data, nowSeconds: Int) -> String? {
         guard body.count <= 256 * 1024 else { return "too_large" }
         guard let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return "body" }
-        guard Set(object.keys).isSubset(of: ["schema", "client", "intersections"]) else { return "report keys" }
-        guard object["schema"] as? Int == 3 else { return "schema" }
+        guard Set(object.keys).isSubset(of: ["schema", "sentAt", "client", "intersections"]) else { return "report keys" }
+        guard object["schema"] as? Int == 4 else { return "schema" }
+        guard let sentAt = object["sentAt"] as? Int, sentAt > 0 else { return "sentAt" }
         if let client = object["client"], !(client is NSNull) {
             guard let client = client as? String, client.count <= 40,
                   client.range(of: "^aoshingo-[a-z]+/[0-9A-Za-z.+-]+$", options: .regularExpression) != nil
@@ -93,7 +94,8 @@ private enum ServerRules {
             }
         }
         for transition in transitions {
-            guard Set(transition.keys).isSubset(of: ["t", "slot", "from", "to", "emitter", "gap", "held", "cycle"]) else { return "transition keys" }
+            guard Set(transition.keys).isSubset(of: ["t", "ms", "slot", "from", "to", "emitter", "gap", "held", "cycle"]) else { return "transition keys" }
+            if let problem = multiple(transition["ms"], 900, 100, "transition.ms") { return problem }
             guard let t = transition["t"] as? Int, times.contains(t) else { return "transition.t" }
             guard let slot = transition["slot"] as? Int, (1...6).contains(slot) else { return "slot" }
             guard let from = transition["from"] as? String, let to = transition["to"] as? String,
@@ -105,7 +107,8 @@ private enum ServerRules {
             if let problem = multiple(transition["cycle"], 3_600_000, 100, "cycle") { return problem }
         }
         for step in steps {
-            guard Set(step.keys).isSubset(of: ["t", "slot", "state", "from", "to", "emitter", "held"]) else { return "step keys" }
+            guard Set(step.keys).isSubset(of: ["t", "ms", "slot", "state", "from", "to", "emitter", "held"]) else { return "step keys" }
+            if let problem = multiple(step["ms"], 900, 100, "step.ms") { return problem }
             guard let t = step["t"] as? Int, times.contains(t) else { return "step.t" }
             guard let slot = step["slot"] as? Int, (1...6).contains(slot) else { return "step.slot" }
             guard let state = step["state"] as? String, states.contains(state) else { return "step.state" }
@@ -200,9 +203,12 @@ private func decode(_ bodies: [Data]) throws -> [FieldReport] {
     try bodies.map { try JSONDecoder().decode(FieldReport.self, from: $0) }
 }
 
+/// Checks queued bodies as the server sees them: with the `sentAt` the uploader adds to each attempt.
 private func expectValid(_ bodies: [Data], sourceLocation: SourceLocation = #_sourceLocation) {
     for body in bodies {
-        #expect(ServerRules.violation(body, nowSeconds: t0) == nil, sourceLocation: sourceLocation)
+        #expect(!String(decoding: body, as: UTF8.self).contains("sentAt"), sourceLocation: sourceLocation)
+        let sent = ReportUploader.stamped(body, sentAt: now)
+        #expect(ServerRules.violation(sent, nowSeconds: t0) == nil, sourceLocation: sourceLocation)
     }
 }
 

@@ -136,6 +136,22 @@ public enum Bucketing {
         Int(date.timeIntervalSince1970.rounded(.down))
     }
 
+    /// The largest `ms` value sent: the sub-second part is at most 900 once rounded down to 100 ms.
+    public static let maximumSubsecond = 900
+
+    /// The sub-second part of `date` in milliseconds, rounded down to 100 ms (0…900), which together
+    /// with `seconds(date)` gives the time to 0.1 s (`ms` of transitions and steps, schema 4).
+    ///
+    /// The fraction is first rounded to the nearest millisecond, so that a time such as x.7 s, which a
+    /// `Date` may hold as x.6999999 s, gives 700 and not 600. `nil` for a non-finite time.
+    public static func subsecondMilliseconds(_ date: Date) -> Int? {
+        let interval = date.timeIntervalSince1970
+        guard interval.isFinite else { return nil }
+        let fraction = interval - interval.rounded(.down)
+        let milliseconds = Int((fraction * 1000).rounded())
+        return min(maximumSubsecond, max(0, milliseconds / 100 * 100))
+    }
+
     /// Service UUID strings the server accepts: 16-bit, 32-bit or full 128-bit, uppercase.
     public static func serviceUUID(_ value: String) -> String? {
         let upper = value.uppercased()

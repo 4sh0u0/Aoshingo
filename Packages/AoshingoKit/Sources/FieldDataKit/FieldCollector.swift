@@ -64,6 +64,9 @@ public struct ObservationContext: Sendable, Hashable {
 /// Transmitters are numbered per window and intersection in the order they appear (at most 32;
 /// packets of further transmitters carry no number and are left out of `packets`).
 ///
+/// Transitions and steps carry the time of the packet that showed the change, as Unix seconds (`t`)
+/// and the sub-second part rounded down to 100 ms (`ms`, schema 4).
+///
 /// A transition or step is recorded only when the previous signal packet of that intersection
 /// arrived at most `maxTransitionGap` earlier: after a longer pause in reception (out of range, or
 /// the app in the background) the time of the change is unknown, so it is not recorded. Such a pause,
@@ -385,6 +388,7 @@ public struct FieldCollector: Sendable {
             return
         }
         let seconds = Bucketing.seconds(timestamp)
+        let subsecond = Bucketing.subsecondMilliseconds(timestamp)
         func since(_ start: Date?) -> Int? {
             start.flatMap { Bucketing.durationMilliseconds(timestamp.timeIntervalSince($0)) }
         }
@@ -395,6 +399,7 @@ public struct FieldCollector: Sendable {
                 if buckets[id]!.transitions.count < Self.maxTransitionsPerIntersection {
                     buckets[id]!.transitions.append(FieldReport.Transition(
                         t: seconds,
+                        ms: subsecond,
                         slot: index + 1,
                         from: slot.state,
                         to: signal.state,
@@ -412,6 +417,7 @@ public struct FieldCollector: Sendable {
                 if buckets[id]!.steps.count < Self.maxStepsPerIntersection {
                     buckets[id]!.steps.append(FieldReport.Step(
                         t: seconds,
+                        ms: subsecond,
                         slot: index + 1,
                         state: signal.state,
                         from: slot.remaining,

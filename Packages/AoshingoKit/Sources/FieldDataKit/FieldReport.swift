@@ -3,12 +3,15 @@
 import Foundation
 import PICSKit
 
-/// Body of `POST /v1/reports` (schema 3). See docs/field-data-api.md.
+/// Body of `POST /v1/reports` (schema 4). See docs/field-data-api.md and docs/timing-estimation.md.
 ///
 /// Every nullable field is encoded as an explicit `null`. Decoding accepts missing keys as `null`
-/// (or an empty list), so schema 1 and 2 bodies still decode.
+/// (or an empty list), so schema 1 to 3 bodies still decode.
+///
+/// `sentAt` (schema 4) is not part of this type: it is the device time of each upload attempt, so
+/// `ReportUploader` adds it to the body right before every `POST`, and queued bodies never carry it.
 public struct FieldReport: Sendable, Hashable, Codable {
-    public static let schemaVersion = 3
+    public static let schemaVersion = 4
 
     public var schema: Int
     public var client: String?
@@ -191,6 +194,9 @@ public struct FieldReport: Sendable, Hashable, Codable {
     /// A change of one pedestrian signal's state.
     public struct Transition: Sendable, Hashable, Codable {
         public var t: Int
+        /// The sub-second part of the change time, rounded down to 100 ms (0…900; schema 4), so that
+        /// `t` and `ms` together give the time to 0.1 s. `nil` when unknown (and in older bodies).
+        public var ms: Int?
         /// 1-based slot.
         public var slot: Int
         public var from: SignalState
@@ -207,6 +213,7 @@ public struct FieldReport: Sendable, Hashable, Codable {
 
         public init(
             t: Int,
+            ms: Int? = nil,
             slot: Int,
             from: SignalState,
             to: SignalState,
@@ -216,6 +223,7 @@ public struct FieldReport: Sendable, Hashable, Codable {
             cycle: Int? = nil
         ) {
             self.t = t
+            self.ms = ms
             self.slot = slot
             self.from = from
             self.to = to
@@ -225,11 +233,12 @@ public struct FieldReport: Sendable, Hashable, Codable {
             self.cycle = cycle
         }
 
-        private enum CodingKeys: String, CodingKey { case t, slot, from, to, emitter, gap, held, cycle }
+        private enum CodingKeys: String, CodingKey { case t, ms, slot, from, to, emitter, gap, held, cycle }
 
         public func encode(to encoder: any Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(t, forKey: .t)
+            try container.encode(ms, forKey: .ms)
             try container.encode(slot, forKey: .slot)
             try container.encode(from, forKey: .from)
             try container.encode(to, forKey: .to)
@@ -243,6 +252,8 @@ public struct FieldReport: Sendable, Hashable, Codable {
     /// A change of a signal's remaining-time indication ("残り目安", 1…8) while its state stayed the same.
     public struct Step: Sendable, Hashable, Codable {
         public var t: Int
+        /// The sub-second part of the change time, as `Transition.ms` (schema 4).
+        public var ms: Int?
         /// 1-based slot.
         public var slot: Int
         public var state: SignalState
@@ -254,8 +265,18 @@ public struct FieldReport: Sendable, Hashable, Codable {
         /// became `from` was received too, with no pause in reception since.
         public var held: Int?
 
-        public init(t: Int, slot: Int, state: SignalState, from: Int?, to: Int?, emitter: Int? = nil, held: Int? = nil) {
+        public init(
+            t: Int,
+            ms: Int? = nil,
+            slot: Int,
+            state: SignalState,
+            from: Int?,
+            to: Int?,
+            emitter: Int? = nil,
+            held: Int? = nil
+        ) {
             self.t = t
+            self.ms = ms
             self.slot = slot
             self.state = state
             self.from = from
@@ -264,11 +285,12 @@ public struct FieldReport: Sendable, Hashable, Codable {
             self.held = held
         }
 
-        private enum CodingKeys: String, CodingKey { case t, slot, state, from, to, emitter, held }
+        private enum CodingKeys: String, CodingKey { case t, ms, slot, state, from, to, emitter, held }
 
         public func encode(to encoder: any Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(t, forKey: .t)
+            try container.encode(ms, forKey: .ms)
             try container.encode(slot, forKey: .slot)
             try container.encode(state, forKey: .state)
             try container.encode(from, forKey: .from)

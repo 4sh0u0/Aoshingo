@@ -13,6 +13,7 @@ struct ContentView: View {
     @AppStorage(SettingsKey.colorMode) private var colorMode: SignalColorMode = .automatic
     @State private var preferredColumn: NavigationSplitViewColumn = .detail
     @State private var showingSettings = false
+    @State private var showingEstimates = false
     @State private var showingImporter = false
 
     private static let autoSelection = "auto"
@@ -32,6 +33,9 @@ struct ContentView: View {
         .safeAreaInset(edge: .bottom) { ReceiveControl() }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+        }
+        .sheet(isPresented: $showingEstimates) {
+            TimingEstimateView()
         }
         .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json, .plainText, .data]) { result in
             if case .success(let url) = result {
@@ -58,6 +62,12 @@ struct ContentView: View {
                 Button("記録ファイルを再生", systemImage: "doc.badge.clock") { showingImporter = true }
             } label: {
                 Label("その他", systemImage: "ellipsis")
+            }
+        }
+        // The signal timing estimates are only for users who contribute field data.
+        if model.field.isEnabled {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("推定", systemImage: "clock") { showingEstimates = true }
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
