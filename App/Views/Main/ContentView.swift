@@ -64,8 +64,9 @@ struct ContentView: View {
                 Label("その他", systemImage: "ellipsis")
             }
         }
-        // The signal timing estimates are only for users who contribute field data.
-        if model.field.isEnabled {
+        // The signal timing estimates are only for users who contribute field data, and only in
+        // TestFlight and development builds (TimingModel.isFeatureAvailable).
+        if model.timing.showsEstimates {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("推定", systemImage: "clock") { showingEstimates = true }
             }

@@ -5,10 +5,13 @@ import FieldDataKit
 import Foundation
 import Observation
 import PICSKit
+import StoreKit
 import UIKit
 
 /// The signal timing plans and what the 「推定」 screen shows (docs/timing-estimation.md).
 ///
+/// - The 「推定」 screen exists only in TestFlight and development builds (`isFeatureAvailable`): App
+///   Store builds never show it, never download plans and keep no cache of them.
 /// - Plans are downloaded only while the user contributes field data (the server gives them only to
 ///   holders of an upload token), only while the app is in the foreground, and only when the last
 ///   download is 12 hours old or more. They are kept in a cache that is not used once it is more
@@ -86,6 +89,11 @@ final class TimingModel {
     private(set) var plans: TimingPlans?
     private(set) var fetchedAt: Date?
     private(set) var isContributing = false
+    /// Whether this build may show the 「推定」 screen: TestFlight and development builds only. `false`
+    /// until the distribution channel is known, and when it cannot be told.
+    private(set) var isFeatureAvailable = false
+    /// Whether the 「推定」 screen is offered: the user contributes and this build may show it.
+    var showsEstimates: Bool { isContributing && isFeatureAvailable }
     private(set) var stopped: StoppedTimingCells
 
     /// Location for the estimate screen only, separate from the field-data location.
@@ -105,6 +113,9 @@ final class TimingModel {
     /// The intersections of `plans` that have plans and a known position, decoded once per download
     /// instead of on every refresh of the estimate screen.
     @ObservationIgnored private var places: [Place] = []
+    /// Whether the distribution channel was told (`isFeatureAvailable`), and the check in progress.
+    @ObservationIgnored private var channelChecked = false
+    @ObservationIgnored private var channelTask: Task<Void, Never>?
 
     private struct Place {
         let intersection: TimingPlans.Intersection
@@ -131,21 +142,75 @@ final class TimingModel {
     func setContributing(_ contributing: Bool) {
         isContributing = contributing
         guard contributing else {
-            fetchGeneration += 1
-            fetchTask?.cancel()
-            fetchTask = nil
-            nextAttempt = nil
-            use(nil, fetchedAt: nil)
-            cache.remove()
-            detector.reset()
-            stopped = StoppedTimingCells()
-            defaults.removeObject(forKey: SettingsKey.timingStoppedCells)
+            clearPlans()
             return
         }
+        checkDistributionChannel()
+        loadCacheAndRefresh()
+    }
+
+    /// Drops the plans, any download in progress, the cache and the stopped cells.
+    private func clearPlans() {
+        fetchGeneration += 1
+        fetchTask?.cancel()
+        fetchTask = nil
+        nextAttempt = nil
+        use(nil, fetchedAt: nil)
+        cache.remove()
+        detector.reset()
+        stopped = StoppedTimingCells()
+        defaults.removeObject(forKey: SettingsKey.timingStoppedCells)
+    }
+
+    private func loadCacheAndRefresh() {
+        guard showsEstimates else { return }
         if plans == nil, let entry = cache.load(now: Date()) {
             use(entry.plans, fetchedAt: entry.fetchedAt)
         }
         refreshIfNeeded()
+    }
+
+    // MARK: - Distribution channel
+
+    /// Finds out once whether this build may show the 「推定」 screen (App Review 5.1.1: a feature
+    /// only for contributors is kept out of App Store builds). Checked only for contributors, when
+    /// they opt in or the app becomes active. Debug builds may; other builds may
+    /// when StoreKit says they come from TestFlight (`.sandbox`) or Xcode (`.xcode`). When StoreKit
+    /// cannot tell (no network at the first launch, for example), the screen stays hidden and the
+    /// check is tried again the next time the app becomes active. An App Store build deletes any plans
+    /// cached by an earlier TestFlight install.
+    func checkDistributionChannel() {
+        guard !channelChecked, channelTask == nil else { return }
+        #if DEBUG
+        channelChecked = true
+        isFeatureAvailable = true
+        loadCacheAndRefresh()
+        #else
+        channelTask = Task { [weak self] in
+            let environment: AppStore.Environment?
+            do {
+                switch try await AppTransaction.shared {
+                case .verified(let transaction), .unverified(let transaction, _):
+                    environment = transaction.environment
+                }
+            } catch {
+                environment = nil
+            }
+            self?.finishChannelCheck(environment)
+        }
+        #endif
+    }
+
+    private func finishChannelCheck(_ environment: AppStore.Environment?) {
+        channelTask = nil
+        guard let environment else { return }
+        channelChecked = true
+        isFeatureAvailable = environment == .sandbox || environment == .xcode
+        if isFeatureAvailable {
+            loadCacheAndRefresh()
+        } else {
+            clearPlans()
+        }
     }
 
     /// Downloads the plans when the user contributes, the app is in the foreground, and the last
@@ -154,7 +219,9 @@ final class TimingModel {
     func refreshIfNeeded() {
         let now = Date()
         dropExpiredPlans(now: now)
-        guard isContributing, let uploader, fetchTask == nil,
+        guard isContributing else { return }
+        checkDistributionChannel()
+        guard isFeatureAvailable, let uploader, fetchTask == nil,
               UIApplication.shared.applicationState != .background
         else { return }
         if let fetchedAt, (0..<Self.refreshInterval).contains(now.timeIntervalSince(fetchedAt)) { return }
@@ -184,7 +251,7 @@ final class TimingModel {
         // Opted out, or moved to the background, meanwhile: keep nothing.
         guard generation == fetchGeneration else { return }
         fetchTask = nil
-        guard isContributing else { return }
+        guard showsEstimates else { return }
         let now = Date()
         switch result {
         case .success(let download):
@@ -236,7 +303,7 @@ final class TimingModel {
     /// Compares the signals of one live packet with the plans (「実測との照合」). Demo and played-back
     /// packets must never be passed here.
     func recordLiveSignals(intersectionID: String, signals: [PedestrianSignal], at timestamp: Date) {
-        guard isContributing else { return }
+        guard showsEstimates else { return }
         let starts = detector.update(intersectionID: intersectionID, signals: signals, at: timestamp)
         guard !starts.isEmpty, let plans else { return }
         var updated = stopped
