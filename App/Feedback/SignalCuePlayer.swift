@@ -9,9 +9,10 @@ import PICSKit
 /// announced. They are played whether or not VoiceOver is on, so they also reach people who do
 /// not use it.
 ///
-/// The sounds use the playback audio session category, so they play even with the Ring/Silent
-/// switch set to silent, as VoiceOver speech does; they mix with other audio instead of stopping
-/// it. Someone who wants no sound chooses なし and a vibration.
+/// The sounds use the ambient audio session category: they follow the Ring/Silent switch (silent
+/// mode mutes them, while the vibration still plays) and mix with other audio instead of stopping
+/// it. iOS does not tell apps whether silent mode is on, so the announcement still waits for a
+/// muted sound.
 @MainActor
 final class SignalCuePlayer {
     struct Cue: Hashable {
@@ -75,7 +76,7 @@ final class SignalCuePlayer {
         sounds[sound] = data
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setCategory(.ambient, mode: .default)
             try session.setActive(true)
             let player = try AVAudioPlayer(data: data, fileTypeHint: AVFileType.wav.rawValue)
             player.prepareToPlay()
