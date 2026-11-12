@@ -7,7 +7,16 @@ import { DEFAULT_CRON_LIMITS, maxCronQueries, runDailyJobs } from "../src/cron";
 import { encodeBase64 } from "../src/encoding";
 import { KEY_RETENTION_DAYS } from "../src/keys";
 import type { Report, Schema2Report } from "../src/report";
-import { DEFAULT_FOLD_LIMITS, foldExpiredReports, storeReport, utcDay } from "../src/storage";
+import {
+  aggregateItems,
+  DAILY_FOLD_ITEMS,
+  DEFAULT_FOLD_LIMITS,
+  foldExpiredReports,
+  reportPayloads,
+  reportWriteCost,
+  storeReport,
+  utcDay,
+} from "../src/storage";
 import { buildAssertion } from "./helpers/appattest";
 import {
   APP_ID,
@@ -240,6 +249,38 @@ describe("scheduled retention job", () => {
     const result = await foldExpiredReports(env.DB, cutoff, { ...DEFAULT_FOLD_LIMITS, chunkRows: 1, maxRowsWritten: 1 });
     expect(result).toMatchObject({ folded: 1, chunks: 1, stoppedAtLimit: true });
     expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 2 }]);
+  });
+
+  // reportWriteCost charges at least foldItemBytes() per aggregate item, so a day's storage budget
+  // holds at most DAILY_FOLD_ITEMS items. The heaviest rows (2,720 items) and rows just over half
+  // a chunk (2,001 items, so every chunk takes one row) are the hardest to fold.
+  it.each([
+    { name: "the heaviest rows", observations: 600, transitions: 300, steps: 600, labels: 20 },
+    { name: "rows of just over half a chunk", observations: 550, transitions: 300, steps: 1, labels: 0 },
+  ])("folds a whole day's storage budget of $name in one run", async (counts) => {
+    const at = Date.UTC(2026, 6, 1, 0, 0);
+    const sized = (id: string): Schema2Report => {
+      const base = report2(at, [id]);
+      const x = base.intersections[0]!;
+      const repeat = <T>(items: T[], n: number): T[] => Array.from({ length: n }, (_, i) => items[i % items.length]!);
+      x.observations = repeat(x.observations, counts.observations);
+      x.transitions = repeat(x.transitions, counts.transitions);
+      x.steps = repeat(x.steps, counts.steps);
+      x.labels = repeat(x.labels, counts.labels);
+      return base;
+    };
+    const one = sized("10000000");
+    const [items] = aggregateItems(one);
+    const cost = reportWriteCost(reportPayloads(one), [items!], 3_000_000).storedBytes;
+    const n = Math.floor(3_000_000 / cost);
+    expect(n * items!).toBeLessThanOrEqual(DAILY_FOLD_ITEMS);
+    for (let i = 0; i < n; i++) await storeReport(env.DB, sized((0x10000000 + i).toString(16).toUpperCase()), at);
+
+    const result = await runDailyJobs(env.DB, NOW, 90);
+
+    expect(result.fold).toMatchObject({ folded: n, stoppedAtLimit: false });
+    expect(result.fold.chunks).toBeLessThan(DEFAULT_FOLD_LIMITS.maxChunks);
+    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 0 }]);
   });
 
   it("uses at most 43 D1 queries per run, within the Free plan's 50 per invocation", async () => {
@@ -561,6 +602,32 @@ describe("service_state", () => {
     await runDailyJobs(env.DB, NOW + DAY_MS, 90, limits);
     expect(await rows("SELECT cron_last_success, folded_reports, backlog FROM service_state")).toEqual([
       { cron_last_success: "2026-11-11T18:00:00Z", folded_reports: 1, backlog: 0 },
+    ]);
+  });
+
+  it("runs the other jobs when the fold fails, and records nothing", async () => {
+    await runDailyJobs(env.DB, NOW, 90);
+    const expiredAt = Date.UTC(2026, 7, 1, 0, 30);
+    await storeReport(env.DB, report(expiredAt), expiredAt);
+    await insertKey("old-key", utcDay(NOW - 40 * DAY_MS));
+    const failing = new Proxy(env.DB, {
+      get(target, property) {
+        if (property === "prepare") {
+          return (query: string) => {
+            if (query.includes("WITH candidates")) throw new Error("D1 limit");
+            return target.prepare(query);
+          };
+        }
+        const value: unknown = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await expect(runDailyJobs(failing, NOW + DAY_MS, 90)).rejects.toThrow("D1 limit");
+    // The key was deleted all the same; the report waits for the next run.
+    expect(await rows("SELECT count(*) AS n FROM attest_keys")).toEqual([{ n: 0 }]);
+    expect(await rows("SELECT count(*) AS n FROM reports")).toEqual([{ n: 1 }]);
+    expect(await rows("SELECT cron_last_success FROM service_state")).toEqual([
+      { cron_last_success: "2026-11-10T18:00:00Z" },
     ]);
   });
 

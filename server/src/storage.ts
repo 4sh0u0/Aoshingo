@@ -97,13 +97,42 @@ export function rowStorageBytes(length: number): number {
 }
 
 /**
- * What storing `payloads` costs. Payloads are ASCII (validated hex, numbers and fixed names), so
- * their length is their size in bytes.
+ * Aggregate items (see aggregateItems) that the reports of one UTC day may bring at most, so that
+ * one cron run with DEFAULT_FOLD_LIMITS folds a whole day and no report row is kept longer than
+ * RETENTION_DAYS plus one day and 18 hours, even when a client sends its heaviest rows all day.
+ *
+ * reportWriteCost charges every row at least foldItemBytes() per item against the daily storage
+ * budget, which therefore admits at most this many items. With the defaults (3,000,000 bytes, so
+ * 100 bytes per item) a day then needs at most 19 of the run's 20 chunks: a chunk that ends at
+ * chunkItems holds, with the first row of the next chunk, more than 4,000 items, and each row is
+ * counted at most twice that way, so there are at most 14 of those; a chunk that ends at chunkRows
+ * takes 1,000 rows of at least 617 bytes each, so there are at most 4 of those; and one last chunk.
+ * The run writes at most 30,000 aggregate rows and 2 x 4,862 deleted rows, below the 45,000 at
+ * which it starts no new chunk. Rows that wait because the cron did not run at all are folded by
+ * the next runs. If DAILY_STORAGE_LIMIT_BYTES is raised, raise DEFAULT_FOLD_LIMITS to match.
  */
-export function reportWriteCost(payloads: string[]): WriteCost {
+export const DAILY_FOLD_ITEMS = 30_000;
+
+/** Bytes charged per aggregate item, so that a day's storage budget holds at most DAILY_FOLD_ITEMS items. */
+export function foldItemBytes(storedBytesPerDay: number): number {
+  return Math.ceil(storedBytesPerDay / DAILY_FOLD_ITEMS);
+}
+
+/**
+ * What storing `payloads` costs. Payloads are ASCII (validated hex, numbers and fixed names), so
+ * their length is their size in bytes. Each row is charged its estimated size, or its aggregate
+ * items (`items`, in the same order) times foldItemBytes() when that is more: rows made mostly of
+ * transitions (about 35 bytes per item) count for more than they take, so that a day never brings
+ * more than one cron run can fold.
+ */
+export function reportWriteCost(payloads: string[], items: number[], storedBytesPerDay: number): WriteCost {
+  const perItem = foldItemBytes(storedBytesPerDay);
   return {
     rows: payloads.length * ROWS_WRITTEN_PER_INTERSECTION,
-    storedBytes: payloads.reduce((sum, payload) => sum + rowStorageBytes(payload.length), 0),
+    storedBytes: payloads.reduce(
+      (sum, payload, index) => sum + Math.max(rowStorageBytes(payload.length), (items[index] ?? 0) * perItem),
+      0,
+    ),
   };
 }
 
