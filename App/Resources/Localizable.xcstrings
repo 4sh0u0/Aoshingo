@@ -901,6 +901,16 @@
         }
       }
     },
+    "信号を受信しているあいだは推定を表示しません。受信中の信号をご覧ください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No estimates are shown while a signal is being received. See the signal being received."
+          }
+        }
+      }
+    },
     "信号を探しています": {
       "localizations": {
         "en": {

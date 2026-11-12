@@ -22,6 +22,9 @@ import UIKit
 ///   for the rest of the JST day (「実測との照合」). Demo and played-back data are never checked.
 /// - The estimate is never a signal state: this model gives no colour, no announcement, no haptic
 ///   and no notification, only a range of seconds to the next start of green.
+/// - No estimate at all while live packets arrive: one from any intersection within the last 10 s
+///   stops every estimate. Nor for an intersection that may be closer than 80 m once the accuracy of
+///   the user's position is taken into account.
 @MainActor
 @Observable
 final class TimingModel {
@@ -29,9 +32,10 @@ final class TimingModel {
     static let refreshInterval: TimeInterval = 12 * 60 * 60
     /// After a failed download, wait at least this long (the uploader's back-off may ask for longer).
     static let retryInterval: TimeInterval = 15 * 60
-    /// An intersection heard within this many seconds shows its received signal, not an estimate.
+    /// After a live packet of any intersection, no estimate is shown for this many seconds.
     static let receptionWindow: TimeInterval = 10
-    /// No estimate closer to the intersection than this (metres).
+    /// No estimate when the user may be closer to the intersection than this (metres): the distance
+    /// less the horizontal accuracy of the user's position.
     static let minimumDistance: Double = 80
     /// The estimate screen lists at most this many intersections, nearest first.
     static let maximumListedIntersections = 20
@@ -40,12 +44,21 @@ final class TimingModel {
     enum Availability: Equatable {
         /// The user's position (within 30 m, at most 10 s old) or the intersection's is unknown.
         case unknownLocation
-        /// Closer than 80 m: receive the signal instead.
+        /// Possibly closer than 80 m (the distance less the accuracy of the position): receive the
+        /// signal instead.
         case tooClose
-        /// Heard within the last 10 seconds: look at the received signal.
+        /// A live packet of any intersection arrived within the last 10 seconds: look at the received
+        /// signal. Applies to every intersection at once.
         case receiving
         /// Estimates may be shown.
         case available
+    }
+
+    /// The user's position for the estimate screen.
+    struct UserPosition: Equatable {
+        let coordinate: Coordinate
+        /// Horizontal accuracy in metres (0…30): the user may be this much closer to an intersection.
+        let accuracy: Double
     }
 
     /// One signal slot of a listed intersection.
@@ -85,6 +98,10 @@ final class TimingModel {
     @ObservationIgnored private var fetchGeneration = 0
     @ObservationIgnored private var nextAttempt: Date?
     @ObservationIgnored private var detector = GreenStartDetector()
+    /// When the last live PICS packet of any intersection arrived; demo and played-back packets never
+    /// set it. Not observed: the estimate screen redraws every second anyway, and is not redrawn for
+    /// every packet.
+    @ObservationIgnored private var lastLiveReception: Date?
     /// The intersections of `plans` that have plans and a known position, decoded once per download
     /// instead of on every refresh of the estimate screen.
     @ObservationIgnored private var places: [Place] = []
@@ -200,7 +217,21 @@ final class TimingModel {
         } ?? []
     }
 
-    // MARK: - Live check
+    // MARK: - Live reception
+
+    /// Records that a live PICS packet of any intersection arrived at `timestamp`, with or without
+    /// signals: no estimate is shown for the next 10 seconds (`isReceiving(at:)`). Demo and
+    /// played-back packets must never be passed here.
+    func recordLiveReception(at timestamp: Date) {
+        lastLiveReception = timestamp
+    }
+
+    /// Whether a live packet of any intersection arrived within the last 10 seconds. Then no estimate
+    /// is shown for any intersection: the user should look at the signal being received.
+    func isReceiving(at now: Date) -> Bool {
+        guard let lastLiveReception else { return false }
+        return abs(now.timeIntervalSince(lastLiveReception)) <= Self.receptionWindow
+    }
 
     /// Compares the signals of one live packet with the plans (「実測との照合」). Demo and played-back
     /// packets must never be passed here.
@@ -252,20 +283,21 @@ final class TimingModel {
         }
     }
 
-    /// The user's position if it is within 30 m and at most 10 s old.
-    func userLocation(at now: Date) -> Coordinate? {
-        location.context(at: now).userLocation
+    /// The user's position and its accuracy if it is within 30 m and at most 10 s old.
+    func userPosition(at now: Date) -> UserPosition? {
+        let context = location.context(at: now)
+        guard let coordinate = context.userLocation, let accuracy = context.horizontalAccuracy else { return nil }
+        return UserPosition(coordinate: coordinate, accuracy: accuracy)
     }
 
     /// The intersections with plans, nearest first, and what to show for each at `now`.
-    /// - Parameters:
-    ///   - user: the user's position (`userLocation(at:)`), or `nil` when unknown.
-    ///   - lastHeard: when a packet of an intersection last arrived, if it did.
-    func rows(at now: Date, user: Coordinate?, lastHeard: (String) -> Date?) -> [Row] {
+    /// - Parameter user: the user's position (`userPosition(at:)`), or `nil` when unknown.
+    func rows(at now: Date, user: UserPosition?) -> [Row] {
         // Read `plans` so that the screen is redrawn when they change; `places` is derived from them.
         guard let plans, let user else { return [] }
+        let receiving = isReceiving(at: now)
         let located = places.map { place in
-            (place: place, distance: Bucketing.distance(from: user, to: place.coordinate))
+            (place: place, distance: Bucketing.distance(from: user.coordinate, to: place.coordinate))
         }
         let nearest = located
             .sorted { ($0.distance, $0.place.intersection.id) < ($1.distance, $1.place.intersection.id) }
@@ -273,7 +305,7 @@ final class TimingModel {
         return nearest.map { entry in
             let intersection = entry.place.intersection
             let distance = entry.distance
-            let availability = Self.availability(distance: distance, lastHeard: lastHeard(intersection.id), now: now)
+            let availability = Self.availability(distance: distance, accuracy: user.accuracy, isReceiving: receiving)
             let slots = intersection.slots.map { slot in
                 SlotEstimate(
                     slot: slot,
@@ -293,10 +325,18 @@ final class TimingModel {
         return !TimingEstimator.isCurrent(generated: plans.generated, at: now)
     }
 
-    /// 「表示の規則」 for an intersection whose distance from the user is known.
-    static func availability(distance: Double?, lastHeard: Date?, now: Date) -> Availability {
-        if let lastHeard, abs(now.timeIntervalSince(lastHeard)) <= receptionWindow { return .receiving }
-        guard let distance else { return .unknownLocation }
-        return distance < minimumDistance ? .tooClose : .available
+    /// 「表示の規則」 for one intersection.
+    /// - Parameters:
+    ///   - distance: metres from the user's position to the intersection, or `nil` when unknown.
+    ///   - accuracy: the horizontal accuracy of the user's position in metres, or `nil` when unknown.
+    ///   - isReceiving: whether a live packet of any intersection arrived within the last 10 seconds.
+    static func availability(distance: Double?, accuracy: Double?, isReceiving: Bool) -> Availability {
+        if isReceiving { return .receiving }
+        guard let distance, let accuracy, distance.isFinite, distance >= 0, accuracy.isFinite, accuracy >= 0 else {
+            return .unknownLocation
+        }
+        // The user may be up to `accuracy` metres closer than the position says: with an accuracy
+        // of 28 m, a position 85 m away may be 57 m away.
+        return distance - accuracy < minimumDistance ? .tooClose : .available
     }
 }

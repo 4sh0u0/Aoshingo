@@ -349,6 +349,8 @@ final class AppModel {
         checkSignalChanges(at: advertisement.timestamp)
 
         guard source == .live else { return }
+        // Live packets only: while any intersection is being received, no estimate is shown at all.
+        timing.recordLiveReception(at: advertisement.timestamp)
         if isRecording {
             Task { [recorder] in await recorder.append(advertisement) }
         }

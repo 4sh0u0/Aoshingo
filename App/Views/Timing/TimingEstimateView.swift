@@ -44,9 +44,9 @@ struct TimingEstimateView: View {
 
     private func content(at now: Date) -> some View {
         let timing = model.timing
-        let user = timing.userLocation(at: now)
-        let store = model.store
-        let rows = timing.rows(at: now, user: user, lastHeard: { store[$0]?.timestamp })
+        let receiving = timing.isReceiving(at: now)
+        let user = timing.userPosition(at: now)
+        let rows = timing.rows(at: now, user: user)
         return List {
             Section {
                 Label {
@@ -62,6 +62,12 @@ struct TimingEstimateView: View {
             if timing.plans == nil {
                 Section {
                     Text("時刻表をまだ受け取っていません。")
+                        .foregroundStyle(.secondary)
+                }
+            } else if receiving {
+                // A live packet of any intersection within the last 10 s: no estimate anywhere.
+                Section {
+                    Text("信号を受信しているあいだは推定を表示しません。受信中の信号をご覧ください。")
                         .foregroundStyle(.secondary)
                 }
             } else if timing.plansAreOutdated(at: now) {
