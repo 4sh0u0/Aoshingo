@@ -200,6 +200,9 @@ struct BucketingTests {
 
     @Test func clientString() {
         #expect(FieldReport.clientString(version: "0.1.0") == "aoshingo-ios/0.1.0")
+        // TestFlight and development builds add the channel (App/AppChannel.swift, docs/release.md).
+        #expect(FieldReport.clientString(version: "1.1.0-tf") == "aoshingo-ios/1.1.0-tf")
+        #expect(FieldReport.clientString(version: "1.1.0-dev") == "aoshingo-ios/1.1.0-dev")
         #expect(FieldReport.clientString(version: "0.1 (5)") == "aoshingo-ios/0.15")
         #expect(FieldReport.clientString(version: "") == "aoshingo-ios/0")
     }

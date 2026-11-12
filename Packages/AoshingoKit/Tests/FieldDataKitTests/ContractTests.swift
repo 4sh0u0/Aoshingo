@@ -265,6 +265,7 @@ struct ContractTests {
 
         #expect(ReportContract.encode(FieldReport(client: nil, intersections: [intersection(4, observations: [])]), now: now).isEmpty)
         #expect(ReportContract.isValidClient(FieldReport.clientString(version: "0.1.0")))
+        #expect(ReportContract.isValidClient(FieldReport.clientString(version: "10.10.10-tf")))
         #expect(!ReportContract.isValidClient("aoshingo-ios/" + String(repeating: "1", count: 28)))
         #expect(!ReportContract.isValidClient("aoshingo-/1"))
         #expect(!ReportContract.isValidClient("aoshingo-ios/"))

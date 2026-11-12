@@ -12,4 +12,11 @@ DEVELOPMENT_TEAM =
 // for example aoshingo-reports.example.workers.dev. Empty = this build never uploads.
 AOSHINGO_REPORT_HOST =
 
+// Distribution channel (docs/release.md): appstore, testflight or development. Debug builds are
+// development and Release builds appstore unless this is set, here, in Local.xcconfig or on the
+// xcodebuild command line; the TestFlight build is made with AOSHINGO_CHANNEL=testflight.
+AOSHINGO_CHANNEL = $(AOSHINGO_DEFAULT_CHANNEL_$(CONFIGURATION))
+AOSHINGO_DEFAULT_CHANNEL_Debug = development
+AOSHINGO_DEFAULT_CHANNEL_Release = appstore
+
 #include? "Local.xcconfig"
