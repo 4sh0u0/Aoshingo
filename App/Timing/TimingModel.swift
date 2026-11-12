@@ -13,6 +13,9 @@ import UIKit
 ///   holders of an upload token), only while the app is in the foreground, and only when the last
 ///   download is 12 hours old or more. They are kept in a cache that is not used once it is more
 ///   than seven days old. Stopping the contribution deletes them.
+/// - Plans give no estimate once more than seven days have passed since the UTC day the server built
+///   them (`TimingPlans.generated`), or when that day is unknown; the estimator checks this for every
+///   estimate.
 /// - Every intersection's plans are downloaded, never only those the user has heard, so the server
 ///   does not learn which intersections the user cares about.
 /// - Live changes from Red to Green are compared with the plans; a cell more than 5 s off is stopped
@@ -260,7 +263,7 @@ final class TimingModel {
     ///   - lastHeard: when a packet of an intersection last arrived, if it did.
     func rows(at now: Date, user: Coordinate?, lastHeard: (String) -> Date?) -> [Row] {
         // Read `plans` so that the screen is redrawn when they change; `places` is derived from them.
-        guard plans != nil, let user else { return [] }
+        guard let plans, let user else { return [] }
         let located = places.map { place in
             (place: place, distance: Bucketing.distance(from: user, to: place.coordinate))
         }
@@ -275,12 +278,19 @@ final class TimingModel {
                 SlotEstimate(
                     slot: slot,
                     estimate: availability == .available
-                        ? TimingEstimator.estimate(for: intersection, slot: slot, at: now, stopped: stopped)
+                        ? TimingEstimator.estimate(for: intersection, generated: plans.generated, slot: slot, at: now, stopped: stopped)
                         : nil
                 )
             }
             return Row(id: intersection.id, name: entry.place.name, distance: distance, availability: availability, slots: slots)
         }
+    }
+
+    /// Whether the plans in use list intersections but give no estimate because they were built more
+    /// than seven days ago, or on an unknown day (`TimingEstimator.isCurrent`).
+    func plansAreOutdated(at now: Date) -> Bool {
+        guard let plans, !plans.intersections.isEmpty else { return false }
+        return !TimingEstimator.isCurrent(generated: plans.generated, at: now)
     }
 
     /// 「表示の規則」 for an intersection whose distance from the user is known.

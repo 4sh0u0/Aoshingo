@@ -163,8 +163,8 @@ public actor ReportUploader {
     /// Downloads every intersection's signal timing plans (`GET /v1/plans`) with the upload token,
     /// refreshing the token once when the server answers 401, as `upload(_:)` does.
     ///
-    /// The request never names intersections (the optional `ids` query), so the server does not
-    /// learn which intersections this user is interested in. The back-off is shared with
+    /// The request names no intersections: it always gets every intersection's plans, so the server
+    /// does not learn which intersections this user is interested in. The back-off is shared with
     /// `upload(_:)`: this throws `backingOff` while one runs, and a failure starts or extends it.
     public func fetchPlans() async throws -> TimingPlanDownload {
         guard attestation.isSupported else { throw UploadError.attestationUnsupported }

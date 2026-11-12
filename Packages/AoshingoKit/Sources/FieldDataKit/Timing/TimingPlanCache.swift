@@ -4,6 +4,8 @@ import Foundation
 
 /// Keeps the last `GET /v1/plans` response on the device, with the time it was fetched, in one file.
 /// A cache fetched more than seven days ago is not used (docs/timing-estimation.md, 「表示の規則」).
+/// Independently, plans give no estimate once seven days have passed since the day the server built
+/// them (`TimingEstimator.isCurrent`), which is the stricter of the two when the clock is right.
 public struct TimingPlanCache: Sendable {
     public static let maximumAge: TimeInterval = 7 * 24 * 60 * 60
     /// A cache that seems to come from up to this far in the future (the clock was set back a

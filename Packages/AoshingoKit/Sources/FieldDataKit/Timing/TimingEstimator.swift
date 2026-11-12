@@ -40,8 +40,10 @@ public struct TimingCell: Sendable, Hashable, Codable {
 /// The estimate is never a signal state: it only says roughly when green should start next, and
 /// nothing when any condition is not met.
 public enum TimingEstimator {
-    /// A plan whose `lastDay` is this many days before today or more gives no estimate.
-    public static let staleDays = 28
+    /// Plans give no estimate once more than this many milliseconds have passed since 00:00 UTC of
+    /// the day they were built (`TimingPlans.generated`). The server publishes only cells with data
+    /// from the last 21 days, so no estimate rests on data much older than 28 days.
+    public static let maximumPlanAge = 7 * JapanCalendar.millisecondsPerDay
     /// Added to twice the spread to make the margin `u` (milliseconds).
     public static let fixedMargin = 2000
     /// The shown range is widened to multiples of this many seconds.
@@ -60,7 +62,8 @@ public enum TimingEstimator {
         case excludedDay
         /// No plan for this slot, day type and time bin.
         case noPlan
-        /// The plan's `lastDay` is 28 days ago or more.
+        /// The plans have no valid `generated` day, or were built more than 7 days ago (or, by the
+        /// device's clock, on a later day than today).
         case stale
         /// A live change did not match the plan today.
         case stopped
@@ -80,18 +83,22 @@ public enum TimingEstimator {
     }
 
     /// The estimate for `slot` of `intersection` at `now`, or `nil` (see `outcome`).
+    /// - Parameter generated: `generated` of the `TimingPlans` that `intersection` comes from.
     public static func estimate(
         for intersection: TimingPlans.Intersection,
+        generated: String?,
         slot: Int,
         at now: Date,
         stopped: StoppedTimingCells = StoppedTimingCells()
     ) -> TimingEstimate? {
-        outcome(for: intersection, slot: slot, at: now, stopped: stopped).estimated
+        outcome(for: intersection, generated: generated, slot: slot, at: now, stopped: stopped).estimated
     }
 
     /// Steps 1–8 of 「推定のしかた」.
+    /// - Parameter generated: `generated` of the `TimingPlans` that `intersection` comes from.
     public static func outcome(
         for intersection: TimingPlans.Intersection,
+        generated: String?,
         slot: Int,
         at now: Date,
         stopped: StoppedTimingCells = StoppedTimingCells()
@@ -104,10 +111,8 @@ public enum TimingEstimator {
         let dayType = JapanCalendar.dayType(of: today)
         let bin = JapanCalendar.bin(atMilliseconds: nowMilliseconds)
         guard let plan = intersection.plan(slot: slot, dayType: dayType, bin: bin) else { return .unavailable(.noPlan) }
-        // 3. Old plans.
-        guard let lastDay = plan.lastDate, today.dayNumber - lastDay.dayNumber < staleDays else {
-            return .unavailable(.stale)
-        }
+        // 3. Old plans, or plans of unknown age.
+        guard isCurrent(generated: generated, at: now) else { return .unavailable(.stale) }
         // 4. Stopped today by the live check.
         let cell = TimingCell(intersectionID: intersection.id, slot: slot, dayType: dayType, bin: bin)
         guard !stopped.contains(cell, on: today) else { return .unavailable(.stopped) }
@@ -132,6 +137,16 @@ public enum TimingEstimator {
             upperSeconds: upper,
             nextGreenStart: JapanCalendar.date(milliseconds: start)
         ))
+    }
+
+    /// Whether plans built on the UTC day `generated` (`TimingPlans.generated`) may still give
+    /// estimates at `now`: `generated` is a valid `YYYY-MM-DD`, and `now` is at or after 00:00 UTC of
+    /// that day and at most `maximumPlanAge` (7 days) after it. A `now` before that day means the
+    /// device's clock is wrong, and every estimate depends on it.
+    public static func isCurrent(generated: String?, at now: Date) -> Bool {
+        guard let start = TimingPlans.startOfUTCDay(generated) else { return false }
+        let age = JapanCalendar.milliseconds(now) - JapanCalendar.milliseconds(start)
+        return (0...maximumPlanAge).contains(age)
     }
 
     /// Milliseconds between `greenStart` and the nearest start of green that `plan` predicts

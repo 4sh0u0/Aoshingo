@@ -4,7 +4,8 @@ import Foundation
 
 /// A calendar date in Japan Standard Time (UTC+9, no daylight saving time).
 ///
-/// Encoded as `YYYY-MM-DD`, the form of `lastDay` in the plans.
+/// Encoded as `YYYY-MM-DD`. The parser and the day count do not depend on a time zone, so
+/// `TimingPlans` also uses it to read `generated`, a UTC day.
 public struct JapanDate: Sendable, Hashable, Comparable, Codable, CustomStringConvertible {
     public let year: Int
     /// 1…12.

@@ -64,6 +64,11 @@ struct TimingEstimateView: View {
                     Text("時刻表をまだ受け取っていません。")
                         .foregroundStyle(.secondary)
                 }
+            } else if timing.plansAreOutdated(at: now) {
+                Section {
+                    Text("時刻表が古いため推定を表示しません。")
+                        .foregroundStyle(.secondary)
+                }
             } else if user == nil {
                 Section {
                     Text("現在地が分からないため推定を表示しません")

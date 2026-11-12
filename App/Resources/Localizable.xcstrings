@@ -1491,6 +1491,16 @@
         }
       }
     },
+    "時刻表が古いため推定を表示しません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No estimates are shown because the timing plans are out of date."
+          }
+        }
+      }
+    },
     "時刻表の取得：%@": {
       "localizations": {
         "en": {
