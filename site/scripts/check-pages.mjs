@@ -42,7 +42,7 @@ const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-
 const ALLOWED_EXTERNAL_HOSTS = new Set([
   "github.com",
   "challenges.cloudflare.com", // Turnstile, only after the 「メールアドレスを表示」 button is pressed
-  "aoshingo-contact.harus-account.workers.dev", // site/contact-worker
+  "contact.aoshingo.4sh.es", // site/contact-worker
 ]);
 
 const isAllowedExternal = (hostname) => ALLOWED_EXTERNAL_HOSTS.has(hostname);

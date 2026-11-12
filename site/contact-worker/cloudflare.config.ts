@@ -10,8 +10,11 @@ export default defineConfig({
     name: "aoshingo-contact",
     compatibilityDate: "2026-10-01",
     entrypoint: "src/index.ts",
+    // workers.dev stays on, so that a cached copy of the old contact.js keeps working.
     workersDev: true,
     previewUrls: false,
+    // Custom domain on the 4sh.es zone. Cloudflare creates the DNS record and the certificate.
+    domains: ["contact.aoshingo.4sh.es"],
 
     // Privacy: no Workers Logs, invocation logs or traces. The code itself never logs.
     observability: {

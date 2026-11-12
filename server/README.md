@@ -173,6 +173,21 @@ Worker の設定で、最後にデプロイした設定のまま残ります。D
 （100,000 行）を超え、同じアカウントの D1 が止まるおそれがあります。戻した版をまた新しい版に上げるときは、`cf deploy` が
 `cloudflare.config.ts` どおりに cron を設定し直します。`0005` で足したテーブルと列は、古いコードがそのまま無視します。
 
+### 公開用のドメイン
+
+本番の Worker は `https://api.aoshingo.4sh.es/` で受け付けます（`cloudflare.config.ts` の `domains`、テスト用の `wrangler.jsonc` では `routes`）。
+DNS レコードと証明書は、デプロイのときに Cloudflare が 4sh.es のゾーンに作ります。Workers Builds が自動で作るトークンには
+全ゾーンの **Workers Routes → Edit** があるので、権限を足す必要はありません。
+
+- `workers.dev`（`aoshingo-reports.harus-account.workers.dev`）も有効のままにしています。独自ドメインに切り替える前に作った
+  アプリのビルドは、こちらに送るためです。そのビルドが使われなくなるまで `workersDev` を `false` にしないでください。
+- 独自ドメインへのリクエストには、4sh.es ゾーンのセキュリティ設定がかかります。4sh.es では Bot Fight Mode をオンにしていて、
+  これはサブドメインごとの例外を作れません（WAF のスキップルールも効きません）。アプリの送信が `403` と
+  `cf-mitigated: challenge` ヘッダーで断られるようなら、ゾーンの Bot Fight Mode をオフにするか、送信先を workers.dev に戻してください。
+  workers.dev にはゾーンの設定がかからないので、Bot Fight Mode の影響を受けません。
+- このリポジトリをフォークして自分の Worker を立てるときは、`domains`（と `wrangler.jsonc` の `routes`）を自分のドメインに
+  書き換えるか、消してください。自分のアカウントにないゾーンのドメインはデプロイに失敗します。
+
 ### 初回の設定（リポジトリ所有者が 1 回だけ）
 
 1. **D1 データベースを作る**
@@ -270,6 +285,8 @@ Worker の設定で、最後にデプロイした設定のまま残ります。D
    ```
 
    （xcconfig では `//` 以降がコメント扱いになるため、URL ではなくホスト名で指定します。）
+
+   このリポジトリの配布用ビルドは `AOSHINGO_REPORT_HOST = api.aoshingo.4sh.es` です（[公開用のドメイン](#公開用のドメイン)）。
 
 ### App Attest の development 環境
 

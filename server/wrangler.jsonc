@@ -10,6 +10,8 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
   "preview_urls": false,
+  // Custom domain on the 4sh.es zone (domains in cloudflare.config.ts).
+  "routes": [{ "pattern": "api.aoshingo.4sh.es", "custom_domain": true }],
 
   // Privacy: no Workers Logs, invocation logs or traces. The code itself never logs.
   "observability": {
