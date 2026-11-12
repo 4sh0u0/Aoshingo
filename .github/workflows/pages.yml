@@ -6,10 +6,10 @@ on:
     paths:
       - "site/**"
       - ".github/workflows/pages.yml"
+  # Every pull request runs this workflow, because the ruleset for main requires the
+  # 「Website gate」check and a workflow skipped by a path filter never reports it (the merge would
+  # wait forever). The `changes` job skips the checks when nothing under the paths above changed.
   pull_request:
-    paths:
-      - "site/**"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -21,8 +21,39 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
+    outputs:
+      site: ${{ steps.filter.outputs.site }}
+    steps:
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # Pushes to main are already filtered by `paths`; a manual run always checks.
+          if [ "$EVENT" != pull_request ]; then
+            echo "site=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)')"
+          printf '%s\n' "$files"
+          # The same paths as `paths` above.
+          if grep -qE '^site/|^\.github/workflows/pages\.yml$' <<<"$files"; then
+            echo "site=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "site=false" >> "$GITHUB_OUTPUT"
+          fi
+
   check:
     name: Check and build
+    needs: changes
+    if: needs.changes.outputs.site == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -49,6 +80,8 @@ jobs:
   # site/contact-worker/README.md); this job tests it and builds it with the deploy configuration.
   contact-worker:
     name: Test the contact Worker
+    needs: changes
+    if: needs.changes.outputs.site == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -68,6 +101,27 @@ jobs:
       # credentials or an upload, so a configuration error shows here and not after the merge.
       - name: Build with the deploy configuration (no upload)
         run: npm run build
+
+  # The only check of this workflow that the ruleset for main requires. A job skipped by its `if:`
+  # counts as passed, so this job always runs and fails when any check above failed or was
+  # cancelled. The deployment is not included: it runs only after a push to main.
+  gate:
+    name: Website gate
+    needs: [changes, check, contact-worker]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
 
   deploy:
     name: Deploy to GitHub Pages
