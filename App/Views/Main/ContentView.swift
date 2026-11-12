@@ -5,17 +5,25 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Main screen. On compact widths (iPhone, iPhone Duo outer screen) the signal view comes first;
-/// on regular widths (iPhone Duo inner screen, iPad) the intersection list and signals sit side by side.
+/// on regular widths (iPhone Duo inner screen, larger iPhones in landscape) the intersection list and
+/// signals sit side by side.
 /// Only standard containers and size classes are used, so the system adapts the layout and applies
 /// Liquid Glass to bars and controls on iOS 26 and later.
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage(SettingsKey.colorMode) private var colorMode: SignalColorMode = .automatic
     @State private var preferredColumn: NavigationSplitViewColumn = .detail
     @State private var showingSettings = false
     @State private var showingImporter = false
 
     private static let autoSelection = "auto"
+
+    /// Whether the list and the signals are shown side by side. The split view collapses into one
+    /// stack at compact width; there the start/stop control stays at the bottom of the screen, on
+    /// the list as on the signals. Side by side it belongs to the signal column, so that it does not
+    /// run across the list.
+    private var isSideBySide: Bool { horizontalSizeClass == .regular }
 
     var body: some View {
         NavigationSplitView(preferredCompactColumn: $preferredColumn) {
@@ -28,8 +36,13 @@ struct ContentView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar { toolbar }
             }
+            .safeAreaInset(edge: .bottom) {
+                if isSideBySide { ReceiveControl() }
+            }
         }
-        .safeAreaInset(edge: .bottom) { ReceiveControl() }
+        .safeAreaInset(edge: .bottom) {
+            if !isSideBySide { ReceiveControl() }
+        }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
