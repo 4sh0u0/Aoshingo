@@ -871,12 +871,12 @@
         }
       }
     },
-    "信号の周期や、どの番号がどの横断歩道かを調べるため、受信したデータの提供にご協力いただけますか。集まったデータから求めた信号の周期は、協力している人のアプリに「次の青の始まり」の推定として示します。": {
+    "信号の周期や、どの番号がどの横断歩道かを調べるため、受信したデータの提供にご協力いただけますか。集まったデータから求めた信号の周期は、協力している人の試験版（TestFlight）のアプリに「次の青の始まり」の推定として示します。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "To learn signal cycles and which number belongs to which crossing, would you share the data you receive? The signal cycles worked out from the shared data are shown in the app of everyone who shares, as estimates of the next start of green."
+            "value": "To learn signal cycles and which number belongs to which crossing, would you share the data you receive? The signal cycles worked out from the shared data are shown in the test version (TestFlight) of the app of everyone who shares, as estimates of the next start of green."
           }
         }
       }
@@ -897,6 +897,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "When signals and the remaining-time indication changed, and how long each lasted (both to 0.1 s)"
+          }
+        }
+      }
+    },
+    "信号を受信しているあいだは推定を表示しません。受信中の信号をご覧ください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No estimates are shown while a signal is being received. See the signal being received."
           }
         }
       }
@@ -1051,12 +1061,12 @@
         }
       }
     },
-    "協力しなくても、信号の受信と表示はすべてそのまま使えます。「推定」の画面だけは、協力している人にだけ表示します。": {
+    "協力しなくても、信号の受信と表示はすべてそのまま使えます。「推定」の画面は、試験版（TestFlight）で協力している人にだけ表示します。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Receiving and showing signals work the same if you do not share. Only the Estimates screen is shown just to those who share."
+            "value": "Receiving and showing signals work the same if you do not share. The Estimates screen is shown only in the test version (TestFlight), to those who share."
           }
         }
       }
@@ -1121,12 +1131,12 @@
         }
       }
     },
-    "受け取ったデータからは、交差点の信号ごとの周期と青になる時刻をまとめた時刻表も作り、実測データの提供に協力している人のアプリに「推定」として示します。時刻表に個々の利用者の情報は含まれません。協力をやめると、端末に保存した時刻表は削除します。": {
+    "受け取ったデータからは、交差点の信号ごとの周期と青になる時刻をまとめた時刻表も作り、実測データの提供に協力している人の試験版（TestFlight）のアプリに「推定」として示します。時刻表に個々の利用者の情報は含まれません。協力をやめると、端末に保存した時刻表は削除します。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The received data is also used to build timing plans with the cycle and green start time of each signal, which are shown as estimates in the app of everyone who shares field data. The timing plans contain no information about individual users. When you stop sharing, the timing plans stored on your device are deleted."
+            "value": "The received data is also used to build timing plans with the cycle and green start time of each signal, which are shown as estimates in the test version (TestFlight) of the app of everyone who shares field data. The timing plans contain no information about individual users. When you stop sharing, the timing plans stored on your device are deleted."
           }
         }
       }
@@ -1487,6 +1497,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Never use estimates to decide when to cross. Always check the actual signal and the audible signal."
+          }
+        }
+      }
+    },
+    "時刻表が古いため推定を表示しません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No estimates are shown because the timing plans are out of date."
           }
         }
       }

@@ -92,8 +92,10 @@ describe("privacy", () => {
   });
 
   it("keeps only what the signal does in the timing tables, with days as the finest time", async () => {
+    // Neither the day nor the report counts of a plan are stored. last_day and updated_day are,
+    // for deleting old plans and ordering the fits, but never served (test/plans.test.ts).
     const columns: Record<string, string[]> = {};
-    for (const table of ["timing_plans", "timing_places"]) {
+    for (const table of ["timing_plans", "timing_places", "timing_snapshot"]) {
       const { results } = await env.DB.prepare("SELECT name FROM pragma_table_info(?1) ORDER BY cid").bind(table).all();
       columns[table] = results.map((row) => row.name as string);
     }
@@ -109,12 +111,11 @@ describe("privacy", () => {
         "spread_ms",
         "green_ms",
         "blink_ms",
-        "days",
-        "reports",
         "last_day",
         "updated_day",
       ],
       timing_places: ["intersection_id", "name_raw", "position_raw", "updated_day"],
+      timing_snapshot: ["chunk", "body", "generated"],
     });
   });
 

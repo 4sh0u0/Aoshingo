@@ -12,27 +12,30 @@ enum TimingFixtures {
     static let nameRaw = "CE010000000000001234ABCDE6B88BE8B0B70000000000000000"
     static let positionRaw = "CE010000010000001234ABCD022073D40854AD55"
 
+    /// The UTC day of the cron run (18:30 UTC, 03:30 JST) before `thursday`.
+    static let generated = "2026-11-11"
+
     /// Two usable intersections. Of 1234ABCD's plans only slots 1 and 2 are valid; the others have an
     /// unknown reference, a cycle under 30 s, a phase outside the cycle and an unknown day type. The
     /// second entry has an invalid ID.
     static let plansJSON = """
-    {"intersections":[
+    {"generated":"\(generated)","intersections":[
     {"id":"1234ABCD","name":"\(nameRaw)","position":"\(positionRaw)","plans":[
-    {"slot":1,"dayType":0,"bin":14,"cycle":120000,"reference":"epoch","phase":37400,"spread":1800,"green":24000,"blink":6000,"days":4,"reports":5,"lastDay":"2026-11-10"},
-    {"slot":2,"dayType":0,"bin":14,"cycle":97000,"reference":"midnight","phase":37400,"spread":1800,"green":null,"blink":null,"days":3,"reports":2,"lastDay":"2026-11-10"},
-    {"slot":3,"dayType":0,"bin":14,"cycle":120000,"reference":"sunrise","phase":0,"spread":0,"green":null,"blink":null,"days":3,"reports":2,"lastDay":"2026-11-10"},
-    {"slot":4,"dayType":0,"bin":14,"cycle":10000,"reference":"epoch","phase":0,"spread":0,"green":null,"blink":null,"days":3,"reports":2,"lastDay":"2026-11-10"},
-    {"slot":5,"dayType":0,"bin":14,"cycle":120000,"reference":"epoch","phase":120000,"spread":0,"green":null,"blink":null,"days":3,"reports":2,"lastDay":"2026-11-10"},
-    {"slot":6,"dayType":3,"bin":14,"cycle":120000,"reference":"epoch","phase":0,"spread":0,"green":null,"blink":null,"days":3,"reports":2,"lastDay":"2026-11-10"}
+    {"slot":1,"dayType":0,"bin":14,"cycle":120000,"reference":"epoch","phase":37400,"spread":1800,"green":24000,"blink":6000},
+    {"slot":2,"dayType":0,"bin":14,"cycle":97000,"reference":"midnight","phase":37400,"spread":1800,"green":null,"blink":null},
+    {"slot":3,"dayType":0,"bin":14,"cycle":120000,"reference":"sunrise","phase":0,"spread":0,"green":null,"blink":null},
+    {"slot":4,"dayType":0,"bin":14,"cycle":10000,"reference":"epoch","phase":0,"spread":0,"green":null,"blink":null},
+    {"slot":5,"dayType":0,"bin":14,"cycle":120000,"reference":"epoch","phase":120000,"spread":0,"green":null,"blink":null},
+    {"slot":6,"dayType":3,"bin":14,"cycle":120000,"reference":"epoch","phase":0,"spread":0,"green":null,"blink":null}
     ]},
     {"id":"bad","name":null,"position":null,"plans":[]},
     {"id":"00000002","name":null,"position":null,"plans":[
-    {"slot":1,"dayType":1,"bin":0,"cycle":60000,"reference":"epoch","phase":0,"spread":0,"green":null,"blink":null,"days":3,"reports":2,"lastDay":"2026-11-07"}
+    {"slot":1,"dayType":1,"bin":0,"cycle":60000,"reference":"epoch","phase":0,"spread":0,"green":null,"blink":null}
     ]}
     ]}
     """
 
-    /// Thursday 2026-11-12 07:10:00 JST (time bin 14).
+    /// Thursday 2026-11-12 07:10:00 JST (time bin 14), which is 2026-11-11 22:10:00 UTC.
     static let thursday = Date(timeIntervalSince1970: 1_794_435_000)
 
     static func plan(
@@ -42,13 +45,9 @@ enum TimingFixtures {
         cycle: Int = 120_000,
         reference: TimingPlans.Reference = .epoch,
         phase: Int = 37_400,
-        spread: Int = 1800,
-        lastDay: String = "2026-11-10"
+        spread: Int = 1800
     ) -> TimingPlans.Plan {
-        TimingPlans.Plan(
-            slot: slot, dayType: dayType, bin: bin, cycle: cycle, reference: reference,
-            phase: phase, spread: spread, days: 4, reports: 5, lastDay: lastDay
-        )
+        TimingPlans.Plan(slot: slot, dayType: dayType, bin: bin, cycle: cycle, reference: reference, phase: phase, spread: spread)
     }
 
     static func intersection(_ plans: TimingPlans.Plan...) -> TimingPlans.Intersection {
@@ -133,6 +132,8 @@ struct TimingPlansTests {
     @Test("decoding keeps valid plans and intersections and drops the rest")
     func lenientDecoding() throws {
         let plans = try JSONDecoder().decode(TimingPlans.self, from: Data(TimingFixtures.plansJSON.utf8))
+        #expect(plans.generated == "2026-11-11")
+        #expect(plans.generatedDayStart == date(1_794_355_200)) // 2026-11-11 00:00 UTC
         #expect(plans.intersections.map(\.id) == ["1234ABCD", "00000002"])
         let first = try #require(plans["1234ABCD"])
         #expect(first.slots == [1, 2])
@@ -142,6 +143,35 @@ struct TimingPlansTests {
         #expect(first.plan(slot: 1, dayType: .weekday, bin: 15) == nil)
         #expect(plans["00000002"]?.plans.first?.dayType == .saturday)
         #expect(plans["FFFFFFFF"] == nil)
+    }
+
+    @Test("the fields of earlier servers are ignored; a missing, null or unreadable generated day gives no estimate")
+    func generatedAndEarlierFields() throws {
+        // The shape before `generated`: every plan had `days`, `reports` and `lastDay`.
+        let earlier = """
+        {"intersections":[{"id":"1234ABCD","name":null,"position":null,"plans":[
+        {"slot":1,"dayType":0,"bin":14,"cycle":120000,"reference":"epoch","phase":37400,"spread":1800,"green":24000,"blink":6000,"days":4,"reports":5,"lastDay":"2026-11-10"}
+        ]}]}
+        """
+        let decoded = try JSONDecoder().decode(TimingPlans.self, from: Data(earlier.utf8))
+        #expect(decoded.generated == nil && decoded.generatedDayStart == nil)
+        let intersection = try #require(decoded["1234ABCD"])
+        #expect(intersection.plans.count == 1)
+        #expect(intersection.plan(slot: 1, dayType: .weekday, bin: 14)?.phase == 37_400)
+        #expect(TimingEstimator.outcome(for: intersection, generated: decoded.generated, slot: 1, at: TimingFixtures.thursday) == .unavailable(.stale))
+
+        let bodies = [
+            #"{"generated":null,"intersections":[]}"#,
+            #"{"generated":20261111,"intersections":[]}"#,
+            #"{"generated":"2026-11-31","intersections":[]}"#,
+            #"{"generated":"2026-11-11T18:30:00Z","intersections":[]}"#,
+        ]
+        for body in bodies {
+            let plans = try JSONDecoder().decode(TimingPlans.self, from: Data(body.utf8))
+            #expect(plans.intersections.isEmpty, "\(body)")
+            #expect(plans.generatedDayStart == nil, "\(body)")
+            #expect(!TimingEstimator.isCurrent(generated: plans.generated, at: TimingFixtures.thursday), "\(body)")
+        }
     }
 
     @Test("the name and position come from the raw Type 0 and Type 1 messages")
@@ -169,7 +199,6 @@ struct TimingPlansTests {
         #expect(!TimingFixtures.plan(phase: -1).isValid)
         #expect(!TimingFixtures.plan(phase: 120_000).isValid)
         #expect(!TimingFixtures.plan(spread: 3001).isValid)
-        #expect(!TimingFixtures.plan(lastDay: "2026-11-31").isValid)
     }
 
     @Test("the cache keeps the body and its fetch time, and refuses caches older than seven days")
@@ -199,11 +228,12 @@ struct TimingPlansTests {
 @Suite("Timing estimator")
 struct TimingEstimatorTests {
     private let now = TimingFixtures.thursday
+    private let generated = TimingFixtures.generated
 
     @Test("epoch reference: next green 37.4 s away, margin 5.6 s → 30–45 s")
     func epochReference() throws {
         let intersection = TimingFixtures.intersection(TimingFixtures.plan())
-        let estimate = try #require(TimingEstimator.estimate(for: intersection, slot: 1, at: now))
+        let estimate = try #require(TimingEstimator.estimate(for: intersection, generated: generated, slot: 1, at: now))
         #expect(estimate.lowerSeconds == 30)
         #expect(estimate.upperSeconds == 45)
         #expect(JapanCalendar.milliseconds(estimate.nextGreenStart) == 1_794_435_037_400)
@@ -212,17 +242,17 @@ struct TimingEstimatorTests {
     @Test("the two references give different starts for a cycle that does not divide the day")
     func references() throws {
         let epoch = TimingFixtures.intersection(TimingFixtures.plan(cycle: 97_000, reference: .epoch))
-        let fromEpoch = try #require(TimingEstimator.estimate(for: epoch, slot: 1, at: now))
+        let fromEpoch = try #require(TimingEstimator.estimate(for: epoch, generated: generated, slot: 1, at: now))
         #expect(fromEpoch.lowerSeconds == 40 && fromEpoch.upperSeconds == 55)
         #expect(JapanCalendar.milliseconds(fromEpoch.nextGreenStart) == 1_794_435_047_400)
 
         let midnight = TimingFixtures.intersection(TimingFixtures.plan(cycle: 97_000, reference: .midnight))
-        let fromMidnight = try #require(TimingEstimator.estimate(for: midnight, slot: 1, at: now))
+        let fromMidnight = try #require(TimingEstimator.estimate(for: midnight, generated: generated, slot: 1, at: now))
         #expect(fromMidnight.lowerSeconds == 30 && fromMidnight.upperSeconds == 45)
         #expect(JapanCalendar.milliseconds(fromMidnight.nextGreenStart) == 1_794_435_039_400)
 
         let noSpread = TimingFixtures.intersection(TimingFixtures.plan(cycle: 97_000, spread: 0))
-        let narrow = try #require(TimingEstimator.estimate(for: noSpread, slot: 1, at: now))
+        let narrow = try #require(TimingEstimator.estimate(for: noSpread, generated: generated, slot: 1, at: now))
         #expect(narrow.lowerSeconds == 45 && narrow.upperSeconds == 50) // 47.4 s ± 2 s
     }
 
@@ -230,14 +260,14 @@ struct TimingEstimatorTests {
     func marginRollOver() throws {
         let intersection = TimingFixtures.intersection(TimingFixtures.plan())
         // The start predicted at 07:10:37.4 is 3 s away: take the one a cycle later (123 s).
-        let close = try #require(TimingEstimator.estimate(for: intersection, slot: 1, at: date(1_794_435_034.4)))
+        let close = try #require(TimingEstimator.estimate(for: intersection, generated: generated, slot: 1, at: date(1_794_435_034.4)))
         #expect(close.lowerSeconds == 115 && close.upperSeconds == 130)
         #expect(JapanCalendar.milliseconds(close.nextGreenStart) == 1_794_435_157_400)
         // Exactly the margin (5.6 s) away also moves on.
-        let edge = try #require(TimingEstimator.estimate(for: intersection, slot: 1, at: date(1_794_435_031.8)))
+        let edge = try #require(TimingEstimator.estimate(for: intersection, generated: generated, slot: 1, at: date(1_794_435_031.8)))
         #expect(edge.lowerSeconds == 120 && edge.upperSeconds == 135)
         // One millisecond more does not.
-        let outside = try #require(TimingEstimator.estimate(for: intersection, slot: 1, at: date(1_794_435_031.799)))
+        let outside = try #require(TimingEstimator.estimate(for: intersection, generated: generated, slot: 1, at: date(1_794_435_031.799)))
         #expect(outside.lowerSeconds == 0 && outside.upperSeconds == 15)
         #expect(JapanCalendar.milliseconds(outside.nextGreenStart) == 1_794_435_037_400)
     }
@@ -246,38 +276,51 @@ struct TimingEstimatorTests {
     func binBoundary() throws {
         let intersection = TimingFixtures.intersection(TimingFixtures.plan())
         // 07:29:00: the next start (97.4 s later) is after 07:30.
-        #expect(TimingEstimator.outcome(for: intersection, slot: 1, at: date(1_794_436_140)) == .unavailable(.crossesBin))
+        #expect(TimingEstimator.outcome(for: intersection, generated: generated, slot: 1, at: date(1_794_436_140)) == .unavailable(.crossesBin))
         // 07:27:00: the next start is at 07:28:37.4, in the same bin.
-        let estimate = try #require(TimingEstimator.estimate(for: intersection, slot: 1, at: date(1_794_436_020)))
+        let estimate = try #require(TimingEstimator.estimate(for: intersection, generated: generated, slot: 1, at: date(1_794_436_020)))
         #expect(estimate.lowerSeconds == 90 && estimate.upperSeconds == 105)
     }
 
-    @Test("no estimate from a plan whose last day is 28 days old or more")
+    @Test("no estimate from plans built more than 7 days ago, on a later day than now, or of unknown age")
     func stale() {
-        let fresh = TimingFixtures.intersection(TimingFixtures.plan(lastDay: "2026-10-16")) // 27 days before
-        #expect(TimingEstimator.estimate(for: fresh, slot: 1, at: now) != nil)
-        let stale = TimingFixtures.intersection(TimingFixtures.plan(lastDay: "2026-10-15")) // 28 days before
-        #expect(TimingEstimator.outcome(for: stale, slot: 1, at: now) == .unavailable(.stale))
+        let intersection = TimingFixtures.intersection(TimingFixtures.plan())
+        // Now is 2026-11-11 22:10 UTC.
+        #expect(TimingEstimator.estimate(for: intersection, generated: "2026-11-11", slot: 1, at: now) != nil)
+        #expect(TimingEstimator.estimate(for: intersection, generated: "2026-11-05", slot: 1, at: now) != nil) // 6 d 22 h 10 min
+        #expect(TimingEstimator.outcome(for: intersection, generated: "2026-11-04", slot: 1, at: now) == .unavailable(.stale)) // 7 d 22 h 10 min
+        // A later UTC day than now: the device's clock is wrong.
+        #expect(TimingEstimator.outcome(for: intersection, generated: "2026-11-12", slot: 1, at: now) == .unavailable(.stale))
+        let unreadable: [String?] = [nil, "", "2026-11-31", "2026/11/11", "2026-11-11T18:30:00Z"]
+        for value in unreadable {
+            #expect(TimingEstimator.outcome(for: intersection, generated: value, slot: 1, at: now) == .unavailable(.stale), "\(String(describing: value))")
+        }
+
+        // From 00:00 UTC of the day to exactly 7 days later; not a millisecond before or after.
+        let start = date(1_793_836_800) // 2026-11-05 00:00 UTC
+        #expect(TimingEstimator.isCurrent(generated: "2026-11-05", at: start))
+        #expect(!TimingEstimator.isCurrent(generated: "2026-11-05", at: start.addingTimeInterval(-0.001)))
+        #expect(TimingEstimator.isCurrent(generated: "2026-11-05", at: start.addingTimeInterval(7 * 86_400)))
+        #expect(!TimingEstimator.isCurrent(generated: "2026-11-05", at: start.addingTimeInterval(7 * 86_400 + 0.001)))
     }
 
     @Test("no estimate on excluded days, or without a plan for the slot, day type and bin")
     func excludedAndMissing() {
-        let intersection = TimingFixtures.intersection(TimingFixtures.plan(lastDay: "2026-11-20"))
+        let intersection = TimingFixtures.intersection(TimingFixtures.plan())
         // Monday 2026-11-23 07:10 JST is a holiday.
-        #expect(TimingEstimator.outcome(for: intersection, slot: 1, at: date(1_795_385_400)) == .unavailable(.excludedDay))
+        #expect(TimingEstimator.outcome(for: intersection, generated: "2026-11-22", slot: 1, at: date(1_795_385_400)) == .unavailable(.excludedDay))
         // Monday 2026-11-30 07:10 JST is a weekday.
-        #expect(TimingEstimator.estimate(for: intersection, slot: 1, at: date(1_795_990_200)) != nil)
+        #expect(TimingEstimator.estimate(for: intersection, generated: "2026-11-29", slot: 1, at: date(1_795_990_200)) != nil)
         // Saturday 2026-11-14 07:10 JST has no weekday plan; slot 2 has none at all.
-        #expect(TimingEstimator.outcome(for: intersection, slot: 1, at: date(1_794_607_800)) == .unavailable(.noPlan))
-        #expect(TimingEstimator.outcome(for: intersection, slot: 2, at: now) == .unavailable(.noPlan))
+        #expect(TimingEstimator.outcome(for: intersection, generated: "2026-11-13", slot: 1, at: date(1_794_607_800)) == .unavailable(.noPlan))
+        #expect(TimingEstimator.outcome(for: intersection, generated: generated, slot: 2, at: now) == .unavailable(.noPlan))
         // 2025 is outside the holiday table.
-        let old = TimingFixtures.intersection(TimingFixtures.plan(lastDay: "2025-11-12"))
-        #expect(TimingEstimator.outcome(for: old, slot: 1, at: date(1_762_899_000)) == .unavailable(.excludedDay))
+        #expect(TimingEstimator.outcome(for: intersection, generated: "2025-11-11", slot: 1, at: date(1_762_899_000)) == .unavailable(.excludedDay))
     }
 
     @Test("a live start of green more than 5 s from the plan stops the cell for that JST day only")
     func liveMismatch() throws {
-        let plans = TimingPlans(intersections: [TimingFixtures.intersection(TimingFixtures.plan())])
+        let plans = TimingPlans(generated: generated, intersections: [TimingFixtures.intersection(TimingFixtures.plan())])
         let intersection = try #require(plans["1234ABCD"])
         let plan = intersection.plans[0]
         // The plan predicts a start of green at 07:10:37.4 JST.
@@ -300,9 +343,9 @@ struct TimingEstimatorTests {
         ))
         #expect(cell == TimingCell(intersectionID: "1234ABCD", slot: 1, dayType: .weekday, bin: 14))
         #expect(try stopped.contains(cell, on: day("2026-11-12")))
-        #expect(TimingEstimator.outcome(for: intersection, slot: 1, at: now, stopped: stopped) == .unavailable(.stopped))
+        #expect(TimingEstimator.outcome(for: intersection, generated: plans.generated, slot: 1, at: now, stopped: stopped) == .unavailable(.stopped))
         // The next day (Friday 07:10 JST) the plan is used again.
-        #expect(TimingEstimator.estimate(for: intersection, slot: 1, at: date(1_794_521_400), stopped: stopped) != nil)
+        #expect(TimingEstimator.estimate(for: intersection, generated: plans.generated, slot: 1, at: date(1_794_521_400), stopped: stopped) != nil)
 
         try stopped.removeEntries(before: day("2026-11-12"))
         #expect(!stopped.isEmpty)

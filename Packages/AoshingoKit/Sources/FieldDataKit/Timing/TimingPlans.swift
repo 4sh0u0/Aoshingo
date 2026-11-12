@@ -8,20 +8,39 @@ import PICSKit
 ///
 /// Decoding is lenient element by element: an intersection or plan that cannot be read, or whose
 /// values are outside the contract (`Plan.isValid`), is left out instead of failing the whole
-/// response. Leaving a cell out only means that no estimate is shown for it.
+/// response. Leaving a cell out only means that no estimate is shown for it. Keys this version does
+/// not know (such as `days`, `reports` and `lastDay` of earlier servers) are ignored.
 public struct TimingPlans: Sendable, Hashable, Codable {
+    /// The UTC day (`YYYY-MM-DD`) of the cron run that built these plans, as the server sent it, or
+    /// `nil` when it is missing, `null` (the server has no plans yet) or not a string. Plans without
+    /// a valid day, or built too long ago, give no estimate (`TimingEstimator.isCurrent`).
+    public var generated: String?
     public var intersections: [Intersection]
 
-    public init(intersections: [Intersection]) {
+    public init(generated: String? = nil, intersections: [Intersection]) {
+        self.generated = generated
         self.intersections = intersections
     }
 
-    private enum CodingKeys: String, CodingKey { case intersections }
+    private enum CodingKeys: String, CodingKey { case generated, intersections }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        generated = try? container.decodeIfPresent(String.self, forKey: .generated)
         let items = try container.decode([Lossy<Intersection>].self, forKey: .intersections)
         intersections = items.compactMap(\.value)
+    }
+
+    /// 00:00 UTC of `generated`, or `nil` when it is missing or not a valid `YYYY-MM-DD`.
+    public var generatedDayStart: Date? {
+        Self.startOfUTCDay(generated)
+    }
+
+    /// 00:00 UTC of the day `text` (`YYYY-MM-DD`), or `nil` when `text` is missing or not a day that
+    /// exists. `JapanDate` only parses the text and counts days, which is the same in any time zone.
+    static func startOfUTCDay(_ text: String?) -> Date? {
+        guard let text, let day = JapanDate(text) else { return nil }
+        return JapanCalendar.date(milliseconds: day.dayNumber * JapanCalendar.millisecondsPerDay)
     }
 
     /// The intersection with `id`, if it has plans.
@@ -120,11 +139,6 @@ public struct TimingPlans: Sendable, Hashable, Codable {
         public var green: Int?
         /// Median length of blinking green, in milliseconds.
         public var blink: Int?
-        /// Days and report rows the fit used.
-        public var days: Int
-        public var reports: Int
-        /// The last JST day with a start of green, `YYYY-MM-DD`.
-        public var lastDay: String
 
         public init(
             slot: Int,
@@ -135,10 +149,7 @@ public struct TimingPlans: Sendable, Hashable, Codable {
             phase: Int,
             spread: Int,
             green: Int? = nil,
-            blink: Int? = nil,
-            days: Int,
-            reports: Int,
-            lastDay: String
+            blink: Int? = nil
         ) {
             self.slot = slot
             self.dayType = dayType
@@ -149,24 +160,17 @@ public struct TimingPlans: Sendable, Hashable, Codable {
             self.spread = spread
             self.green = green
             self.blink = blink
-            self.days = days
-            self.reports = reports
-            self.lastDay = lastDay
         }
 
-        /// `lastDay` as a date, or `nil` when it is not a valid `YYYY-MM-DD`.
-        public var lastDate: JapanDate? { JapanDate(lastDay) }
-
         /// Whether the values are within what the server publishes: slot 1…6, bin 0…47, a cycle of
-        /// 30…300 s, a phase inside the cycle, a spread of at most 3 s and a valid `lastDay`. Other
-        /// plans are never used for an estimate.
+        /// 30…300 s, a phase inside the cycle and a spread of at most 3 s. Other plans are never used
+        /// for an estimate.
         public var isValid: Bool {
             ReportContract.slots.contains(slot)
                 && (0..<JapanCalendar.binsPerDay).contains(bin)
                 && TimingEstimator.cycleRange.contains(cycle)
                 && (0..<cycle).contains(phase)
                 && (0...TimingEstimator.maximumSpread).contains(spread)
-                && lastDate != nil
         }
     }
 }

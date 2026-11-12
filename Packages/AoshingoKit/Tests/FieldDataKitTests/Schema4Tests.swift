@@ -196,6 +196,7 @@ struct UploaderSchema4Tests {
         #expect(request.body == nil)
         #expect(request.headers["Authorization"] == "Bearer T1")
         #expect(download.body == body)
+        #expect(download.plans.generated == TimingFixtures.generated)
         #expect(download.plans.intersections.map(\.id) == ["1234ABCD", "00000002"])
         #expect(await uploader.retryNotBefore == nil)
     }

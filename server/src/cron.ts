@@ -10,7 +10,7 @@
 // Free plan limits per run: D1 queries 1 (usage) + 2 per fold chunk (the chunk query and one batch
 // with all its statements; at most 40) + 1 (keys) + 1 (record) = 43 of 50. Rows written at most
 // about 52,000 (fold) + 10,000 (keys) + a few; with the API's DAILY_WRITE_LIMIT of 30,000 and the
-// timing cron's 5,741 (src/timing.ts) that stays below the account's 100,000 per day.
+// timing cron's 5,871 (src/timing.ts) that stays below the account's 100,000 per day.
 
 import { deleteOldUsage } from "./budget";
 import { deleteUnusedKeys, KEY_DELETE_LIMIT, KEY_RETENTION_DAYS } from "./keys";

@@ -5,20 +5,29 @@ import FieldDataKit
 import Foundation
 import Observation
 import PICSKit
+import StoreKit
 import UIKit
 
 /// The signal timing plans and what the 「推定」 screen shows (docs/timing-estimation.md).
 ///
+/// - The 「推定」 screen exists only in TestFlight and development builds (`isFeatureAvailable`): App
+///   Store builds never show it, never download plans and keep no cache of them.
 /// - Plans are downloaded only while the user contributes field data (the server gives them only to
 ///   holders of an upload token), only while the app is in the foreground, and only when the last
 ///   download is 12 hours old or more. They are kept in a cache that is not used once it is more
 ///   than seven days old. Stopping the contribution deletes them.
+/// - Plans give no estimate once more than seven days have passed since the UTC day the server built
+///   them (`TimingPlans.generated`), or when that day is unknown; the estimator checks this for every
+///   estimate.
 /// - Every intersection's plans are downloaded, never only those the user has heard, so the server
 ///   does not learn which intersections the user cares about.
 /// - Live changes from Red to Green are compared with the plans; a cell more than 5 s off is stopped
 ///   for the rest of the JST day (「実測との照合」). Demo and played-back data are never checked.
 /// - The estimate is never a signal state: this model gives no colour, no announcement, no haptic
 ///   and no notification, only a range of seconds to the next start of green.
+/// - No estimate at all while live packets arrive: one from any intersection within the last 10 s
+///   stops every estimate. Nor for an intersection that may be closer than 80 m once the accuracy of
+///   the user's position is taken into account.
 @MainActor
 @Observable
 final class TimingModel {
@@ -26,9 +35,10 @@ final class TimingModel {
     static let refreshInterval: TimeInterval = 12 * 60 * 60
     /// After a failed download, wait at least this long (the uploader's back-off may ask for longer).
     static let retryInterval: TimeInterval = 15 * 60
-    /// An intersection heard within this many seconds shows its received signal, not an estimate.
+    /// After a live packet of any intersection, no estimate is shown for this many seconds.
     static let receptionWindow: TimeInterval = 10
-    /// No estimate closer to the intersection than this (metres).
+    /// No estimate when the user may be closer to the intersection than this (metres): the distance
+    /// less the horizontal accuracy of the user's position.
     static let minimumDistance: Double = 80
     /// The estimate screen lists at most this many intersections, nearest first.
     static let maximumListedIntersections = 20
@@ -37,12 +47,21 @@ final class TimingModel {
     enum Availability: Equatable {
         /// The user's position (within 30 m, at most 10 s old) or the intersection's is unknown.
         case unknownLocation
-        /// Closer than 80 m: receive the signal instead.
+        /// Possibly closer than 80 m (the distance less the accuracy of the position): receive the
+        /// signal instead.
         case tooClose
-        /// Heard within the last 10 seconds: look at the received signal.
+        /// A live packet of any intersection arrived within the last 10 seconds: look at the received
+        /// signal. Applies to every intersection at once.
         case receiving
         /// Estimates may be shown.
         case available
+    }
+
+    /// The user's position for the estimate screen.
+    struct UserPosition: Equatable {
+        let coordinate: Coordinate
+        /// Horizontal accuracy in metres (0…30): the user may be this much closer to an intersection.
+        let accuracy: Double
     }
 
     /// One signal slot of a listed intersection.
@@ -70,6 +89,11 @@ final class TimingModel {
     private(set) var plans: TimingPlans?
     private(set) var fetchedAt: Date?
     private(set) var isContributing = false
+    /// Whether this build may show the 「推定」 screen: TestFlight and development builds only. `false`
+    /// until the distribution channel is known, and when it cannot be told.
+    private(set) var isFeatureAvailable = false
+    /// Whether the 「推定」 screen is offered: the user contributes and this build may show it.
+    var showsEstimates: Bool { isContributing && isFeatureAvailable }
     private(set) var stopped: StoppedTimingCells
 
     /// Location for the estimate screen only, separate from the field-data location.
@@ -82,9 +106,16 @@ final class TimingModel {
     @ObservationIgnored private var fetchGeneration = 0
     @ObservationIgnored private var nextAttempt: Date?
     @ObservationIgnored private var detector = GreenStartDetector()
+    /// When the last live PICS packet of any intersection arrived; demo and played-back packets never
+    /// set it. Not observed: the estimate screen redraws every second anyway, and is not redrawn for
+    /// every packet.
+    @ObservationIgnored private var lastLiveReception: Date?
     /// The intersections of `plans` that have plans and a known position, decoded once per download
     /// instead of on every refresh of the estimate screen.
     @ObservationIgnored private var places: [Place] = []
+    /// Whether the distribution channel was told (`isFeatureAvailable`), and the check in progress.
+    @ObservationIgnored private var channelChecked = false
+    @ObservationIgnored private var channelTask: Task<Void, Never>?
 
     private struct Place {
         let intersection: TimingPlans.Intersection
@@ -111,21 +142,75 @@ final class TimingModel {
     func setContributing(_ contributing: Bool) {
         isContributing = contributing
         guard contributing else {
-            fetchGeneration += 1
-            fetchTask?.cancel()
-            fetchTask = nil
-            nextAttempt = nil
-            use(nil, fetchedAt: nil)
-            cache.remove()
-            detector.reset()
-            stopped = StoppedTimingCells()
-            defaults.removeObject(forKey: SettingsKey.timingStoppedCells)
+            clearPlans()
             return
         }
+        checkDistributionChannel()
+        loadCacheAndRefresh()
+    }
+
+    /// Drops the plans, any download in progress, the cache and the stopped cells.
+    private func clearPlans() {
+        fetchGeneration += 1
+        fetchTask?.cancel()
+        fetchTask = nil
+        nextAttempt = nil
+        use(nil, fetchedAt: nil)
+        cache.remove()
+        detector.reset()
+        stopped = StoppedTimingCells()
+        defaults.removeObject(forKey: SettingsKey.timingStoppedCells)
+    }
+
+    private func loadCacheAndRefresh() {
+        guard showsEstimates else { return }
         if plans == nil, let entry = cache.load(now: Date()) {
             use(entry.plans, fetchedAt: entry.fetchedAt)
         }
         refreshIfNeeded()
+    }
+
+    // MARK: - Distribution channel
+
+    /// Finds out once whether this build may show the 「推定」 screen (App Review 5.1.1: a feature
+    /// only for contributors is kept out of App Store builds). Checked only for contributors, when
+    /// they opt in or the app becomes active. Debug builds may; other builds may
+    /// when StoreKit says they come from TestFlight (`.sandbox`) or Xcode (`.xcode`). When StoreKit
+    /// cannot tell (no network at the first launch, for example), the screen stays hidden and the
+    /// check is tried again the next time the app becomes active. An App Store build deletes any plans
+    /// cached by an earlier TestFlight install.
+    func checkDistributionChannel() {
+        guard !channelChecked, channelTask == nil else { return }
+        #if DEBUG
+        channelChecked = true
+        isFeatureAvailable = true
+        loadCacheAndRefresh()
+        #else
+        channelTask = Task { [weak self] in
+            let environment: AppStore.Environment?
+            do {
+                switch try await AppTransaction.shared {
+                case .verified(let transaction), .unverified(let transaction, _):
+                    environment = transaction.environment
+                }
+            } catch {
+                environment = nil
+            }
+            self?.finishChannelCheck(environment)
+        }
+        #endif
+    }
+
+    private func finishChannelCheck(_ environment: AppStore.Environment?) {
+        channelTask = nil
+        guard let environment else { return }
+        channelChecked = true
+        isFeatureAvailable = environment == .sandbox || environment == .xcode
+        if isFeatureAvailable {
+            loadCacheAndRefresh()
+        } else {
+            clearPlans()
+        }
     }
 
     /// Downloads the plans when the user contributes, the app is in the foreground, and the last
@@ -134,7 +219,9 @@ final class TimingModel {
     func refreshIfNeeded() {
         let now = Date()
         dropExpiredPlans(now: now)
-        guard isContributing, let uploader, fetchTask == nil,
+        guard isContributing else { return }
+        checkDistributionChannel()
+        guard isFeatureAvailable, let uploader, fetchTask == nil,
               UIApplication.shared.applicationState != .background
         else { return }
         if let fetchedAt, (0..<Self.refreshInterval).contains(now.timeIntervalSince(fetchedAt)) { return }
@@ -164,7 +251,7 @@ final class TimingModel {
         // Opted out, or moved to the background, meanwhile: keep nothing.
         guard generation == fetchGeneration else { return }
         fetchTask = nil
-        guard isContributing else { return }
+        guard showsEstimates else { return }
         let now = Date()
         switch result {
         case .success(let download):
@@ -197,12 +284,26 @@ final class TimingModel {
         } ?? []
     }
 
-    // MARK: - Live check
+    // MARK: - Live reception
+
+    /// Records that a live PICS packet of any intersection arrived at `timestamp`, with or without
+    /// signals: no estimate is shown for the next 10 seconds (`isReceiving(at:)`). Demo and
+    /// played-back packets must never be passed here.
+    func recordLiveReception(at timestamp: Date) {
+        lastLiveReception = timestamp
+    }
+
+    /// Whether a live packet of any intersection arrived within the last 10 seconds. Then no estimate
+    /// is shown for any intersection: the user should look at the signal being received.
+    func isReceiving(at now: Date) -> Bool {
+        guard let lastLiveReception else { return false }
+        return abs(now.timeIntervalSince(lastLiveReception)) <= Self.receptionWindow
+    }
 
     /// Compares the signals of one live packet with the plans (「実測との照合」). Demo and played-back
     /// packets must never be passed here.
     func recordLiveSignals(intersectionID: String, signals: [PedestrianSignal], at timestamp: Date) {
-        guard isContributing else { return }
+        guard showsEstimates else { return }
         let starts = detector.update(intersectionID: intersectionID, signals: signals, at: timestamp)
         guard !starts.isEmpty, let plans else { return }
         var updated = stopped
@@ -226,15 +327,12 @@ final class TimingModel {
 
     // MARK: - Estimate screen
 
-    /// Starts location updates for the estimate screen, only if the user already allowed location
-    /// access (this screen never asks for it).
+    /// Starts location updates for the estimate screen. This screen never asks for location access:
+    /// `LocationProvider.start()` only asks iOS for positions once access is allowed, also when that
+    /// happens while the screen is open (the field-data prompt answered later, or a change in
+    /// Settings), so it is started whatever the authorization is now.
     func startLocationUpdates() {
-        switch location.authorization {
-        case .authorizedWhenInUse, .authorizedAlways:
-            location.start()
-        default:
-            break
-        }
+        location.start()
     }
 
     func stopLocationUpdates() {
@@ -249,20 +347,21 @@ final class TimingModel {
         }
     }
 
-    /// The user's position if it is within 30 m and at most 10 s old.
-    func userLocation(at now: Date) -> Coordinate? {
-        location.context(at: now).userLocation
+    /// The user's position and its accuracy if it is within 30 m and at most 10 s old.
+    func userPosition(at now: Date) -> UserPosition? {
+        let context = location.context(at: now)
+        guard let coordinate = context.userLocation, let accuracy = context.horizontalAccuracy else { return nil }
+        return UserPosition(coordinate: coordinate, accuracy: accuracy)
     }
 
     /// The intersections with plans, nearest first, and what to show for each at `now`.
-    /// - Parameters:
-    ///   - user: the user's position (`userLocation(at:)`), or `nil` when unknown.
-    ///   - lastHeard: when a packet of an intersection last arrived, if it did.
-    func rows(at now: Date, user: Coordinate?, lastHeard: (String) -> Date?) -> [Row] {
+    /// - Parameter user: the user's position (`userPosition(at:)`), or `nil` when unknown.
+    func rows(at now: Date, user: UserPosition?) -> [Row] {
         // Read `plans` so that the screen is redrawn when they change; `places` is derived from them.
-        guard plans != nil, let user else { return [] }
+        guard let plans, let user else { return [] }
+        let receiving = isReceiving(at: now)
         let located = places.map { place in
-            (place: place, distance: Bucketing.distance(from: user, to: place.coordinate))
+            (place: place, distance: Bucketing.distance(from: user.coordinate, to: place.coordinate))
         }
         let nearest = located
             .sorted { ($0.distance, $0.place.intersection.id) < ($1.distance, $1.place.intersection.id) }
@@ -270,12 +369,12 @@ final class TimingModel {
         return nearest.map { entry in
             let intersection = entry.place.intersection
             let distance = entry.distance
-            let availability = Self.availability(distance: distance, lastHeard: lastHeard(intersection.id), now: now)
+            let availability = Self.availability(distance: distance, accuracy: user.accuracy, isReceiving: receiving)
             let slots = intersection.slots.map { slot in
                 SlotEstimate(
                     slot: slot,
                     estimate: availability == .available
-                        ? TimingEstimator.estimate(for: intersection, slot: slot, at: now, stopped: stopped)
+                        ? TimingEstimator.estimate(for: intersection, generated: plans.generated, slot: slot, at: now, stopped: stopped)
                         : nil
                 )
             }
@@ -283,10 +382,25 @@ final class TimingModel {
         }
     }
 
-    /// 「表示の規則」 for an intersection whose distance from the user is known.
-    static func availability(distance: Double?, lastHeard: Date?, now: Date) -> Availability {
-        if let lastHeard, abs(now.timeIntervalSince(lastHeard)) <= receptionWindow { return .receiving }
-        guard let distance else { return .unknownLocation }
-        return distance < minimumDistance ? .tooClose : .available
+    /// Whether the plans in use list intersections but give no estimate because they were built more
+    /// than seven days ago, or on an unknown day (`TimingEstimator.isCurrent`).
+    func plansAreOutdated(at now: Date) -> Bool {
+        guard let plans, !plans.intersections.isEmpty else { return false }
+        return !TimingEstimator.isCurrent(generated: plans.generated, at: now)
+    }
+
+    /// 「表示の規則」 for one intersection.
+    /// - Parameters:
+    ///   - distance: metres from the user's position to the intersection, or `nil` when unknown.
+    ///   - accuracy: the horizontal accuracy of the user's position in metres, or `nil` when unknown.
+    ///   - isReceiving: whether a live packet of any intersection arrived within the last 10 seconds.
+    static func availability(distance: Double?, accuracy: Double?, isReceiving: Bool) -> Availability {
+        if isReceiving { return .receiving }
+        guard let distance, let accuracy, distance.isFinite, distance >= 0, accuracy.isFinite, accuracy >= 0 else {
+            return .unknownLocation
+        }
+        // The user may be up to `accuracy` metres closer than the position says: with an accuracy
+        // of 28 m, a position 85 m away may be 57 m away.
+        return distance - accuracy < minimumDistance ? .tooClose : .available
     }
 }

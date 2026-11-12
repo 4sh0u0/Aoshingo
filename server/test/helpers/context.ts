@@ -93,6 +93,7 @@ export async function resetDatabase(): Promise<void> {
       "service_state",
       "timing_plans",
       "timing_places",
+      "timing_snapshot",
     ].map((table) => bindings.DB.prepare(`DELETE FROM ${table}`)),
   );
 }
