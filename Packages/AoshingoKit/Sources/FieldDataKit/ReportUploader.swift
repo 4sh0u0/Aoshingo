@@ -86,12 +86,17 @@ public enum UploadOutcome: Sendable, Equatable {
     case rejected(code: String?)
 }
 
-/// Uploads reports, obtaining short-lived upload tokens through App Attest.
+/// Uploads reports and downloads the signal timing plans, obtaining short-lived upload tokens
+/// through App Attest.
 ///
 /// `forget()` (opt-out) wins over any upload in progress: every step checks, after each suspension
 /// point and before anything is stored or sent, that `forget()` has not been called since the
 /// upload started. Calls to `upload(_:)` are expected not to overlap; `FieldDataPipeline`
-/// serialises them.
+/// serialises them. `fetchPlans()` may run alongside an upload: getting a token is serialised, so
+/// the two never refresh the token or attest a key at the same time.
+///
+/// Every report `POST` of schema 4 or later carries `sentAt`, the uploader's clock at that attempt
+/// in Unix milliseconds (docs/timing-estimation.md). It is added here and not stored in the queue.
 public actor ReportUploader {
     /// Tokens are refreshed when they have less than this many seconds left.
     public static let tokenRefreshMargin: TimeInterval = 60
@@ -108,6 +113,9 @@ public actor ReportUploader {
     /// Incremented by `forget()`; work started under an older value stops without side effects.
     private var generation: UInt64 = 0
     private var retry: RetryState?
+    /// Set while a caller gets a token; others wait in `tokenWaiters`, in call order.
+    private var isGettingToken = false
+    private var tokenWaiters: [CheckedContinuation<Void, Never>] = []
 
     /// - Parameters:
     ///   - stateStore: keeps the back-off across launches.
@@ -148,17 +156,41 @@ public actor ReportUploader {
             setRetry(nil)
             return outcome
         } catch {
-            // Opted out or cancelled meanwhile: record nothing, not even a back-off.
-            if epoch != generation || Task.isCancelled || error is CancellationError || error as? UploadError == .cancelled {
-                throw UploadError.cancelled
-            }
-            let failures = (retry?.failures ?? 0) + 1
-            setRetry(RetryState(
-                failures: failures,
-                notBefore: RetryPolicy.nextAttempt(after: error, failures: failures, now: now(), random: random)
-            ))
-            throw error
+            throw failure(error, epoch: epoch)
         }
+    }
+
+    /// Downloads every intersection's signal timing plans (`GET /v1/plans`) with the upload token,
+    /// refreshing the token once when the server answers 401, as `upload(_:)` does.
+    ///
+    /// The request names no intersections: it always gets every intersection's plans, so the server
+    /// does not learn which intersections this user is interested in. The back-off is shared with
+    /// `upload(_:)`: this throws `backingOff` while one runs, and a failure starts or extends it.
+    public func fetchPlans() async throws -> TimingPlanDownload {
+        guard attestation.isSupported else { throw UploadError.attestationUnsupported }
+        if let retry, now() < retry.notBefore { throw UploadError.backingOff(until: retry.notBefore) }
+        let epoch = generation
+        do {
+            let download = try await getPlans(epoch: epoch)
+            setRetry(nil)
+            return download
+        } catch {
+            throw failure(error, epoch: epoch)
+        }
+    }
+
+    /// Records the back-off after a failed upload or download and returns the error to throw.
+    private func failure(_ error: any Error, epoch: UInt64) -> any Error {
+        // Opted out or cancelled meanwhile: record nothing, not even a back-off.
+        if epoch != generation || Task.isCancelled || error is CancellationError || error as? UploadError == .cancelled {
+            return UploadError.cancelled
+        }
+        let failures = (retry?.failures ?? 0) + 1
+        setRetry(RetryState(
+            failures: failures,
+            notBefore: RetryPolicy.nextAttempt(after: error, failures: failures, now: now(), random: random)
+        ))
+        return error
     }
 
     /// Forgets the token, the App Attest key ID and the back-off (when the user turns collection off),
@@ -193,6 +225,22 @@ public actor ReportUploader {
         }
     }
 
+    private func getPlans(epoch: UInt64) async throws -> TimingPlanDownload {
+        var response = try await requestPlans(token: try await validToken(epoch), epoch: epoch)
+        if response.status == 401 {
+            token = nil
+            response = try await requestPlans(token: try await validToken(epoch), epoch: epoch)
+        }
+        switch response.status {
+        case 200:
+            return TimingPlanDownload(plans: try Self.decode(TimingPlans.self, response.body), body: response.body)
+        case 429:
+            throw UploadError.rateLimited
+        default:
+            throw UploadError.server(status: response.status, code: Self.errorCode(response.body))
+        }
+    }
+
     // MARK: - Opt-out checks
 
     /// Before starting a request or an App Attest operation.
@@ -208,6 +256,11 @@ public actor ReportUploader {
     // MARK: - Tokens
 
     private func validToken(_ epoch: UInt64) async throws -> String {
+        // One caller at a time: an upload and a plans download must not refresh the token or attest a
+        // key concurrently (the server accepts each assertion counter only once, and every attestation
+        // costs an App Attest call). A caller that waited usually finds the token the other one got.
+        await lockToken()
+        defer { unlockToken() }
         if let token, token.expiresAt.timeIntervalSince(now()) > Self.tokenRefreshMargin {
             return token.value
         }
@@ -219,6 +272,26 @@ public actor ReportUploader {
             keyStorage.save(nil)
         }
         return try keep(try await attest(epoch: epoch), epoch: epoch)
+    }
+
+    private func lockToken() async {
+        guard isGettingToken else {
+            isGettingToken = true
+            return
+        }
+        await withCheckedContinuation { tokenWaiters.append($0) }
+    }
+
+    /// Callers waiting for another one to get the token (for tests).
+    var tokenWaiterCount: Int { tokenWaiters.count }
+
+    /// Hands the token lock to the next waiter, in call order.
+    private func unlockToken() {
+        if tokenWaiters.isEmpty {
+            isGettingToken = false
+        } else {
+            tokenWaiters.removeFirst().resume()
+        }
     }
 
     private func keep(_ response: TokenResponse, epoch: UInt64) throws -> String {
@@ -367,13 +440,64 @@ public actor ReportUploader {
         return response
     }
 
+    /// Posts one report, stamped with `sentAt` at this attempt (see `stamped(_:sentAt:)`).
     private func postReport(_ body: Data, token: String, epoch: UInt64) async throws -> HTTPResponse {
         try await perform(HTTPRequest(
             method: "POST",
             path: "/v1/reports",
             headers: ["Content-Type": "application/json", "Authorization": "Bearer \(token)"],
-            body: body
+            body: Self.stamped(body, sentAt: now())
         ), epoch: epoch)
+    }
+
+    private func requestPlans(token: String, epoch: UInt64) async throws -> HTTPResponse {
+        try await perform(HTTPRequest(
+            method: "GET",
+            path: "/v1/plans",
+            headers: ["Accept": "application/json", "Authorization": "Bearer \(token)"]
+        ), epoch: epoch)
+    }
+
+    /// `body` as sent at `date`. A report of schema 4 or later gets `"sentAt": <Unix milliseconds of
+    /// date>` (inserted after the opening brace, so the rest of the body keeps its bytes), which the
+    /// server compares with its own clock. Bodies of older schemas, which may still be queued from an
+    /// earlier version, are sent unchanged, because the server rejects `sentAt` below schema 4; so is
+    /// anything that is not a JSON object.
+    static func stamped(_ body: Data, sentAt date: Date) -> Data {
+        guard let envelope = try? JSONDecoder().decode(ReportEnvelope.self, from: body),
+              let schema = envelope.schema, schema >= 4
+        else { return body }
+        let milliseconds = Int((date.timeIntervalSince1970 * 1000).rounded(.down))
+        if !envelope.hasSentAt, let brace = body.firstIndex(of: UInt8(ascii: "{")),
+           body[body.startIndex..<brace].allSatisfy(Self.isJSONWhitespace) {
+            // The object has at least `schema`, so a comma follows the new member.
+            var result = Data(body[body.startIndex...brace])
+            result.append(contentsOf: Array("\"sentAt\":\(milliseconds),".utf8))
+            result.append(contentsOf: body[body.index(after: brace)...])
+            return result
+        }
+        // This app never queues `sentAt`; should a body have one, its value is replaced.
+        guard var object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return body }
+        object["sentAt"] = milliseconds
+        return (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? body
+    }
+
+    private static func isJSONWhitespace(_ byte: UInt8) -> Bool {
+        byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D
+    }
+
+    /// The members of a report body that decide how it is stamped.
+    private struct ReportEnvelope: Decodable {
+        var schema: Int?
+        var hasSentAt: Bool
+
+        private enum CodingKeys: String, CodingKey { case schema, sentAt }
+
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            schema = try? container.decodeIfPresent(Int.self, forKey: .schema)
+            hasSentAt = container.contains(.sentAt)
+        }
     }
 
     private func postJSON(_ path: String, _ object: [String: String], epoch: UInt64) async throws -> HTTPResponse {

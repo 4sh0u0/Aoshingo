@@ -44,13 +44,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Only if you share field data, your location is used to work out your rough direction from the intersection (one of 8 sectors). Your location itself is never sent."
+            "value": "Only if you share field data, your location is used to work out your rough direction from the intersection (one of 8 sectors) and, on the Estimates screen, the distance to intersections. Your location itself is never sent."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "new",
-            "value": "実測データの提供に協力している場合だけ、交差点から見たおおまかな方向（8 方位）を求めるために使います。位置そのものは端末の外に送信しません。"
+            "value": "実測データの提供に協力している場合だけ、交差点から見たおおまかな方向（8 方位）と、「推定」の画面で交差点までの距離を求めるために使います。位置そのものは端末の外に送信しません。"
           }
         }
       }

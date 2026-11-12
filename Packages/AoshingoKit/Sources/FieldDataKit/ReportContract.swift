@@ -6,7 +6,7 @@ import PICSKit
 /// The server's rules for `POST /v1/reports` (docs/field-data-api.md, server/src/report.ts).
 ///
 /// The server rejects a whole report for a single bad value, and a rejected report is dropped, so
-/// reports are brought into line before they are queued (schema 3):
+/// reports are brought into line before they are queued (schema 4):
 ///
 /// - Invalid observations, transitions, steps, packet statistics, coverage periods and labels are
 ///   dropped; invalid optional values become `null`, including emitter numbers outside
@@ -16,8 +16,15 @@ import PICSKit
 ///   every body has at most 50 intersections, unique intersection IDs, at most 600 observations,
 ///   300 transitions and 600 steps per intersection and at most 256 KiB. A split intersection repeats
 ///   `emitterInfo` in every piece and carries `packets`, `coverage` and `labels` in the first only.
+/// - Bodies leave `sentAtAllowance` bytes of the 256 KiB free for the `sentAt` that `ReportUploader`
+///   adds to every attempt, and never contain `sentAt` themselves.
 public enum ReportContract {
     public static let maximumBodyBytes = 256 * 1024
+    /// Room kept free in every queued body for `"sentAt":<Unix milliseconds>,`, which the uploader
+    /// inserts before each `POST` (9 bytes for the key and colon, up to 20 for the number, 1 comma).
+    public static let sentAtAllowance = 30
+    /// The largest queued body: `maximumBodyBytes` less `sentAtAllowance`.
+    public static var maximumQueuedBodyBytes: Int { maximumBodyBytes - sentAtAllowance }
     public static let maximumIntersections = 50
     public static let maximumServiceUUIDs = 8
     public static let maximumEmitters = 32
@@ -51,7 +58,7 @@ public enum ReportContract {
         let times = timeRange(now: now)
         let intersections = report.intersections.compactMap { sanitized($0, times: times) }
         return pack(intersections, client: client).compactMap { report in
-            guard let body = try? report.encoded(), body.count <= maximumBodyBytes else { return nil }
+            guard let body = try? report.encoded(), body.count <= maximumQueuedBodyBytes else { return nil }
             return body
         }
     }
@@ -134,6 +141,7 @@ public enum ReportContract {
         let transitions = intersection.transitions.compactMap { transition -> FieldReport.Transition? in
             guard times.contains(transition.t), slots.contains(transition.slot), transition.from != transition.to else { return nil }
             var transition = transition
+            transition.ms = multiple(transition.ms, of: 100, upTo: Bucketing.maximumSubsecond)
             transition.emitter = emitter(transition.emitter)
             transition.gap = multiple(transition.gap, of: 100, upTo: maximumGap)
             transition.held = multiple(transition.held, of: 100, upTo: Bucketing.maximumDuration)
@@ -145,6 +153,7 @@ public enum ReportContract {
             step.from = step.from.flatMap { remainingRange.contains($0) ? $0 : nil }
             step.to = step.to.flatMap { remainingRange.contains($0) ? $0 : nil }
             guard times.contains(step.t), slots.contains(step.slot), step.from != step.to else { return nil }
+            step.ms = multiple(step.ms, of: 100, upTo: Bucketing.maximumSubsecond)
             step.emitter = emitter(step.emitter)
             step.held = multiple(step.held, of: 100, upTo: Bucketing.maximumDuration)
             return step
@@ -211,7 +220,7 @@ public enum ReportContract {
     static func pack(_ intersections: [FieldReport.Intersection], client: String?) -> [FieldReport] {
         let envelope = encodedSize(FieldReport(client: client, intersections: []))
         // Bytes left for the contents of the `intersections` array.
-        let budget = maximumBodyBytes - envelope
+        let budget = maximumQueuedBodyBytes - envelope
         var reports: [FieldReport] = []
         var current: [FieldReport.Intersection] = []
         var used = 0

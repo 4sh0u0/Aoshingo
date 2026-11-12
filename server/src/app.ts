@@ -9,7 +9,7 @@ import { APPLE_APP_ATTESTATION_ROOT_CA_DER } from "./apple-root";
 import { verifyAssertion, verifyAttestation, VerificationError, type AttestEnvironment } from "./appattest";
 import { checkCapacity, reserveWrites } from "./budget";
 import { issueChallenge, verifyChallenge } from "./challenge";
-import { runDailyJobs } from "./cron";
+import { DAILY_CRON, runDailyJobs } from "./cron";
 import { decodeBase64, encodeBase64Url, fromHex, toHex } from "./encoding";
 import {
   allowDevelopment,
@@ -21,11 +21,12 @@ import {
   tokenTtlSeconds,
   type Env,
 } from "./env";
-import { errorResponse, HttpError, isJsonContentType, json, parseJson, readBodyLimited } from "./http";
+import { errorResponse, HttpError, isJsonContentType, json, jsonText, parseJson, readBodyLimited } from "./http";
 import { findKey, insertKey, KEY_REFRESH_COST, KEY_WRITE_COST, updateCounter } from "./keys";
 import { MAX_REPORT_BYTES, validateReport } from "./report";
-import { reportPayloads, reportWriteCost, storeReport, utcDay } from "./storage";
-import { issueToken, verifyToken } from "./token";
+import { clockOk, reportPayloads, reportWriteCost, storeReport, utcDay } from "./storage";
+import { plansBody, runTimingJob, TIMING_CRON } from "./timing";
+import { issueToken, verifyToken, type TokenClaims } from "./token";
 
 /** Attest/token request bodies are small; anything bigger is not a genuine client. */
 const MAX_AUTH_BODY_BYTES = 64 * 1024;
@@ -214,10 +215,9 @@ export function createApp(options: AppOptions = {}): App {
     return tokenResponse(env, key.environment, nowMs);
   };
 
-  const reports: Handler = async (request, env, nowMs) => {
-    const nowSeconds = Math.floor(nowMs / 1000);
+  /** The claims of the request's upload token (Authorization: Bearer), or 401 invalid_token. */
+  async function authorizeUpload(request: Request, env: Env, nowSeconds: number): Promise<TokenClaims> {
     const secret = tokenSecret(env);
-    const limits = budgetLimits(env);
     const authorization = request.headers.get("authorization");
     const match = authorization === null ? null : /^Bearer ([^\s]+)$/i.exec(authorization);
     const claims = match === null ? null : await verifyToken(secret, match[1]!, nowSeconds);
@@ -226,6 +226,14 @@ export function createApp(options: AppOptions = {}): App {
     if (claims.environment === "development" && !allowDevelopment(env)) {
       throw new HttpError(401, "invalid_token");
     }
+    return claims;
+  }
+
+  // `nowMs` was taken before the body is read, as the clock check of schema 4 requires.
+  const reports: Handler = async (request, env, nowMs) => {
+    const nowSeconds = Math.floor(nowMs / 1000);
+    const limits = budgetLimits(env);
+    const claims = await authorizeUpload(request, env, nowSeconds);
 
     await rateLimit(env.REPORTS_RATE_LIMITER, encodeBase64Url(claims.id));
 
@@ -239,7 +247,7 @@ export function createApp(options: AppOptions = {}): App {
 
     const { intersections } = result.report;
     const payloads = reportPayloads(result.report);
-    await reserveWrites(env.DB, limits, utcDay(nowMs), reportWriteCost(payloads));
+    await reserveWrites(env.DB, limits, utcDay(nowMs), reportWriteCost(payloads, clockOk(result.report, nowMs)));
     await storeReport(env.DB, result.report, nowMs, payloads);
     return json(202, {
       accepted: {
@@ -250,12 +258,24 @@ export function createApp(options: AppOptions = {}): App {
     });
   };
 
+  // Timing plans for apps that hold an upload token, from the snapshot the timing cron built: one
+  // read per chunk, no D1 write, so no budget. It takes no query: the app always fetches every
+  // intersection, so that the server never learns which ones a user cares about, and any query
+  // (such as `ids`) is refused rather than ignored.
+  const plans: Handler = async (request, env, nowMs) => {
+    const claims = await authorizeUpload(request, env, Math.floor(nowMs / 1000));
+    await rateLimit(env.REPORTS_RATE_LIMITER, `plans:${encodeBase64Url(claims.id)}`);
+    if (new URL(request.url).search !== "") throw new HttpError(400, "bad_request");
+    return jsonText(200, await plansBody(env.DB), { "cache-control": "private, max-age=3600" });
+  };
+
   const routes: Record<string, Route> = {
     "/v1/health": { method: "GET", handler: health },
     "/v1/challenge": { method: "POST", handler: challenge },
     "/v1/attest": { method: "POST", handler: attest },
     "/v1/token": { method: "POST", handler: token },
     "/v1/reports": { method: "POST", handler: reports },
+    "/v1/plans": { method: "GET", handler: plans },
   };
 
   return {
@@ -276,8 +296,18 @@ export function createApp(options: AppOptions = {}): App {
       }
     },
 
-    async scheduled(_controller, env) {
-      await runDailyJobs(env.DB, now(), retentionDays(env));
+    // Each Cron Trigger runs its own jobs; an unknown one is a configuration error.
+    async scheduled(controller, env) {
+      switch (controller.cron) {
+        case DAILY_CRON:
+          await runDailyJobs(env.DB, now(), retentionDays(env));
+          return;
+        case TIMING_CRON:
+          await runTimingJob(env.DB, now());
+          return;
+        default:
+          throw new Error("unknown cron trigger");
+      }
     },
   };
 }

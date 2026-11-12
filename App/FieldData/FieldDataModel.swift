@@ -32,6 +32,10 @@ final class FieldDataModel {
 
     var canContribute: Bool { unavailability == nil }
 
+    /// The signal timing plans and estimates, which are downloaded with the same upload token and
+    /// only while the user contributes.
+    let timing: TimingModel
+
     @ObservationIgnored private let pipeline: FieldDataPipeline
     @ObservationIgnored private let hasUploader: Bool
     @ObservationIgnored private let location = LocationProvider()
@@ -62,6 +66,7 @@ final class FieldDataModel {
             )
         }
         hasUploader = uploader != nil
+        timing = TimingModel(uploader: uploader)
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         pipeline = FieldDataPipeline(
             store: FileReportStore(directory: directory),
@@ -77,6 +82,8 @@ final class FieldDataModel {
         let enabled = consent == .granted && canContribute
         isEnabled = enabled
         if !enabled {
+            // The plans are only for contributors: stop downloading them and delete them at once.
+            timing.setContributing(false)
             // Stop the periodic upload first; the pipeline then waits for one in progress.
             uploadLoop?.cancel()
             uploadLoop = nil
@@ -87,7 +94,10 @@ final class FieldDataModel {
         await pipeline.setEnabled(enabled)
         if enabled {
             // Not if the user opted out again meanwhile.
-            if isEnabled { location.requestAuthorizationIfNeeded() }
+            if isEnabled {
+                location.requestAuthorizationIfNeeded()
+                timing.setContributing(true)
+            }
         } else if !hasUploader {
             // Without an uploader there is nothing to forget a key left by an earlier build that had a server.
             KeychainKeyIDStorage().save(nil)

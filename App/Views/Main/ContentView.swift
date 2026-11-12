@@ -19,6 +19,7 @@ struct ContentView: View {
     /// iPhone Duo inner screen, where the split view without a binding shows it.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showingSettings = false
+    @State private var showingEstimates = false
     @State private var showingImporter = false
 
     private static let autoSelection = "auto"
@@ -73,6 +74,9 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
+        .sheet(isPresented: $showingEstimates) {
+            TimingEstimateView()
+        }
         .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json, .plainText, .data]) { result in
             if case .success(let url) = result {
                 model.startReplay(url)
@@ -101,6 +105,13 @@ struct ContentView: View {
                 Button("記録ファイルを再生", systemImage: "doc.badge.clock") { showingImporter = true }
             } label: {
                 Label("その他", systemImage: "ellipsis")
+            }
+        }
+        // The signal timing estimates are only for users who contribute field data, and only in
+        // TestFlight and development builds (TimingModel.isFeatureAvailable).
+        if model.timing.showsEstimates {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("推定", systemImage: "clock") { showingEstimates = true }
             }
         }
         ToolbarItem(placement: .topBarTrailing) {

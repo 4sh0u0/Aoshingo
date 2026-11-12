@@ -461,7 +461,11 @@ describe("scheduled retention job", () => {
     shortRetention.clock.ms = NOW;
     await storeReport(env.DB, report(NOW - 2 * DAY_MS), NOW - 2 * DAY_MS);
     await storeReport(env.DB, report(NOW - DAY_MS), NOW - DAY_MS);
-    await shortRetention.app.scheduled(createScheduledController(), shortRetention.env, createExecutionContext());
+    await shortRetention.app.scheduled(
+      createScheduledController({ cron: "0 18 * * *" }),
+      shortRetention.env,
+      createExecutionContext(),
+    );
     expect(await rows("SELECT received_day FROM reports")).toEqual([{ received_day: "2026-11-09" }]);
   });
 });
@@ -570,6 +574,14 @@ describe("service_state", () => {
         deleted_keys: 1,
         rows_written: meter.rowsWritten,
         database_bytes: result.databaseBytes,
+        // Recorded by the timing cron (test/timing.test.ts).
+        timing_last_success: null,
+        timing_fitted: null,
+        timing_plan_rows: null,
+        timing_expired: null,
+        timing_backlog: null,
+        timing_waiting: null,
+        timing_rows_written: null,
       },
     ]);
     expect(result.databaseBytes).toBeGreaterThan(0);
@@ -581,6 +593,13 @@ describe("service_state", () => {
       "deleted_keys",
       "rows_written",
       "database_bytes",
+      "timing_last_success",
+      "timing_fitted",
+      "timing_plan_rows",
+      "timing_expired",
+      "timing_backlog",
+      "timing_waiting",
+      "timing_rows_written",
     ]);
   });
 

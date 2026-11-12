@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Validation of POST /v1/reports bodies (docs/field-data-api.md, "POST /v1/reports"). Schema 1,
-// 2 and 3 bodies are accepted; a body must not carry any field that a later schema added. Schema 3
-// is schema 2 plus observations[].activity. The validated report is rebuilt from known fields only,
-// so nothing unexpected can reach storage.
+// Validation of POST /v1/reports bodies (docs/field-data-api.md, "POST /v1/reports"). Schema 1
+// to 4 bodies are accepted; a body must not carry any field that a later schema added. Schema 3
+// is schema 2 plus observations[].activity. Schema 4 is schema 3 plus the top-level sentAt and
+// transitions[].ms and steps[].ms (docs/timing-estimation.md). The validated report is rebuilt
+// from known fields only, so nothing unexpected can reach storage; sentAt is kept on the report
+// for the clock check and never reaches a payload (src/storage.ts).
 
 export const MAX_REPORT_BYTES = 256 * 1024;
 
@@ -51,6 +53,8 @@ const LABEL_KINDS = new Set(["crosswalk", "button"]);
 const ACTIVITIES = new Set(["stationary", "walking", "running", "cycling", "automotive"]);
 /** Longest `held`, `cycle` and `steps[].held` (ms); the app sends null beyond an hour. */
 const MAX_DURATION_MS = 3_600_000;
+/** Schema 4: the millisecond part of a change's time, truncated to 100 ms. */
+const MAX_MILLIS = 900;
 
 export interface Observation {
   t: number;
@@ -157,6 +161,21 @@ export interface Schema3Intersection extends Schema2Intersection {
   observations: Schema3Observation[];
 }
 
+/** Schema 4: `ms` (0-900, multiples of 100) adds tenths of a second to `t`. */
+export interface Schema4Transition extends Schema2Transition {
+  ms: number | null;
+}
+
+export interface Schema4Step extends Step {
+  ms: number | null;
+}
+
+/** Schema 4 changes the transitions and steps of schema 3. */
+export interface Schema4Intersection extends Schema3Intersection {
+  transitions: Schema4Transition[];
+  steps: Schema4Step[];
+}
+
 export interface Schema1Report {
   schema: 1;
   client: string | null;
@@ -175,7 +194,15 @@ export interface Schema3Report {
   intersections: Schema3Intersection[];
 }
 
-export type Report = Schema1Report | Schema2Report | Schema3Report;
+export interface Schema4Report {
+  schema: 4;
+  client: string | null;
+  /** Unix ms of the device clock when the request was built. Used for the clock check only, never stored. */
+  sentAt: number;
+  intersections: Schema4Intersection[];
+}
+
+export type Report = Schema1Report | Schema2Report | Schema3Report | Schema4Report;
 
 export type ValidationResult = { ok: true; report: Report } | { ok: false; reason: string };
 
@@ -293,6 +320,11 @@ const SCHEMA2_OBSERVATION_KEYS = [...OBSERVATION_KEYS, "emitter", "distance", "a
 const SCHEMA3_OBSERVATION_KEYS = [...SCHEMA2_OBSERVATION_KEYS, "activity"];
 const TRANSITION_KEYS = ["t", "slot", "from", "to"];
 const SCHEMA2_TRANSITION_KEYS = [...TRANSITION_KEYS, "emitter", "gap", "held", "cycle"];
+const SCHEMA4_TRANSITION_KEYS = [...SCHEMA2_TRANSITION_KEYS, "ms"];
+const STEP_KEYS = ["t", "slot", "state", "from", "to", "emitter", "held"];
+const SCHEMA4_STEP_KEYS = [...STEP_KEYS, "ms"];
+const REPORT_KEYS = ["schema", "client", "intersections"];
+const SCHEMA4_REPORT_KEYS = [...REPORT_KEYS, "sentAt"];
 const INTERSECTION_KEYS = ["id", "serviceUUIDs", "emitters", "observations", "transitions"];
 const SCHEMA2_INTERSECTION_KEYS = [...INTERSECTION_KEYS, "emitterInfo", "steps", "packets", "coverage", "labels"];
 
@@ -382,15 +414,28 @@ function schema1Transition(value: unknown, nowSeconds: number): Transition {
   return transition(objectWithKeys(value, TRANSITION_KEYS, "transition"), nowSeconds);
 }
 
-function schema2Transition(value: unknown, emitters: number, nowSeconds: number): Schema2Transition {
+/** The fields of a schema 2 transition, from an object whose keys were already checked. */
+function schema2TransitionFields(object: JsonObject, emitters: number, nowSeconds: number): Schema2Transition {
   const where = "transition";
-  const object = objectWithKeys(value, SCHEMA2_TRANSITION_KEYS, where);
   return {
     ...transition(object, nowSeconds),
     emitter: nullableEmitter(object, emitters, where),
     gap: nullableMultiple(object, "gap", 5000, 100, where),
     held: nullableMultiple(object, "held", MAX_DURATION_MS, 100, where),
     cycle: nullableMultiple(object, "cycle", MAX_DURATION_MS, 100, where),
+  };
+}
+
+function schema2Transition(value: unknown, emitters: number, nowSeconds: number): Schema2Transition {
+  return schema2TransitionFields(objectWithKeys(value, SCHEMA2_TRANSITION_KEYS, "transition"), emitters, nowSeconds);
+}
+
+function schema4Transition(value: unknown, emitters: number, nowSeconds: number): Schema4Transition {
+  const where = "transition";
+  const object = objectWithKeys(value, SCHEMA4_TRANSITION_KEYS, where);
+  return {
+    ...schema2TransitionFields(object, emitters, nowSeconds),
+    ms: nullableMultiple(object, "ms", MAX_MILLIS, 100, where),
   };
 }
 
@@ -403,9 +448,9 @@ function emitterInfo(value: unknown): EmitterInfo {
   };
 }
 
-function step(value: unknown, emitters: number, nowSeconds: number): Step {
+/** The fields of a schema 2 step, from an object whose keys were already checked. */
+function stepFields(object: JsonObject, emitters: number, nowSeconds: number): Step {
   const where = "step";
-  const object = objectWithKeys(value, ["t", "slot", "state", "from", "to", "emitter", "held"], where);
   const t = checkTime(object, "t", nowSeconds, where);
   const slot = requiredInteger(object, "slot", 1, 6, where);
   const state = signalState(object, "state", where);
@@ -416,6 +461,16 @@ function step(value: unknown, emitters: number, nowSeconds: number): Step {
   const emitter = nullableEmitter(object, emitters, where);
   const held = nullableMultiple(object, "held", MAX_DURATION_MS, 100, where);
   return { t, slot, state, from, to, emitter, held };
+}
+
+function step(value: unknown, emitters: number, nowSeconds: number): Step {
+  return stepFields(objectWithKeys(value, STEP_KEYS, "step"), emitters, nowSeconds);
+}
+
+function schema4Step(value: unknown, emitters: number, nowSeconds: number): Schema4Step {
+  const where = "step";
+  const object = objectWithKeys(value, SCHEMA4_STEP_KEYS, where);
+  return { ...stepFields(object, emitters, nowSeconds), ms: nullableMultiple(object, "ms", MAX_MILLIS, 100, where) };
 }
 
 function packetStats(value: unknown, emitters: number): PacketStats {
@@ -491,13 +546,36 @@ function schema1Intersection(value: unknown, nowSeconds: number): IntersectionRe
 }
 
 type ObservationParser<O> = (value: unknown, intersectionId: string, emitters: number, nowSeconds: number) => O;
+type ItemParser<I> = (value: unknown, emitters: number, nowSeconds: number) => I;
 
-/** A schema 2 or 3 intersection; they differ only in their observations. */
-function laterIntersection<O extends Schema2Observation>(
+/** How the items of one schema's intersections are parsed. */
+interface ItemParsers<O, T, S> {
+  observation: ObservationParser<O>;
+  transition: ItemParser<T>;
+  step: ItemParser<S>;
+}
+
+const SCHEMA2_ITEMS: ItemParsers<Schema2Observation, Schema2Transition, Step> = {
+  observation: schema2Observation,
+  transition: schema2Transition,
+  step,
+};
+const SCHEMA3_ITEMS: ItemParsers<Schema3Observation, Schema2Transition, Step> = {
+  ...SCHEMA2_ITEMS,
+  observation: schema3Observation,
+};
+const SCHEMA4_ITEMS: ItemParsers<Schema3Observation, Schema4Transition, Schema4Step> = {
+  observation: schema3Observation,
+  transition: schema4Transition,
+  step: schema4Step,
+};
+
+/** A schema 2, 3 or 4 intersection; they differ only in the fields of their items. */
+function laterIntersection<O extends Schema2Observation, T extends Schema2Transition, S extends Step>(
   value: unknown,
   nowSeconds: number,
-  parseObservation: ObservationParser<O>,
-): Schema2Intersection & { observations: O[] } {
+  parse: ItemParsers<O, T, S>,
+): Schema2Intersection & { observations: O[]; transitions: T[]; steps: S[] } {
   const where = "intersection";
   const object = objectWithKeys(value, SCHEMA2_INTERSECTION_KEYS, where);
   const { id, serviceUUIDs, emitters } = intersectionHeader(object);
@@ -521,9 +599,9 @@ function laterIntersection<O extends Schema2Observation>(
     serviceUUIDs,
     emitters,
     emitterInfo: info.map(emitterInfo),
-    observations: observations.map((item) => parseObservation(item, id, emitters, nowSeconds)),
-    transitions: transitions.map((item) => schema2Transition(item, emitters, nowSeconds)),
-    steps: steps.map((item) => step(item, emitters, nowSeconds)),
+    observations: observations.map((item) => parse.observation(item, id, emitters, nowSeconds)),
+    transitions: transitions.map((item) => parse.transition(item, emitters, nowSeconds)),
+    steps: steps.map((item) => parse.step(item, emitters, nowSeconds)),
     packets: validatedPackets,
     coverage: spans.map((item) => coverage(item, nowSeconds)),
     labels: labels.map((item) => label(item, nowSeconds)),
@@ -533,9 +611,10 @@ function laterIntersection<O extends Schema2Observation>(
 export function validateReport(body: unknown, nowSeconds: number): ValidationResult {
   try {
     if (!isObject(body)) invalid("body is not an object");
-    checkKeys(body, ["schema", "client", "intersections"], "report");
     const schema = body.schema;
-    if (schema !== 1 && schema !== 2 && schema !== 3) invalid("schema");
+    if (schema !== 1 && schema !== 2 && schema !== 3 && schema !== 4) invalid("schema");
+    // sentAt exists from schema 4 on.
+    checkKeys(body, schema === 4 ? SCHEMA4_REPORT_KEYS : REPORT_KEYS, "report");
 
     let client: string | null = null;
     if (body.client !== undefined && body.client !== null) {
@@ -556,13 +635,22 @@ export function validateReport(body: unknown, nowSeconds: number): ValidationRes
       report = {
         schema,
         client,
-        intersections: intersections.map((item) => laterIntersection(item, nowSeconds, schema2Observation)),
+        intersections: intersections.map((item) => laterIntersection(item, nowSeconds, SCHEMA2_ITEMS)),
       };
-    } else {
+    } else if (schema === 3) {
       report = {
         schema,
         client,
-        intersections: intersections.map((item) => laterIntersection(item, nowSeconds, schema3Observation)),
+        intersections: intersections.map((item) => laterIntersection(item, nowSeconds, SCHEMA3_ITEMS)),
+      };
+    } else {
+      // A positive integer of Unix ms, exact as a JavaScript number.
+      const sentAt = requiredInteger(body, "sentAt", 1, Number.MAX_SAFE_INTEGER, "report");
+      report = {
+        schema,
+        client,
+        sentAt,
+        intersections: intersections.map((item) => laterIntersection(item, nowSeconds, SCHEMA4_ITEMS)),
       };
     }
     const ids = report.intersections.map((item) => item.id);

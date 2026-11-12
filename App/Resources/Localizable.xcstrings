@@ -351,6 +351,16 @@
         }
       }
     },
+    "この時間帯の推定はありません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No estimate for this time"
+          }
+        }
+      }
+    },
     "この端末では App Attest を使えないため送信できません（シミュレーターなど）。": {
       "localizations": {
         "en": {
@@ -461,12 +471,12 @@
         }
       }
     },
-    "オフにすると、まだ送信していないデータはすぐに削除されます。": {
+    "オフにすると、まだ送信していないデータと、受け取った時刻表はすぐに削除されます。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Turning this off immediately deletes data that has not been sent yet."
+            "value": "Turning this off immediately deletes data that has not been sent yet and the timing plans received."
           }
         }
       }
@@ -721,6 +731,16 @@
         }
       }
     },
+    "交差点の近くでは推定を表示しません。信号を受信してください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No estimates are shown near the intersection. Receive the signal instead."
+          }
+        }
+      }
+    },
     "交差点名": {
       "localizations": {
         "en": {
@@ -747,6 +767,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Position"
+          }
+        }
+      }
+    },
+    "位置情報の利用が許可されていません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location access is not allowed."
           }
         }
       }
@@ -841,12 +871,12 @@
         }
       }
     },
-    "信号の周期や、どの番号がどの横断歩道かを調べるため、受信したデータの提供にご協力いただけますか。協力しなくても、すべての機能をそのまま使えます。": {
+    "信号の周期や、どの番号がどの横断歩道かを調べるため、受信したデータの提供にご協力いただけますか。集まったデータから求めた信号の周期は、協力している人の試験版（TestFlight）のアプリに「次の青の始まり」の推定として示します。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "To learn signal cycles and which number belongs to which crossing, would you share the data you receive? Every feature works the same if you do not."
+            "value": "To learn signal cycles and which number belongs to which crossing, would you share the data you receive? The signal cycles worked out from the shared data are shown in the test version (TestFlight) of the app of everyone who shares, as estimates of the next start of green."
           }
         }
       }
@@ -861,12 +891,22 @@
         }
       }
     },
-    "信号や「残り目安」が変わった時刻（秒単位）と、それぞれが続いた時間（0.1 秒単位）": {
+    "信号や「残り目安」が変わった時刻と、それぞれが続いた時間（どちらも 0.1 秒単位）": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When signals and the remaining-time indication changed (to the second), and how long each lasted (to 0.1 s)"
+            "value": "When signals and the remaining-time indication changed, and how long each lasted (both to 0.1 s)"
+          }
+        }
+      }
+    },
+    "信号を受信しているあいだは推定を表示しません。受信中の信号をご覧ください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No estimates are shown while a signal is being received. See the signal being received."
           }
         }
       }
@@ -1021,6 +1061,16 @@
         }
       }
     },
+    "協力しなくても、信号の受信と表示はすべてそのまま使えます。「推定」の画面は、試験版（TestFlight）で協力している人にだけ表示します。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Receiving and showing signals work the same if you do not share. The Estimates screen is shown only in the test version (TestFlight), to those who share."
+          }
+        }
+      }
+    },
     "協力する": {
       "localizations": {
         "en": {
@@ -1077,6 +1127,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Observations being collected"
+          }
+        }
+      }
+    },
+    "受け取ったデータからは、交差点の信号ごとの周期と青になる時刻をまとめた時刻表も作り、実測データの提供に協力している人の試験版（TestFlight）のアプリに「推定」として示します。時刻表に個々の利用者の情報は含まれません。協力をやめると、端末に保存した時刻表は削除します。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The received data is also used to build timing plans with the cycle and green start time of each signal, which are shown as estimates in the test version (TestFlight) of the app of everyone who shares field data. The timing plans contain no information about individual users. When you stop sharing, the timing plans stored on your device are deleted."
           }
         }
       }
@@ -1157,6 +1217,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Receiving"
+          }
+        }
+      }
+    },
+    "受信中の信号をご覧ください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See the signal being received."
           }
         }
       }
@@ -1371,6 +1441,96 @@
         }
       }
     },
+    "推定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimates"
+          }
+        }
+      }
+    },
+    "推定、%@、%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimate, %@, %@"
+          }
+        }
+      }
+    },
+    "推定、%@、%@、この時間帯の推定はありません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimate, %@, %@, no estimate for this time"
+          }
+        }
+      }
+    },
+    "推定、%@、%@、次の青の始まり、およそ %lld〜%lld 秒後": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimate, %@, %@, next start of green in about %lld to %lld seconds"
+          }
+        }
+      }
+    },
+    "推定は、集まった実測データから求めた信号の周期と青の始まりの時刻（時刻表）からの計算です。周期が決まっていない信号や、祝日・年末年始には出ません。受信した信号と 5 秒より大きくずれた時間帯は、その日のうちは出しません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimates are calculated from timing plans: the signal cycles and the times green starts, worked out from shared field data. They are not shown for signals without a fixed cycle, on public holidays or over the New Year. A time period whose estimate was more than 5 seconds off a received signal is not shown for the rest of the day."
+          }
+        }
+      }
+    },
+    "推定は横断の判断に使えません。実際の信号と音響信号を必ず確かめてください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Never use estimates to decide when to cross. Always check the actual signal and the audible signal."
+          }
+        }
+      }
+    },
+    "時刻表が古いため推定を表示しません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No estimates are shown because the timing plans are out of date."
+          }
+        }
+      }
+    },
+    "時刻表の取得：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timing plans received: %@"
+          }
+        }
+      }
+    },
+    "時刻表をまだ受け取っていません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No timing plans received yet."
+          }
+        }
+      }
+    },
     "更新なし": {
       "localizations": {
         "en": {
@@ -1551,6 +1711,16 @@
         }
       }
     },
+    "次の青の始まり　およそ %lld〜%lld 秒後（推定）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next start of green: in about %lld–%lld s (estimate)"
+          }
+        }
+      }
+    },
     "止まれ": {
       "localizations": {
         "en": {
@@ -1617,6 +1787,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Status"
+          }
+        }
+      }
+    },
+    "現在地が分からないため推定を表示しません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No estimates are shown because your location is unknown"
           }
         }
       }
@@ -1757,6 +1937,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not recorded because the direction your device faces is unknown. Hold your iPhone flat, wait a moment and tap again."
+          }
+        }
+      }
+    },
+    "約 %@ km": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About %@ km"
+          }
+        }
+      }
+    },
+    "約 %lld m": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About %lld m"
           }
         }
       }
@@ -1997,6 +2197,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Red. Stop"
+          }
+        }
+      }
+    },
+    "近くに時刻表のある交差点はありません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No intersection with timing plans nearby."
+          }
+        }
+      }
+    },
+    "送信した時刻（端末の時計が合っているかを確かめるためだけに使い、サーバーは保存しません）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The time of sending (used only to check that your device’s clock is right; the server does not store it)"
           }
         }
       }

@@ -22,6 +22,9 @@ enum SettingsKey {
     /// (`SlotPreferences` as JSON).
     static let slotPreferences = "slotPreferences"
     static let recordingEnabled = "recordingEnabled"
+    /// Timing plan cells whose estimate is stopped for the rest of a JST day after a live change from
+    /// Red to Green did not match them (`StoppedTimingCells` as JSON). On this device only.
+    static let timingStoppedCells = "timingStoppedCells"
 }
 
 /// The user's choice on the field-data consent page. There is deliberately no default answer.
@@ -32,8 +35,10 @@ enum CollectionConsent: String, CaseIterable, Sendable {
 
     /// Version of what is collected (`CollectionDetails`). Raise it whenever more data is sent; users
     /// who agreed to an older version are asked again, and nothing is collected until they answer.
-    /// 1 = report schema 1 (0.1.0), 2 = report schema 2, 3 = report schema 3 (motion activity).
-    static let currentVersion = 3
+    /// 1 = report schema 1 (0.1.0), 2 = report schema 2, 3 = report schema 3 (motion activity),
+    /// 4 = report schema 4 (send time and 0.1 s change times; the data is also used for the signal
+    /// timing estimates shown to contributors).
+    static let currentVersion = 4
 }
 
 /// How signal colours are drawn. Shapes and text are always shown in every mode.
