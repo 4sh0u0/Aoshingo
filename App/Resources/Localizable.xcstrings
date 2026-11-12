@@ -31,6 +31,16 @@
         }
       }
     },
+    "%lld 番の設定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No. %lld Settings"
+          }
+        }
+      }
+    },
     "%lld 番を記録しました（%@向き）": {
       "localizations": {
         "en": {
@@ -181,6 +191,26 @@
         }
       }
     },
+    "「%lld 番」の代わりに表示し、読み上げます。渡る方向で名付けると分かりやすくなります（例：「南北に渡る」「駅の方へ」）。読みを入れると、読み上げには読みを使います。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shown and spoken instead of “No. %lld”. Naming it after the direction you cross makes it easy to recognize (for example “North–south” or “Toward the station”). When a pronunciation is entered, it is used for speech."
+          }
+        }
+      }
+    },
+    "「この信号を知らせる」をオフにすると、この信号は読み上げず、音も振動も鳴らさず、ほかの信号の下にたたんで表示します。「青に変わったときも知らせる」は、自分が渡る横断歩道の信号だと現地で確かめた場合だけオンにしてください。オンにすると、VoiceOver のフォーカスの位置にかかわらず、青に変わったことも読み上げます。表示も読み上げも補助情報です。必ず実際の信号と周囲の安全を確認してください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When “Announce This Signal” is off, this signal is not announced, plays no sound or vibration, and is shown folded below the other signals. Turn on “Also Announce Changes to Green” only after checking on the spot that this is the signal of the crossing you use. When on, a change to green is also announced, wherever the VoiceOver focus is. What is shown and spoken is supplementary information. Always check the actual signal and your surroundings."
+          }
+        }
+      }
+    },
     "「残り目安」は 8 段階の目安で、秒数ではありません。": {
       "localizations": {
         "en": {
@@ -241,6 +271,16 @@
         }
       }
     },
+    "ここでの設定は、この交差点のこの信号だけに使います。設定はこの端末にだけ保存し、送信しません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These settings apply only to this signal of this intersection. They are stored on this device only and never sent."
+          }
+        }
+      }
+    },
     "このビルドには送信先が設定されていないため、実測データを提供できません。": {
       "localizations": {
         "en": {
@@ -251,12 +291,62 @@
         }
       }
     },
+    "この交差点の信号は、すべて「知らせる」をオフにしています。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Announcements are turned off for every signal of this intersection."
+          }
+        }
+      }
+    },
     "この交差点の信号データには使用中の信号がありません。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "The signal data of this intersection contains no signals in use."
+          }
+        }
+      }
+    },
+    "この信号の設定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings for This Signal"
+          }
+        }
+      }
+    },
+    "この信号の設定を元に戻す": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset This Signal"
+          }
+        }
+      }
+    },
+    "この信号を知らせる": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Announce This Signal"
+          }
+        }
+      }
+    },
+    "この信号を知らせるときに、読み上げの前に鳴らします。音か振動を選んだ信号は、設定の「すべての信号の青点滅・赤を読み上げる」がオフでも、青点滅・赤などに変わったことを知らせます。音は消音モードでも鳴ります。ほかの交差点で渡る信号にも同じ音を選んでおくと、自分が渡る信号を音で聞き分けられます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Played before this signal is announced. A signal with a sound or vibration is announced when it changes to flashing green, red and the like, even when “Announce Flashing Green and Red for All Signals” is off in Settings. The sound plays even in silent mode. Choosing the same sound for the signals you cross at other intersections lets you recognize your signal by its sound."
           }
         }
       }
@@ -281,6 +371,16 @@
         }
       }
     },
+    "この端末は振動に対応していません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This device cannot vibrate."
+          }
+        }
+      }
+    },
     "これは開発中の試験版（pre-alpha）です。": {
       "localizations": {
         "en": {
@@ -291,12 +391,32 @@
         }
       }
     },
+    "すべての交差点の信号の名前、知らせ方、音、振動が元に戻ります。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The names, announcements, sounds and vibrations of the signals at every intersection return to their defaults."
+          }
+        }
+      }
+    },
     "すべての信号の青点滅・赤を読み上げる": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Announce Flashing Green and Red for All Signals"
+          }
+        }
+      }
+    },
+    "すべて消去": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset All"
           }
         }
       }
@@ -351,12 +471,12 @@
         }
       }
     },
-    "オンにすると、表示中の交差点のどの信号でも、青点滅・赤・信号なしに変わったときと受信が途切れたときに、VoiceOver のフォーカスの位置にかかわらず読み上げます。青に変わったことは、フォーカスしている信号だけ読み上げます。オフにすると、フォーカスしている信号の変化だけを読み上げます。": {
+    "オンにすると、表示中の交差点のどの信号でも、青点滅・赤・信号なしに変わったときと受信が途切れたときに、VoiceOver のフォーカスの位置にかかわらず読み上げます。青に変わったことは、フォーカスしている信号と、「青に変わったときも知らせる」をオンにした信号だけ読み上げます。オフにすると、フォーカスしている信号と、音や振動を選んだ信号、「青に変わったときも知らせる」をオンにした信号の変化だけを読み上げます。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When on, VoiceOver announces any signal of the shown intersection that changes to flashing green, red or no signal, and any break in reception, wherever the focus is. A change to green is announced only for the focused signal. When off, only changes of the focused signal are announced."
+            "value": "When on, VoiceOver announces any signal of the shown intersection that changes to flashing green, red or no signal, and any break in reception, wherever the focus is. A change to green is announced only for the focused signal and for signals with “Also Announce Changes to Green” on. When off, only changes of the focused signal, of signals with a sound or vibration, and of signals with “Also Announce Changes to Green” on are announced."
           }
         }
       }
@@ -431,6 +551,16 @@
         }
       }
     },
+    "ドミソ（上がる 3 音）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do-Mi-So (three rising notes)"
+          }
+        }
+      }
+    },
     "バージョン": {
       "localizations": {
         "en": {
@@ -457,6 +587,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Header too short (%lld bytes)"
+          }
+        }
+      }
+    },
+    "ボン（低い音）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bong (low tone)"
+          }
+        }
+      }
+    },
+    "ポポポ（短く 3 回）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pip-Pip-Pip (three short)"
+          }
+        }
+      }
+    },
+    "ポーン（高い音）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ding (high tone)"
           }
         }
       }
@@ -521,6 +681,16 @@
         }
       }
     },
+    "交差点 ID": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intersection ID"
+          }
+        }
+      }
+    },
     "交差点 ID %@": {
       "localizations": {
         "en": {
@@ -551,6 +721,16 @@
         }
       }
     },
+    "交差点名": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intersection"
+          }
+        }
+      }
+    },
     "今すぐ送信": {
       "localizations": {
         "en": {
@@ -571,6 +751,66 @@
         }
       }
     },
+    "例：えきのほうへわたる": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How VoiceOver should say the name"
+          }
+        }
+      }
+    },
+    "例：駅の方へ渡る": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. Toward the station"
+          }
+        }
+      }
+    },
+    "信号": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signal"
+          }
+        }
+      }
+    },
+    "信号ごとの設定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per-Signal Settings"
+          }
+        }
+      }
+    },
+    "信号ごとの設定をすべて消去": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset All Signal Settings"
+          }
+        }
+      }
+    },
+    "信号ごとの設定をすべて消去しますか？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset all signal settings?"
+          }
+        }
+      }
+    },
     "信号なし": {
       "localizations": {
         "en": {
@@ -587,6 +827,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "No signal. Check the actual signal"
+          }
+        }
+      }
+    },
+    "信号の名前、知らせ方、音、振動は、交差点の画面で各信号の設定ボタン（VoiceOver ではアクション）から変えられます。この端末にだけ保存し、送信しません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change a signal’s name, announcements, sound and vibration with its settings button on the intersection screen (with VoiceOver, its actions). They are stored on this device only and never sent."
           }
         }
       }
@@ -941,6 +1191,16 @@
         }
       }
     },
+    "名前": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      }
+    },
     "名称未受信": {
       "localizations": {
         "en": {
@@ -1097,6 +1357,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Records the time you pressed the push button"
+          }
+        }
+      }
+    },
+    "振動": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibration"
           }
         }
       }
@@ -1381,12 +1651,12 @@
         }
       }
     },
-    "番号は信号データ内の並び順です。どの横断歩道の信号かはまだ確認できていません。": {
+    "番号は信号データ内の並び順で、どの横断歩道の信号かは分かりません。現地で確かめた信号には、各信号の設定ボタンから名前を付け、知らせ方や音を変えられます。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Numbers are the order within the signal data. Which crossing each number belongs to has not been confirmed yet."
+            "value": "Numbers are the order in the signal data and do not tell which crossing a signal is for. For a signal you have checked on the spot, use its settings button to give it a name and change how it is announced and its sound."
           }
         }
       }
@@ -1407,6 +1677,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Signal history, last 30 s (up to 5)"
+          }
+        }
+      }
+    },
+    "知らせない信号：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not announced: %@"
+          }
+        }
+      }
+    },
+    "知らせ方": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Announcements"
+          }
+        }
+      }
+    },
+    "短く 2 回": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Two short"
+          }
+        }
+      }
+    },
+    "短く 3 回": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Three short"
           }
         }
       }
@@ -1591,6 +1901,16 @@
         }
       }
     },
+    "設定した交差点": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intersections Set Up"
+          }
+        }
+      }
+    },
     "設定を開く": {
       "localizations": {
         "en": {
@@ -1607,6 +1927,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Allow Aoshingo to use Bluetooth in the Settings app."
+          }
+        }
+      }
+    },
+    "試しに鳴らす": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play Sample"
+          }
+        }
+      }
+    },
+    "読み（任意）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pronunciation (optional)"
           }
         }
       }
@@ -1731,6 +2071,16 @@
         }
       }
     },
+    "長く 1 回": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One long"
+          }
+        }
+      }
+    },
     "閉じる": {
       "localizations": {
         "en": {
@@ -1791,6 +2141,16 @@
         }
       }
     },
+    "青に変わったときも知らせる": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Also Announce Changes to Green"
+          }
+        }
+      }
+    },
     "青点滅": {
       "localizations": {
         "en": {
@@ -1817,6 +2177,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Blue-green and red, always with shapes and words."
+          }
+        }
+      }
+    },
+    "音": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sound"
+          }
+        }
+      }
+    },
+    "音と振動": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sound and Vibration"
           }
         }
       }
